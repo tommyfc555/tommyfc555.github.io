@@ -3,131 +3,243 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Your Name - Creative Portfolio</title>
-    <link rel="stylesheet" href="style.css">
-    <!-- Link to Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>Epic Experience</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            color: white;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Snowflake container */
+        #snowflakes {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .snowflake {
+            position: absolute;
+            top: -10px;
+            color: #fff;
+            font-size: 1em;
+            user-select: none;
+            pointer-events: none;
+            opacity: 0.8;
+        }
+
+        /* Picture frame */
+        .picture-frame {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            width: 300px;
+            height: 300px;
+            border: 4px solid #fff;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 
+                0 0 50px rgba(255, 255, 255, 0.3),
+                inset 0 0 50px rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+            animation: popUp 2s ease-out 1s forwards, glow 3s ease-in-out infinite 3s;
+        }
+
+        .picture-frame::before {
+            content: '';
+            position: absolute;
+            width: 280px;
+            height: 280px;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            animation: rotate 10s linear infinite;
+        }
+
+        .picture-content {
+            width: 250px;
+            height: 250px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 14px;
+            text-align: center;
+            padding: 20px;
+        }
+
+        /* Audio player (hidden but functional) */
+        #background-music {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Animations */
+        @keyframes popUp {
+            0% {
+                transform: translate(-50%, -50%) scale(0);
+                opacity: 0;
+            }
+            70% {
+                transform: translate(-50%, -50%) scale(1.1);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes glow {
+            0%, 100% {
+                box-shadow: 
+                    0 0 50px rgba(255, 255, 255, 0.3),
+                    inset 0 0 50px rgba(255, 255, 255, 0.1);
+            }
+            50% {
+                box-shadow: 
+                    0 0 80px rgba(255, 255, 255, 0.5),
+                    inset 0 0 60px rgba(255, 255, 255, 0.2);
+            }
+        }
+
+        @keyframes rotate {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Snowflake falling animation */
+        @keyframes fall {
+            to {
+                transform: translateY(100vh) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        /* Loading text */
+        .loading {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 18px;
+            z-index: 3;
+            animation: fadeInOut 2s ease-in-out infinite;
+        }
+
+        @keyframes fadeInOut {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+    </style>
 </head>
 <body>
-    <!-- Navigation -->
-    <nav class="navbar">
-        <div class="nav-container">
-            <div class="nav-logo">
-                <a href="#home">YourName</a>
-            </div>
-            <div class="nav-menu" id="nav-menu">
-                <a href="#home" class="nav-link">Home</a>
-                <a href="#about" class="nav-link">About</a>
-                <a href="#projects" class="nav-link">Projects</a>
-                <a href="#contact" class="nav-link">Contact</a>
-            </div>
-            <div class="hamburger" id="hamburger">
-                <span></span>
-                <span></span>
-                <span></span>
-            </div>
-        </div>
-    </nav>
+    <!-- Audio element -->
+    <audio id="background-music" autoplay loop>
+        <source src="https://cdn.discordapp.com/attachments/1415024144105603186/1429904241094299808/BETTER_VERSION_Better_Off_Alone_x_Clarity_x_Unlock_It_x_Alone..mp3?ex=68f7d599&is=68f68419&hm=399afc04c3ff594a6b80142a3a4a4c42dcee0653ecb2e3e1f46c30b0ce7d2a72&" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
 
-    <!-- Hero Section -->
-    <section id="home" class="hero">
-        <div class="hero-content">
-            <h1 class="hero-title">Hello, I'm <span class="highlight">Your Name</span></h1>
-            <p class="hero-subtitle">I create amazing digital experiences</p>
-            <div class="hero-buttons">
-                <button class="btn btn-primary" onclick="scrollToSection('projects')">View My Work</button>
-                <button class="btn btn-secondary" onclick="scrollToSection('contact')">Get In Touch</button>
-            </div>
-        </div>
-        <div class="scroll-indicator">
-            <i class="fas fa-chevron-down"></i>
-        </div>
-    </section>
+    <!-- Loading text -->
+    <div class="loading" id="loading">Loading Epic Experience...</div>
 
-    <!-- About Section -->
-    <section id="about" class="about">
-        <div class="container">
-            <h2 class="section-title">About Me</h2>
-            <div class="about-content">
-                <div class="about-text">
-                    <p>I'm a passionate developer who loves creating beautiful, functional websites. I enjoy turning complex problems into simple, beautiful designs.</p>
-                    <div class="skills">
-                        <span class="skill-tag">HTML/CSS</span>
-                        <span class="skill-tag">JavaScript</span>
-                        <span class="skill-tag">React</span>
-                        <span class="skill-tag">UI/UX Design</span>
-                        <span class="skill-tag">Git</span>
-                    </div>
-                </div>
-            </div>
+    <!-- Snowflake container -->
+    <div id="snowflakes"></div>
+
+    <!-- Picture frame -->
+    <div class="picture-frame">
+        <div class="picture-content">
+            Your Picture Goes Here<br>
+            <small>(Add your image in the CSS)</small>
         </div>
-    </section>
+    </div>
 
-    <!-- Projects Section -->
-    <section id="projects" class="projects">
-        <div class="container">
-            <h2 class="section-title">My Projects</h2>
-            <div class="projects-grid">
-                <div class="project-card">
-                    <div class="project-image">
-                        <div class="placeholder-image">Project 1</div>
-                    </div>
-                    <div class="project-info">
-                        <h3>Awesome Project</h3>
-                        <p>A brief description of what this project is about and what technologies you used.</p>
-                        <div class="project-links">
-                            <a href="#" class="project-link">Live Demo</a>
-                            <a href="#" class="project-link">Code</a>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="project-card">
-                    <div class="project-image">
-                        <div class="placeholder-image">Project 2</div>
-                    </div>
-                    <div class="project-info">
-                        <h3>Cool App</h3>
-                        <p>Another project description highlighting your skills and accomplishments.</p>
-                        <div class="project-links">
-                            <a href="#" class="project-link">Live Demo</a>
-                            <a href="#" class="project-link">Code</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
+    <script>
+        // Create snowflakes
+        function createSnowflakes() {
+            const snowflakesContainer = document.getElementById('snowflakes');
+            const snowflakeCount = 100;
+            
+            for (let i = 0; i < snowflakeCount; i++) {
+                setTimeout(() => {
+                    const snowflake = document.createElement('div');
+                    snowflake.className = 'snowflake';
+                    snowflake.innerHTML = '❄';
+                    
+                    // Random properties
+                    const size = Math.random() * 20 + 10;
+                    const left = Math.random() * 100;
+                    const duration = Math.random() * 10 + 5;
+                    const delay = Math.random() * 5;
+                    
+                    snowflake.style.left = left + 'vw';
+                    snowflake.style.fontSize = size + 'px';
+                    snowflake.style.animation = `fall ${duration}s linear ${delay}s infinite`;
+                    
+                    snowflakesContainer.appendChild(snowflake);
+                }, i * 100);
+            }
+        }
 
-    <!-- Contact Section -->
-    <section id="contact" class="contact">
-        <div class="container">
-            <h2 class="section-title">Get In Touch</h2>
-            <div class="contact-content">
-                <div class="contact-info">
-                    <p>I'm always interested in new opportunities and cool projects!</p>
-                    <div class="social-links">
-                        <a href="#" class="social-link"><i class="fab fa-github"></i></a>
-                        <a href="#" class="social-link"><i class="fab fa-linkedin"></i></a>
-                        <a href="#" class="social-link"><i class="fab fa-twitter"></i></a>
-                        <a href="#" class="social-link"><i class="fas fa-envelope"></i></a>
-                    </div>
-                </div>
-                <form class="contact-form" id="contact-form">
-                    <input type="text" placeholder="Your Name" required>
-                    <input type="email" placeholder="Your Email" required>
-                    <textarea placeholder="Your Message" rows="5" required></textarea>
-                    <button type="submit" class="btn btn-primary">Send Message</button>
-                </form>
-            </div>
-        </div>
-    </section>
+        // Auto-play music with user interaction
+        document.addEventListener('click', function() {
+            const music = document.getElementById('background-music');
+            if (music.paused) {
+                music.play().catch(e => console.log('Auto-play prevented:', e));
+            }
+        }, { once: true });
 
-    <!-- Footer -->
-    <footer class="footer">
-        <p>&copy; 2024 Your Name. Built with ❤️ and GitHub Pages.</p>
-    </footer>
+        // Try to auto-play on load
+        window.addEventListener('load', function() {
+            const music = document.getElementById('background-music');
+            music.play().catch(e => {
+                console.log('Auto-play prevented, waiting for user interaction');
+                document.getElementById('loading').textContent = 'Click anywhere to start the experience...';
+            });
+            
+            // Remove loading text after a delay
+            setTimeout(() => {
+                document.getElementById('loading').style.display = 'none';
+            }, 3000);
+        });
 
-    <script src="script.js"></script>
+        // Initialize snowflakes
+        createSnowflakes();
+
+        // Add some random snowflake movement
+        setInterval(() => {
+            const snowflakes = document.querySelectorAll('.snowflake');
+            snowflakes.forEach(snowflake => {
+                const currentLeft = parseFloat(snowflake.style.left);
+                const drift = (Math.random() - 0.5) * 2;
+                const newLeft = Math.max(0, Math.min(100, currentLeft + drift));
+                snowflake.style.left = newLeft + 'vw';
+            });
+        }, 1000);
+    </script>
 </body>
 </html>
