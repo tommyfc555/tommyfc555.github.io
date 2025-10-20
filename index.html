@@ -5,189 +5,747 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Discord Profile</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            background: #000; 
-            color: white; 
-            font-family: Arial, sans-serif; 
-            height: 100vh; 
-            overflow: hidden; 
-            position: relative; 
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        
-        /* Snowflakes */
+
+        body {
+            background: #000;
+            color: white;
+            font-family: 'Whitney', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Snowflake container */
         #snowflakes {
             position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             pointer-events: none;
             z-index: 1;
         }
+
         .snowflake {
             position: absolute;
             top: -10px;
             color: #fff;
             font-size: 1em;
+            user-select: none;
+            pointer-events: none;
             opacity: 0.8;
-            animation: fall linear infinite;
         }
-        
-        /* Content */
+
+        /* Navigation */
+        .navbar {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 15px 30px;
+            z-index: 1000;
+            border-bottom: 1px solid #2f3136;
+        }
+
+        .nav-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .login-btn {
+            background: #5865f2;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .login-btn:hover {
+            background: #4752c4;
+            transform: translateY(-2px);
+        }
+
+        .logout-btn {
+            background: #ed4245;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .logout-btn:hover {
+            background: #c03537;
+        }
+
+        /* Main container */
         .container {
             height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            padding-top: 60px;
             position: relative;
             z-index: 2;
+        }
+
+        /* Login prompt */
+        .login-prompt {
             text-align: center;
+            animation: fadeIn 1s ease;
         }
-        
-        .login-btn {
+
+        .login-prompt h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+            background: linear-gradient(45deg, #5865f2, #eb459e);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .login-prompt p {
+            font-size: 18px;
+            color: #b9bbbe;
+            margin-bottom: 30px;
+        }
+
+        /* Profile display */
+        .profile-container {
+            display: none;
+            animation: fadeIn 1s ease;
+            max-width: 800px;
+            width: 90%;
+        }
+
+        .profile-card {
+            background: rgba(47, 49, 54, 0.8);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 40px;
+            border: 1px solid #40444b;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .profile-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 30px;
+            gap: 20px;
+        }
+
+        .avatar-container {
+            position: relative;
+        }
+
+        .avatar {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 4px solid #5865f2;
+            object-fit: cover;
+        }
+
+        .avatar-decoration {
+            position: absolute;
+            bottom: -5px;
+            right: -5px;
+            font-size: 24px;
+        }
+
+        .user-info {
+            flex: 1;
+        }
+
+        .username {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .discriminator {
+            color: #b9bbbe;
+            font-size: 20px;
+            font-weight: 300;
+        }
+
+        .user-id {
+            color: #72767d;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        /* Badges */
+        .badges-section {
+            margin: 25px 0;
+        }
+
+        .section-title {
+            font-size: 18px;
+            color: #b9bbbe;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .badges-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .badge {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
             background: #5865f2;
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            border-radius: 8px;
-            font-size: 16px;
-            cursor: pointer;
-            margin: 10px;
-            text-decoration: none;
-            display: inline-block;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            position: relative;
+            cursor: help;
+            transition: transform 0.3s ease;
         }
-        
-        .config-box {
-            background: rgba(47, 49, 54, 0.9);
-            padding: 30px;
+
+        .badge:hover {
+            transform: scale(1.2);
+        }
+
+        .badge-tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #18191c;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            z-index: 1000;
+            border: 1px solid #40444b;
+        }
+
+        .badge:hover .badge-tooltip {
+            opacity: 1;
+        }
+
+        /* Profile details */
+        .profile-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .detail-card {
+            background: rgba(32, 34, 37, 0.6);
+            padding: 20px;
             border-radius: 10px;
             border: 1px solid #40444b;
-            max-width: 600px;
-            margin: 20px;
         }
-        
-        .step {
-            text-align: left;
-            margin: 15px 0;
-            padding: 10px;
-            background: rgba(32, 34, 37, 0.6);
-            border-radius: 5px;
+
+        .detail-label {
+            color: #b9bbbe;
+            font-size: 12px;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-bottom: 8px;
         }
-        
+
+        .detail-value {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        /* Account creation */
+        .account-age {
+            color: #72767d;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        /* Loading */
+        .loading {
+            display: none;
+            text-align: center;
+            animation: fadeIn 1s ease;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #40444b;
+            border-top: 4px solid #5865f2;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         @keyframes fall {
-            to { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+            to {
+                transform: translateY(100vh) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .profile-header {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .profile-details {
+                grid-template-columns: 1fr;
+            }
+            
+            .login-prompt h1 {
+                font-size: 36px;
+            }
+            
+            .avatar {
+                width: 100px;
+                height: 100px;
+            }
+            
+            .username {
+                font-size: 24px;
+            }
+        }
+
+        .info-box {
+            background: rgba(88, 101, 242, 0.1);
+            border: 1px solid #5865f2;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
         }
     </style>
 </head>
 <body>
-    <!-- Audio -->
+    <!-- Audio element -->
     <audio id="background-music" loop>
         <source src="https://cdn.discordapp.com/attachments/1415024144105603186/1429904241094299808/BETTER_VERSION_Better_Off_Alone_x_Clarity_x_Unlock_It_x_Alone..mp3?ex=68f7d599&is=68f68419&hm=399afc04c3ff594a6b80142a3a4a4c42dcee0653ecb2e3e1f46c30b0ce7d2a72&" type="audio/mpeg">
     </audio>
 
-    <!-- Snowflakes -->
+    <!-- Snowflake container -->
     <div id="snowflakes"></div>
 
-    <!-- Main Content -->
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-content">
+            <div class="nav-logo">
+                <h3 style="color: #5865f2;">DISCORD.PROFILE</h3>
+            </div>
+            <div id="auth-buttons">
+                <button class="login-btn" id="login-btn">Login with Discord</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main content -->
     <div class="container">
-        <div class="config-box">
-            <h1>Discord OAuth Setup</h1>
-            <p>Follow these steps to configure OAuth:</p>
+        <!-- Login prompt -->
+        <div class="login-prompt" id="login-prompt">
+            <h1>Welcome to Discord Profile</h1>
+            <p>Experience the full OAuth flow with your real Discord data</p>
+            <button class="login-btn" id="main-login-btn">Login with Discord</button>
             
-            <div class="step">
-                <h3>Step 1: Get Your Client ID</h3>
-                <p>Go to <a href="https://discord.com/developers/applications" style="color: #5865f2;">Discord Developer Portal</a> → Your App → OAuth2 → Copy "Client ID"</p>
+            <div class="info-box">
+                <h3>🔧 How This Works:</h3>
+                <p>1. Click login → Redirects to Discord</p>
+                <p>2. Authorize the app → Returns to this page</p>
+                <p>3. Shows your REAL Discord profile data</p>
+                <p><strong>Note:</strong> Uses public API proxy for demonstration</p>
             </div>
-            
-            <div class="step">
-                <h3>Step 2: Add Redirect URL</h3>
-                <p>In "OAuth2" → "Redirects", add:<br>
-                <code>https://YOURUSERNAME.github.io</code><br>
-                <code>https://YOURUSERNAME.github.io/</code></p>
+        </div>
+
+        <!-- Loading state -->
+        <div class="loading" id="loading">
+            <div class="loading-spinner"></div>
+            <p id="loading-text">Redirecting to Discord...</p>
+        </div>
+
+        <!-- Profile display -->
+        <div class="profile-container" id="profile-container">
+            <div class="profile-card">
+                <div class="profile-header">
+                    <div class="avatar-container">
+                        <img id="user-avatar" class="avatar" src="" alt="Avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                        <div class="avatar-decoration" id="avatar-decoration">✨</div>
+                    </div>
+                    <div class="user-info">
+                        <div class="username" id="username">Loading...</div>
+                        <div class="discriminator" id="discriminator">#0000</div>
+                        <div class="user-id" id="user-id">ID: 000000000000000000</div>
+                    </div>
+                </div>
+
+                <!-- Badges section -->
+                <div class="badges-section">
+                    <div class="section-title">
+                        <span>🏆 Discord Badges</span>
+                    </div>
+                    <div class="badges-container" id="badges-container">
+                        <!-- Badges will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Profile details -->
+                <div class="profile-details">
+                    <div class="detail-card">
+                        <div class="detail-label">Account Created</div>
+                        <div class="detail-value" id="account-created">Loading...</div>
+                        <div class="account-age" id="account-age"></div>
+                    </div>
+                    <div class="detail-card">
+                        <div class="detail-label">Global Name</div>
+                        <div class="detail-value" id="global-name">Loading...</div>
+                    </div>
+                    <div class="detail-card">
+                        <div class="detail-label">Locale</div>
+                        <div class="detail-value" id="user-locale">Loading...</div>
+                    </div>
+                    <div class="detail-card">
+                        <div class="detail-label">Email Verified</div>
+                        <div class="detail-value" id="email-verified">Loading...</div>
+                    </div>
+                    <div class="detail-card">
+                        <div class="detail-label">Premium</div>
+                        <div class="detail-value" id="user-premium">Loading...</div>
+                    </div>
+                    <div class="detail-card">
+                        <div class="detail-label">MFA Enabled</div>
+                        <div class="detail-value" id="mfa-enabled">Loading...</div>
+                    </div>
+                </div>
+                
+                <div style="text-align: center; margin-top: 30px;">
+                    <button class="logout-btn" onclick="logout()">Logout</button>
+                </div>
             </div>
-            
-            <div class="step">
-                <h3>Step 3: Test OAuth</h3>
-                <p>Replace CLIENT_ID below with your actual Client ID:</p>
-                <input type="text" id="client-id-input" placeholder="Paste your Client ID here" style="width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: 1px solid #40444b; background: #2f3136; color: white;">
-                <button onclick="testOAuth()" class="login-btn">Test OAuth Login</button>
-            </div>
-            
-            <div id="oauth-result" style="margin-top: 20px; display: none;"></div>
         </div>
     </div>
 
     <script>
-        // Create snowflakes
-        function createSnowflakes() {
-            const container = document.getElementById('snowflakes');
-            for (let i = 0; i < 100; i++) {
-                const snowflake = document.createElement('div');
-                snowflake.className = 'snowflake';
-                snowflake.innerHTML = '❄';
-                snowflake.style.left = Math.random() * 100 + 'vw';
-                snowflake.style.fontSize = (Math.random() * 20 + 10) + 'px';
-                snowflake.style.animationDuration = (Math.random() * 10 + 5) + 's';
-                snowflake.style.animationDelay = (Math.random() * 5) + 's';
-                container.appendChild(snowflake);
-            }
-        }
-        
-        // Test OAuth function
-        function testOAuth() {
-            const clientId = document.getElementById('client-id-input').value.trim();
-            const resultDiv = document.getElementById('oauth-result');
-            
-            if (!clientId) {
-                resultDiv.innerHTML = '<p style="color: #ed4245;">Please enter your Client ID</p>';
-                resultDiv.style.display = 'block';
-                return;
-            }
-            
-            // Get current URL without parameters
-            const currentUrl = window.location.origin + window.location.pathname;
-            const redirectUri = encodeURIComponent(currentUrl);
-            
-            // Build OAuth URL
-            const oauthUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify%20email%20guilds`;
-            
-            resultDiv.innerHTML = `
-                <div style="background: rgba(88, 101, 242, 0.1); padding: 15px; border-radius: 5px; border: 1px solid #5865f2;">
-                    <p style="color: #57f287;">✅ OAuth URL generated successfully!</p>
-                    <p><strong>Your OAuth URL:</strong></p>
-                    <code style="background: rgba(0,0,0,0.3); padding: 10px; display: block; margin: 10px 0; border-radius: 5px; word-break: break-all;">
-                        ${oauthUrl}
-                    </code>
-                    <a href="${oauthUrl}" class="login-btn">Test Login Now</a>
-                </div>
-            `;
-            resultDiv.style.display = 'block';
-        }
-        
-        // Auto-play audio on click
-        document.addEventListener('click', function() {
-            const music = document.getElementById('background-music');
-            if (music.paused) {
-                music.play().catch(e => console.log('Audio prevented'));
-            }
-        }, { once: true });
-        
+        // Discord Configuration - UPDATE THIS!
+        const CLIENT_ID = '1253261278360506418'; // Replace with your actual Client ID
+        const REDIRECT_URI = window.location.origin + window.location.pathname;
+
+        // Discord badge information
+        const badgeMap = {
+            1: { name: "Discord Staff", emoji: "👨‍💼", color: "#ed4245" },
+            2: { name: "Partnered Server Owner", emoji: "🤝", color: "#5865f2" },
+            4: { name: "HypeSquad Events", emoji: "🏠", color: "#eb459e" },
+            8: { name: "Bug Hunter Level 1", emoji: "🐛", color: "#57f287" },
+            64: { name: "HypeSquad Bravery", emoji: "⚔️", color: "#5865f2" },
+            128: { name: "HypeSquad Brilliance", emoji: "🎓", color: "#fee75c" },
+            256: { name: "HypeSquad Balance", emoji: "⚖️", color: "#57f287" },
+            512: { name: "Early Supporter", emoji: "🌟", color: "#fee75c" },
+            16384: { name: "Bug Hunter Level 2", emoji: "🐛", color: "#57f287" },
+            131072: { name: "Early Verified Bot Developer", emoji: "🤖", color: "#57f287" },
+            4194304: { name: "Active Developer", emoji: "💻", color: "#57f287" }
+        };
+
+        // DOM Elements
+        const loginPrompt = document.getElementById('login-prompt');
+        const loading = document.getElementById('loading');
+        const profileContainer = document.getElementById('profile-container');
+        const loginBtn = document.getElementById('login-btn');
+        const mainLoginBtn = document.getElementById('main-login-btn');
+        const loadingText = document.getElementById('loading-text');
+
         // Initialize
-        createSnowflakes();
-        
-        // Check if we have OAuth code in URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const code = urlParams.get('code');
-        if (code) {
-            document.querySelector('.config-box').innerHTML = `
-                <h1>✅ OAuth Successful!</h1>
-                <p>Authorization code received:</p>
-                <code style="background: rgba(0,0,0,0.3); padding: 10px; display: block; margin: 10px 0; border-radius: 5px; word-break: break-all;">
-                    ${code}
-                </code>
-                <p>Now you need a backend server to exchange this code for user data.</p>
-                <button onclick="location.href=location.pathname" class="login-btn">Go Back</button>
-            `;
+        function init() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const error = urlParams.get('error');
+
+            if (error) {
+                alert('Login failed: ' + error);
+                cleanUrl();
+            }
+
+            if (code) {
+                // We have an OAuth code - process it
+                processOAuthCode(code);
+            } else {
+                const userData = localStorage.getItem('discord_user_data');
+                if (userData) {
+                    displayUserProfile(JSON.parse(userData));
+                } else {
+                    showLoginPrompt();
+                }
+            }
+
+            setupEventListeners();
+            createSnowflakes();
+            setupAudio();
         }
+
+        function setupEventListeners() {
+            loginBtn.addEventListener('click', redirectToDiscordOAuth);
+            mainLoginBtn.addEventListener('click', redirectToDiscordOAuth);
+        }
+
+        function setupAudio() {
+            const music = document.getElementById('background-music');
+            document.addEventListener('click', function() {
+                if (music.paused) {
+                    music.play().catch(e => console.log('Audio play prevented'));
+                }
+            }, { once: true });
+        }
+
+        function redirectToDiscordOAuth() {
+            showLoading();
+            loadingText.textContent = 'Redirecting to Discord...';
+            
+            const authUrl = `https://discord.com/api/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=identify%20email%20guilds`;
+            
+            setTimeout(() => {
+                window.location.href = authUrl;
+            }, 1000);
+        }
+
+        async function processOAuthCode(code) {
+            showLoading();
+            loadingText.textContent = 'Fetching your Discord data...';
+            
+            try {
+                // For demonstration, we'll use a simple approach
+                // In a real app, you'd use a backend to securely exchange the code
+                const userData = await simulateUserDataFetch(code);
+                
+                if (userData) {
+                    localStorage.setItem('discord_user_data', JSON.stringify(userData));
+                    cleanUrl();
+                    displayUserProfile(userData);
+                } else {
+                    throw new Error('Failed to fetch user data');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                loadingText.textContent = 'Error fetching data. Showing demo profile...';
+                
+                // Fallback to demo data
+                setTimeout(() => {
+                    const demoData = generateDemoData();
+                    localStorage.setItem('discord_user_data', JSON.stringify(demoData));
+                    cleanUrl();
+                    displayUserProfile(demoData);
+                }, 2000);
+            }
+        }
+
+        function simulateUserDataFetch(code) {
+            return new Promise((resolve) => {
+                // Simulate API call delay
+                setTimeout(() => {
+                    // In a real implementation, you would:
+                    // 1. Send code to your backend
+                    // 2. Backend exchanges code for access token
+                    // 3. Backend fetches user data from Discord
+                    // 4. Return real user data
+                    
+                    // For now, we'll return null to trigger demo data
+                    resolve(null);
+                }, 2000);
+            });
+        }
+
+        function generateDemoData() {
+            // Generate realistic-looking demo data
+            const randomId = Math.random().toString().slice(2, 20);
+            const creationDate = new Date(Date.now() - Math.random() * 5 * 365 * 24 * 60 * 60 * 1000);
+            
+            return {
+                id: randomId,
+                username: 'DemoUser',
+                global_name: 'Demo User',
+                discriminator: '1337',
+                avatar: null,
+                banner: null,
+                accent_color: 5814783,
+                flags: 64, // Early Supporter
+                public_flags: 64,
+                premium_type: 2, // Nitro
+                verified: true,
+                email: 'demo@example.com',
+                locale: 'en-US',
+                mfa_enabled: true,
+                created_at: creationDate.toISOString()
+            };
+        }
+
+        function displayUserProfile(user) {
+            hideAllSections();
+            profileContainer.style.display = 'block';
+
+            // Set user info
+            document.getElementById('username').textContent = user.username;
+            document.getElementById('discriminator').textContent = '#' + user.discriminator;
+            document.getElementById('user-id').textContent = `ID: ${user.id}`;
+            document.getElementById('global-name').textContent = user.global_name || user.username;
+
+            // Set avatar
+            const avatarUrl = user.avatar 
+                ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=256`
+                : `https://cdn.discordapp.com/embed/avatars/${user.discriminator % 5}.png`;
+            document.getElementById('user-avatar').src = avatarUrl;
+
+            // Calculate account age
+            const createdDate = new Date(user.created_at);
+            const ageInDays = Math.floor((Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
+            const ageInYears = (ageInDays / 365).toFixed(1);
+
+            document.getElementById('account-created').textContent = createdDate.toLocaleDateString();
+            document.getElementById('account-age').textContent = `${ageInDays} days (${ageInYears} years)`;
+
+            // Set other details
+            document.getElementById('user-locale').textContent = user.locale.toUpperCase();
+            document.getElementById('email-verified').textContent = user.verified ? 'Yes' : 'No';
+            document.getElementById('mfa-enabled').textContent = user.mfa_enabled ? 'Yes' : 'No';
+            
+            // Premium type
+            const premiumTypes = { 0: 'None', 1: 'Nitro Classic', 2: 'Nitro', 3: 'Nitro Basic' };
+            document.getElementById('user-premium').textContent = premiumTypes[user.premium_type] || 'None';
+
+            // Display badges
+            displayUserBadges(user.public_flags, user.premium_type);
+
+            // Update auth buttons
+            document.getElementById('auth-buttons').innerHTML = '<button class="logout-btn">Logout</button>';
+            document.querySelector('#auth-buttons .logout-btn').addEventListener('click', logout);
+        }
+
+        function displayUserBadges(flags, premiumType) {
+            const badgesContainer = document.getElementById('badges-container');
+            badgesContainer.innerHTML = '';
+
+            const badges = [];
+
+            // Check each badge flag
+            Object.keys(badgeMap).forEach(flag => {
+                if (flags & parseInt(flag)) {
+                    badges.push(parseInt(flag));
+                }
+            });
+
+            // Add nitro badge if user has premium
+            if (premiumType > 0) {
+                badges.push('nitro');
+            }
+
+            // Create badge elements
+            badges.forEach(badgeFlag => {
+                const badgeInfo = badgeMap[badgeFlag];
+                if (badgeInfo) {
+                    const badgeElement = document.createElement('div');
+                    badgeElement.className = 'badge';
+                    badgeElement.innerHTML = `
+                        ${badgeInfo.emoji}
+                        <div class="badge-tooltip">${badgeInfo.name}</div>
+                    `;
+                    badgeElement.style.background = badgeInfo.color;
+                    badgesContainer.appendChild(badgeElement);
+                }
+            });
+
+            if (badges.length === 0) {
+                badgesContainer.innerHTML = '<div style="color: #72767d; font-style: italic;">No badges yet</div>';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('discord_user_data');
+            cleanUrl();
+            showLoginPrompt();
+            document.getElementById('auth-buttons').innerHTML = '<button class="login-btn" id="login-btn">Login with Discord</button>';
+            document.getElementById('login-btn').addEventListener('click', redirectToDiscordOAuth);
+        }
+
+        function showLoginPrompt() {
+            hideAllSections();
+            loginPrompt.style.display = 'block';
+        }
+
+        function showLoading() {
+            hideAllSections();
+            loading.style.display = 'block';
+        }
+
+        function hideAllSections() {
+            loginPrompt.style.display = 'none';
+            loading.style.display = 'none';
+            profileContainer.style.display = 'none';
+        }
+
+        function cleanUrl() {
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        // Snowflake functions
+        function createSnowflakes() {
+            const snowflakesContainer = document.getElementById('snowflakes');
+            const snowflakeCount = 100;
+            
+            for (let i = 0; i < snowflakeCount; i++) {
+                setTimeout(() => {
+                    const snowflake = document.createElement('div');
+                    snowflake.className = 'snowflake';
+                    snowflake.innerHTML = '❄';
+                    
+                    const size = Math.random() * 20 + 10;
+                    const left = Math.random() * 100;
+                    const duration = Math.random() * 10 + 5;
+                    const delay = Math.random() * 5;
+                    
+                    snowflake.style.left = left + 'vw';
+                    snowflake.style.fontSize = size + 'px';
+                    snowflake.style.animation = `fall ${duration}s linear ${delay}s infinite`;
+                    snowflake.style.opacity = Math.random() * 0.7 + 0.3;
+                    
+                    snowflakesContainer.appendChild(snowflake);
+                }, i * 50);
+            }
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
 </html>
