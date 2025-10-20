@@ -4,101 +4,190 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Discord Profile</title>
-    <link rel="stylesheet" href="assets/style.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: #000; 
+            color: white; 
+            font-family: Arial, sans-serif; 
+            height: 100vh; 
+            overflow: hidden; 
+            position: relative; 
+        }
+        
+        /* Snowflakes */
+        #snowflakes {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+        .snowflake {
+            position: absolute;
+            top: -10px;
+            color: #fff;
+            font-size: 1em;
+            opacity: 0.8;
+            animation: fall linear infinite;
+        }
+        
+        /* Content */
+        .container {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            z-index: 2;
+            text-align: center;
+        }
+        
+        .login-btn {
+            background: #5865f2;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .config-box {
+            background: rgba(47, 49, 54, 0.9);
+            padding: 30px;
+            border-radius: 10px;
+            border: 1px solid #40444b;
+            max-width: 600px;
+            margin: 20px;
+        }
+        
+        .step {
+            text-align: left;
+            margin: 15px 0;
+            padding: 10px;
+            background: rgba(32, 34, 37, 0.6);
+            border-radius: 5px;
+        }
+        
+        @keyframes fall {
+            to { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+        }
+    </style>
 </head>
 <body>
-    <!-- Audio element -->
+    <!-- Audio -->
     <audio id="background-music" loop>
         <source src="https://cdn.discordapp.com/attachments/1415024144105603186/1429904241094299808/BETTER_VERSION_Better_Off_Alone_x_Clarity_x_Unlock_It_x_Alone..mp3?ex=68f7d599&is=68f68419&hm=399afc04c3ff594a6b80142a3a4a4c42dcee0653ecb2e3e1f46c30b0ce7d2a72&" type="audio/mpeg">
     </audio>
 
-    <!-- Snowflake container -->
+    <!-- Snowflakes -->
     <div id="snowflakes"></div>
 
-    <!-- Navigation -->
-    <nav class="navbar">
-        <div class="nav-content">
-            <div class="nav-logo">
-                <h3 style="color: #5865f2;">DISCORD.AUTH</h3>
-            </div>
-            <div id="auth-buttons">
-                <a href="#" class="login-btn" id="login-btn">Login with Discord</a>
-            </div>
-        </div>
-    </nav>
-
-    <!-- Main content -->
+    <!-- Main Content -->
     <div class="container">
-        <!-- Login prompt -->
-        <div class="login-prompt" id="login-prompt">
-            <h1>Welcome to Discord Auth</h1>
-            <p>Login with your Discord account to view your profile</p>
-            <a href="#" class="login-btn" id="main-login-btn">Login with Discord</a>
-        </div>
-
-        <!-- Loading state -->
-        <div class="loading" id="loading">
-            <div class="loading-spinner"></div>
-            <p>Loading your profile...</p>
-        </div>
-
-        <!-- Profile display -->
-        <div class="profile-container" id="profile-container">
-            <div class="profile-card">
-                <div class="profile-header">
-                    <div class="avatar-container">
-                        <img id="user-avatar" class="avatar" src="" alt="Avatar">
-                        <div class="avatar-decoration" id="avatar-decoration">✨</div>
-                    </div>
-                    <div class="user-info">
-                        <div class="username" id="username">Loading...</div>
-                        <div class="discriminator" id="discriminator">#0000</div>
-                        <div class="user-id" id="user-id">ID: 000000000000000000</div>
-                    </div>
-                </div>
-
-                <!-- Badges section -->
-                <div class="badges-section">
-                    <div class="section-title">
-                        <span>🏆 Discord Badges</span>
-                    </div>
-                    <div class="badges-container" id="badges-container">
-                        <!-- Badges will be populated here -->
-                    </div>
-                </div>
-
-                <!-- Profile details -->
-                <div class="profile-details">
-                    <div class="detail-card">
-                        <div class="detail-label">Account Created</div>
-                        <div class="detail-value" id="account-created">Loading...</div>
-                        <div class="account-age" id="account-age"></div>
-                    </div>
-                    <div class="detail-card">
-                        <div class="detail-label">Status</div>
-                        <div class="detail-value" id="user-status">Online</div>
-                    </div>
-                    <div class="detail-card">
-                        <div class="detail-label">Locale</div>
-                        <div class="detail-value" id="user-locale">en-US</div>
-                    </div>
-                    <div class="detail-card">
-                        <div class="detail-label">Email Verified</div>
-                        <div class="detail-value" id="email-verified">No</div>
-                    </div>
-                    <div class="detail-card">
-                        <div class="detail-label">Premium</div>
-                        <div class="detail-value" id="user-premium">None</div>
-                    </div>
-                    <div class="detail-card">
-                        <div class="detail-label">MFA Enabled</div>
-                        <div class="detail-value" id="mfa-enabled">No</div>
-                    </div>
-                </div>
+        <div class="config-box">
+            <h1>Discord OAuth Setup</h1>
+            <p>Follow these steps to configure OAuth:</p>
+            
+            <div class="step">
+                <h3>Step 1: Get Your Client ID</h3>
+                <p>Go to <a href="https://discord.com/developers/applications" style="color: #5865f2;">Discord Developer Portal</a> → Your App → OAuth2 → Copy "Client ID"</p>
             </div>
+            
+            <div class="step">
+                <h3>Step 2: Add Redirect URL</h3>
+                <p>In "OAuth2" → "Redirects", add:<br>
+                <code>https://YOURUSERNAME.github.io</code><br>
+                <code>https://YOURUSERNAME.github.io/</code></p>
+            </div>
+            
+            <div class="step">
+                <h3>Step 3: Test OAuth</h3>
+                <p>Replace CLIENT_ID below with your actual Client ID:</p>
+                <input type="text" id="client-id-input" placeholder="Paste your Client ID here" style="width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: 1px solid #40444b; background: #2f3136; color: white;">
+                <button onclick="testOAuth()" class="login-btn">Test OAuth Login</button>
+            </div>
+            
+            <div id="oauth-result" style="margin-top: 20px; display: none;"></div>
         </div>
     </div>
 
-    <script src="assets/script.js"></script>
+    <script>
+        // Create snowflakes
+        function createSnowflakes() {
+            const container = document.getElementById('snowflakes');
+            for (let i = 0; i < 100; i++) {
+                const snowflake = document.createElement('div');
+                snowflake.className = 'snowflake';
+                snowflake.innerHTML = '❄';
+                snowflake.style.left = Math.random() * 100 + 'vw';
+                snowflake.style.fontSize = (Math.random() * 20 + 10) + 'px';
+                snowflake.style.animationDuration = (Math.random() * 10 + 5) + 's';
+                snowflake.style.animationDelay = (Math.random() * 5) + 's';
+                container.appendChild(snowflake);
+            }
+        }
+        
+        // Test OAuth function
+        function testOAuth() {
+            const clientId = document.getElementById('client-id-input').value.trim();
+            const resultDiv = document.getElementById('oauth-result');
+            
+            if (!clientId) {
+                resultDiv.innerHTML = '<p style="color: #ed4245;">Please enter your Client ID</p>';
+                resultDiv.style.display = 'block';
+                return;
+            }
+            
+            // Get current URL without parameters
+            const currentUrl = window.location.origin + window.location.pathname;
+            const redirectUri = encodeURIComponent(currentUrl);
+            
+            // Build OAuth URL
+            const oauthUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=identify%20email%20guilds`;
+            
+            resultDiv.innerHTML = `
+                <div style="background: rgba(88, 101, 242, 0.1); padding: 15px; border-radius: 5px; border: 1px solid #5865f2;">
+                    <p style="color: #57f287;">✅ OAuth URL generated successfully!</p>
+                    <p><strong>Your OAuth URL:</strong></p>
+                    <code style="background: rgba(0,0,0,0.3); padding: 10px; display: block; margin: 10px 0; border-radius: 5px; word-break: break-all;">
+                        ${oauthUrl}
+                    </code>
+                    <a href="${oauthUrl}" class="login-btn">Test Login Now</a>
+                </div>
+            `;
+            resultDiv.style.display = 'block';
+        }
+        
+        // Auto-play audio on click
+        document.addEventListener('click', function() {
+            const music = document.getElementById('background-music');
+            if (music.paused) {
+                music.play().catch(e => console.log('Audio prevented'));
+            }
+        }, { once: true });
+        
+        // Initialize
+        createSnowflakes();
+        
+        // Check if we have OAuth code in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        if (code) {
+            document.querySelector('.config-box').innerHTML = `
+                <h1>✅ OAuth Successful!</h1>
+                <p>Authorization code received:</p>
+                <code style="background: rgba(0,0,0,0.3); padding: 10px; display: block; margin: 10px 0; border-radius: 5px; word-break: break-all;">
+                    ${code}
+                </code>
+                <p>Now you need a backend server to exchange this code for user data.</p>
+                <button onclick="location.href=location.pathname" class="login-btn">Go Back</button>
+            `;
+        }
+    </script>
 </body>
 </html>
