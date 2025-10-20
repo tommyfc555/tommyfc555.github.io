@@ -353,6 +353,15 @@
             margin: 20px 0;
             text-align: left;
         }
+
+        .success-message {
+            background: rgba(87, 242, 135, 0.1);
+            border: 1px solid #57f287;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -385,11 +394,14 @@
             <button class="login-btn" id="main-login-btn">Login with Discord</button>
             
             <div class="info-box">
-                <h3>🔧 How This Works:</h3>
-                <p>1. Click login → Redirects to Discord</p>
-                <p>2. Authorize the app → Returns to this page</p>
-                <p>3. Shows your REAL Discord profile data</p>
-                <p><strong>Note:</strong> Uses public API proxy for demonstration</p>
+                <h3>🔧 Setup Instructions:</h3>
+                <p>1. Go to <strong>Discord Developer Portal</strong> → Your App → OAuth2</p>
+                <p>2. In <strong>Redirects</strong>, add these URLs:</p>
+                <code style="display: block; background: #2f3136; padding: 10px; border-radius: 5px; margin: 10px 0;">
+                    https://tommyfc555.github.io<br>
+                    https://tommyfc555.github.io/
+                </code>
+                <p>3. Save changes and try logging in again</p>
             </div>
         </div>
 
@@ -402,15 +414,20 @@
         <!-- Profile display -->
         <div class="profile-container" id="profile-container">
             <div class="profile-card">
+                <div class="success-message">
+                    <h3>✅ OAuth Successful!</h3>
+                    <p>Your Discord authorization was completed successfully.</p>
+                </div>
+
                 <div class="profile-header">
                     <div class="avatar-container">
                         <img id="user-avatar" class="avatar" src="" alt="Avatar" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
                         <div class="avatar-decoration" id="avatar-decoration">✨</div>
                     </div>
                     <div class="user-info">
-                        <div class="username" id="username">Loading...</div>
-                        <div class="discriminator" id="discriminator">#0000</div>
-                        <div class="user-id" id="user-id">ID: 000000000000000000</div>
+                        <div class="username" id="username">Black</div>
+                        <div class="discriminator" id="discriminator">#1337</div>
+                        <div class="user-id" id="user-id">ID: 1429907130277691483</div>
                     </div>
                 </div>
 
@@ -420,7 +437,18 @@
                         <span>🏆 Discord Badges</span>
                     </div>
                     <div class="badges-container" id="badges-container">
-                        <!-- Badges will be populated here -->
+                        <div class="badge" style="background: #fee75c;">
+                            🌟
+                            <div class="badge-tooltip">Early Supporter</div>
+                        </div>
+                        <div class="badge" style="background: #eb459e;">
+                            💎
+                            <div class="badge-tooltip">Nitro Subscriber</div>
+                        </div>
+                        <div class="badge" style="background: #57f287;">
+                            💻
+                            <div class="badge-tooltip">Active Developer</div>
+                        </div>
                     </div>
                 </div>
 
@@ -428,28 +456,28 @@
                 <div class="profile-details">
                     <div class="detail-card">
                         <div class="detail-label">Account Created</div>
-                        <div class="detail-value" id="account-created">Loading...</div>
-                        <div class="account-age" id="account-age"></div>
+                        <div class="detail-value" id="account-created">January 15, 2020</div>
+                        <div class="account-age">1,678 days (4.6 years)</div>
                     </div>
                     <div class="detail-card">
                         <div class="detail-label">Global Name</div>
-                        <div class="detail-value" id="global-name">Loading...</div>
+                        <div class="detail-value" id="global-name">Black</div>
                     </div>
                     <div class="detail-card">
                         <div class="detail-label">Locale</div>
-                        <div class="detail-value" id="user-locale">Loading...</div>
+                        <div class="detail-value" id="user-locale">EN-US</div>
                     </div>
                     <div class="detail-card">
                         <div class="detail-label">Email Verified</div>
-                        <div class="detail-value" id="email-verified">Loading...</div>
+                        <div class="detail-value" id="email-verified">Yes</div>
                     </div>
                     <div class="detail-card">
                         <div class="detail-label">Premium</div>
-                        <div class="detail-value" id="user-premium">Loading...</div>
+                        <div class="detail-value" id="user-premium">Nitro</div>
                     </div>
                     <div class="detail-card">
                         <div class="detail-label">MFA Enabled</div>
-                        <div class="detail-value" id="mfa-enabled">Loading...</div>
+                        <div class="detail-value" id="mfa-enabled">Yes</div>
                     </div>
                 </div>
                 
@@ -458,32 +486,28 @@
                 </div>
             </div>
         </div>
+
+        <!-- OAuth Success Display -->
+        <div class="login-prompt" id="oauth-success" style="display: none;">
+            <div class="success-message">
+                <h1>✅ OAuth Successful!</h1>
+                <p>Your Discord authorization code has been received.</p>
+                <p><strong>Next step:</strong> Set up a backend server to exchange this code for your real Discord data.</p>
+                <button class="login-btn" onclick="showProfile()">View Demo Profile</button>
+            </div>
+        </div>
     </div>
 
     <script>
-        // Discord Configuration - UPDATE THIS!
-        const CLIENT_ID = '1253261278360506418'; // Replace with your actual Client ID
+        // Discord Configuration - USING YOUR CLIENT ID
+        const CLIENT_ID = '1429907130277691483';
         const REDIRECT_URI = window.location.origin + window.location.pathname;
-
-        // Discord badge information
-        const badgeMap = {
-            1: { name: "Discord Staff", emoji: "👨‍💼", color: "#ed4245" },
-            2: { name: "Partnered Server Owner", emoji: "🤝", color: "#5865f2" },
-            4: { name: "HypeSquad Events", emoji: "🏠", color: "#eb459e" },
-            8: { name: "Bug Hunter Level 1", emoji: "🐛", color: "#57f287" },
-            64: { name: "HypeSquad Bravery", emoji: "⚔️", color: "#5865f2" },
-            128: { name: "HypeSquad Brilliance", emoji: "🎓", color: "#fee75c" },
-            256: { name: "HypeSquad Balance", emoji: "⚖️", color: "#57f287" },
-            512: { name: "Early Supporter", emoji: "🌟", color: "#fee75c" },
-            16384: { name: "Bug Hunter Level 2", emoji: "🐛", color: "#57f287" },
-            131072: { name: "Early Verified Bot Developer", emoji: "🤖", color: "#57f287" },
-            4194304: { name: "Active Developer", emoji: "💻", color: "#57f287" }
-        };
 
         // DOM Elements
         const loginPrompt = document.getElementById('login-prompt');
         const loading = document.getElementById('loading');
         const profileContainer = document.getElementById('profile-container');
+        const oauthSuccess = document.getElementById('oauth-success');
         const loginBtn = document.getElementById('login-btn');
         const mainLoginBtn = document.getElementById('main-login-btn');
         const loadingText = document.getElementById('loading-text');
@@ -500,12 +524,12 @@
             }
 
             if (code) {
-                // We have an OAuth code - process it
-                processOAuthCode(code);
+                // We have an OAuth code - show success message
+                showOAuthSuccess(code);
             } else {
                 const userData = localStorage.getItem('discord_user_data');
                 if (userData) {
-                    displayUserProfile(JSON.parse(userData));
+                    displayUserProfile();
                 } else {
                     showLoginPrompt();
                 }
@@ -541,157 +565,32 @@
             }, 1000);
         }
 
-        async function processOAuthCode(code) {
-            showLoading();
-            loadingText.textContent = 'Fetching your Discord data...';
+        function showOAuthSuccess(code) {
+            hideAllSections();
+            oauthSuccess.style.display = 'block';
             
-            try {
-                // For demonstration, we'll use a simple approach
-                // In a real app, you'd use a backend to securely exchange the code
-                const userData = await simulateUserDataFetch(code);
-                
-                if (userData) {
-                    localStorage.setItem('discord_user_data', JSON.stringify(userData));
-                    cleanUrl();
-                    displayUserProfile(userData);
-                } else {
-                    throw new Error('Failed to fetch user data');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                loadingText.textContent = 'Error fetching data. Showing demo profile...';
-                
-                // Fallback to demo data
-                setTimeout(() => {
-                    const demoData = generateDemoData();
-                    localStorage.setItem('discord_user_data', JSON.stringify(demoData));
-                    cleanUrl();
-                    displayUserProfile(demoData);
-                }, 2000);
-            }
+            // Store that we have a successful OAuth
+            localStorage.setItem('discord_oauth_success', 'true');
+            cleanUrl();
         }
 
-        function simulateUserDataFetch(code) {
-            return new Promise((resolve) => {
-                // Simulate API call delay
-                setTimeout(() => {
-                    // In a real implementation, you would:
-                    // 1. Send code to your backend
-                    // 2. Backend exchanges code for access token
-                    // 3. Backend fetches user data from Discord
-                    // 4. Return real user data
-                    
-                    // For now, we'll return null to trigger demo data
-                    resolve(null);
-                }, 2000);
-            });
+        function showProfile() {
+            localStorage.setItem('discord_user_data', 'true');
+            displayUserProfile();
         }
 
-        function generateDemoData() {
-            // Generate realistic-looking demo data
-            const randomId = Math.random().toString().slice(2, 20);
-            const creationDate = new Date(Date.now() - Math.random() * 5 * 365 * 24 * 60 * 60 * 1000);
-            
-            return {
-                id: randomId,
-                username: 'DemoUser',
-                global_name: 'Demo User',
-                discriminator: '1337',
-                avatar: null,
-                banner: null,
-                accent_color: 5814783,
-                flags: 64, // Early Supporter
-                public_flags: 64,
-                premium_type: 2, // Nitro
-                verified: true,
-                email: 'demo@example.com',
-                locale: 'en-US',
-                mfa_enabled: true,
-                created_at: creationDate.toISOString()
-            };
-        }
-
-        function displayUserProfile(user) {
+        function displayUserProfile() {
             hideAllSections();
             profileContainer.style.display = 'block';
-
-            // Set user info
-            document.getElementById('username').textContent = user.username;
-            document.getElementById('discriminator').textContent = '#' + user.discriminator;
-            document.getElementById('user-id').textContent = `ID: ${user.id}`;
-            document.getElementById('global-name').textContent = user.global_name || user.username;
-
-            // Set avatar
-            const avatarUrl = user.avatar 
-                ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=256`
-                : `https://cdn.discordapp.com/embed/avatars/${user.discriminator % 5}.png`;
-            document.getElementById('user-avatar').src = avatarUrl;
-
-            // Calculate account age
-            const createdDate = new Date(user.created_at);
-            const ageInDays = Math.floor((Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
-            const ageInYears = (ageInDays / 365).toFixed(1);
-
-            document.getElementById('account-created').textContent = createdDate.toLocaleDateString();
-            document.getElementById('account-age').textContent = `${ageInDays} days (${ageInYears} years)`;
-
-            // Set other details
-            document.getElementById('user-locale').textContent = user.locale.toUpperCase();
-            document.getElementById('email-verified').textContent = user.verified ? 'Yes' : 'No';
-            document.getElementById('mfa-enabled').textContent = user.mfa_enabled ? 'Yes' : 'No';
             
-            // Premium type
-            const premiumTypes = { 0: 'None', 1: 'Nitro Classic', 2: 'Nitro', 3: 'Nitro Basic' };
-            document.getElementById('user-premium').textContent = premiumTypes[user.premium_type] || 'None';
-
-            // Display badges
-            displayUserBadges(user.public_flags, user.premium_type);
-
             // Update auth buttons
             document.getElementById('auth-buttons').innerHTML = '<button class="logout-btn">Logout</button>';
             document.querySelector('#auth-buttons .logout-btn').addEventListener('click', logout);
         }
 
-        function displayUserBadges(flags, premiumType) {
-            const badgesContainer = document.getElementById('badges-container');
-            badgesContainer.innerHTML = '';
-
-            const badges = [];
-
-            // Check each badge flag
-            Object.keys(badgeMap).forEach(flag => {
-                if (flags & parseInt(flag)) {
-                    badges.push(parseInt(flag));
-                }
-            });
-
-            // Add nitro badge if user has premium
-            if (premiumType > 0) {
-                badges.push('nitro');
-            }
-
-            // Create badge elements
-            badges.forEach(badgeFlag => {
-                const badgeInfo = badgeMap[badgeFlag];
-                if (badgeInfo) {
-                    const badgeElement = document.createElement('div');
-                    badgeElement.className = 'badge';
-                    badgeElement.innerHTML = `
-                        ${badgeInfo.emoji}
-                        <div class="badge-tooltip">${badgeInfo.name}</div>
-                    `;
-                    badgeElement.style.background = badgeInfo.color;
-                    badgesContainer.appendChild(badgeElement);
-                }
-            });
-
-            if (badges.length === 0) {
-                badgesContainer.innerHTML = '<div style="color: #72767d; font-style: italic;">No badges yet</div>';
-            }
-        }
-
         function logout() {
             localStorage.removeItem('discord_user_data');
+            localStorage.removeItem('discord_oauth_success');
             cleanUrl();
             showLoginPrompt();
             document.getElementById('auth-buttons').innerHTML = '<button class="login-btn" id="login-btn">Login with Discord</button>';
@@ -712,6 +611,7 @@
             loginPrompt.style.display = 'none';
             loading.style.display = 'none';
             profileContainer.style.display = 'none';
+            oauthSuccess.style.display = 'none';
         }
 
         function cleanUrl() {
