@@ -1,26 +1,22 @@
 {
   "name": "enhanced-chat",
   "version": "1.0.0",
-  "description": "Enhanced chat with servers, DMs, voice chat, screen sharing, and friends",
+  "description": "Discord-like chat with voice, screenshare, and ping system",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
     "socket.io": "^4.7.2",
-    "multer": "^1.4.5-lts.1",
-    "crypto": "^1.0.1",
-    "path": "^0.12.7",
-    "fs": "0.0.1-security"
+    "crypto": "^1.0.1"
   },
   "keywords": [
     "chat",
+    "discord",
     "websocket",
     "voice",
-    "screenshare",
-    "discord-like"
+    "screenshare"
   ],
   "author": "Your Name",
   "license": "MIT"
