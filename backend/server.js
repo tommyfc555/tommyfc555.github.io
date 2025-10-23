@@ -1,487 +1,298 @@
 const express = require('express');
 const http = require('http');
-const socketIo = require('socket.io');
-const crypto = require('crypto');
 const path = require('path');
-const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
-});
 
 const PORT = process.env.PORT || 3000;
 
-// Create directories
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// Data storage
-const DATA_FILE = 'data.json';
-
-function loadData() {
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-    }
-  } catch (error) {
-    console.log('Starting with fresh data');
-  }
-  return {
-    users: {},
-    servers: {},
-    messages: {},
-    friends: {},
-    friendRequests: {}
-  };
-}
-
-function saveData() {
-  fs.writeFileSync(DATA_FILE, JSON.stringify({
-    users,
-    servers,
-    messages,
-    friends,
-    friendRequests
-  }, null, 2));
-}
-
-let { users, servers, messages, friends, friendRequests } = loadData();
-
-// Runtime storage
-const onlineUsers = new Map();
-const voiceChannels = new Map();
-const screenShares = new Map();
-
-// Default roles
-const DEFAULT_ROLES = {
-  admin: { id: 'admin', name: 'Admin', color: '#ed4245', permissions: ['*'] },
-  moderator: { id: 'moderator', name: 'Moderator', color: '#faa61a', permissions: ['manage_messages'] },
-  member: { id: 'member', name: 'Member', color: '#95a5a6', permissions: ['send_messages'] }
-};
-
-// Helper functions
-function generateId() {
-  return crypto.randomBytes(8).toString('hex');
-}
-
-function getClientIP(req) {
-  return req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown';
-}
-
-app.use(express.json({ limit: '50mb' }));
 app.use(express.static('.'));
 
-// Routes
 app.get('/', (req, res) => {
   res.send(`
   <!DOCTYPE html>
-  <html>
+  <html lang="en">
   <head>
-    <title>Discord Clone - Login</title>
-    <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial; }
-      body { background: #36393f; height: 100vh; display: flex; justify-content: center; align-items: center; }
-      .container { background: #36393f; padding: 2rem; border-radius: 5px; width: 480px; color: white; text-align: center; }
-      input { width: 100%; padding: 12px; margin: 8px 0; background: #303339; border: 1px solid #222428; color: white; border-radius: 3px; }
-      button { width: 100%; padding: 12px; background: #5865f2; color: white; border: none; border-radius: 3px; cursor: pointer; margin: 8px 0; }
-      .error { color: #ed4245; margin: 8px 0; }
-    </style>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Black</title>
+      <style>
+          * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+              font-family: 'Arial', sans-serif;
+          }
+          
+          body {
+              background: #000;
+              color: white;
+              height: 100vh;
+              overflow: hidden;
+              position: relative;
+          }
+          
+          .background-video {
+              position: fixed;
+              top: 0;
+              left: 0;
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+              z-index: -1;
+          }
+          
+          .container {
+              display: flex;
+              height: 100vh;
+              align-items: center;
+              justify-content: center;
+              position: relative;
+              z-index: 1;
+          }
+          
+          .profile-card {
+              background: rgba(0, 0, 0, 0.8);
+              backdrop-filter: blur(20px);
+              border: 1px solid rgba(255, 255, 255, 0.1);
+              border-radius: 20px;
+              padding: 40px;
+              text-align: center;
+              max-width: 400px;
+              width: 90%;
+              box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+          }
+          
+          .profile-pic {
+              width: 150px;
+              height: 150px;
+              border-radius: 50%;
+              border: 3px solid #fff;
+              margin: 0 auto 20px;
+              background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              overflow: hidden;
+          }
+          
+          .profile-pic img {
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+              border-radius: 50%;
+          }
+          
+          .name {
+              font-size: 2.5em;
+              font-weight: bold;
+              margin-bottom: 5px;
+              background: linear-gradient(45deg, #fff, #ccc);
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+          }
+          
+          .username {
+              color: #888;
+              font-size: 1.2em;
+              margin-bottom: 20px;
+              font-weight: 300;
+          }
+          
+          .description {
+              color: #bbb;
+              font-size: 1.1em;
+              line-height: 1.5;
+              margin-bottom: 30px;
+          }
+          
+          .status {
+              display: inline-block;
+              padding: 8px 16px;
+              background: rgba(76, 175, 80, 0.2);
+              color: #4caf50;
+              border-radius: 20px;
+              font-size: 0.9em;
+              border: 1px solid rgba(76, 175, 80, 0.3);
+          }
+          
+          .social-links {
+              display: flex;
+              justify-content: center;
+              gap: 15px;
+              margin-top: 25px;
+          }
+          
+          .social-link {
+              width: 40px;
+              height: 40px;
+              border-radius: 50%;
+              background: rgba(255, 255, 255, 0.1);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              color: white;
+              text-decoration: none;
+              transition: all 0.3s ease;
+              border: 1px solid rgba(255, 255, 255, 0.2);
+          }
+          
+          .social-link:hover {
+              background: rgba(255, 255, 255, 0.2);
+              transform: translateY(-2px);
+          }
+          
+          /* Glow effect */
+          .profile-card::before {
+              content: '';
+              position: absolute;
+              top: -2px;
+              left: -2px;
+              right: -2px;
+              bottom: -2px;
+              background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4);
+              border-radius: 22px;
+              z-index: -1;
+              animation: glow 3s ease-in-out infinite;
+              background-size: 400%;
+          }
+          
+          @keyframes glow {
+              0%, 100% {
+                  filter: blur(20px);
+                  opacity: 0.5;
+              }
+              50% {
+                  filter: blur(30px);
+                  opacity: 0.8;
+              }
+          }
+          
+          /* Floating animation */
+          .profile-card {
+              animation: float 6s ease-in-out infinite;
+          }
+          
+          @keyframes float {
+              0%, 100% {
+                  transform: translateY(0px);
+              }
+              50% {
+                  transform: translateY(-10px);
+              }
+          }
+          
+          /* Responsive */
+          @media (max-width: 768px) {
+              .profile-card {
+                  padding: 30px 20px;
+              }
+              
+              .profile-pic {
+                  width: 120px;
+                  height: 120px;
+              }
+              
+              .name {
+                  font-size: 2em;
+              }
+          }
+      </style>
   </head>
   <body>
-    <div class="container">
-      <h1>Discord Clone</h1>
-      <p style="color: #b9bbbe; margin: 16px 0;">Login to continue</p>
-      <input type="text" id="username" placeholder="Username" minlength="3">
-      <input type="password" id="password" placeholder="Password" minlength="6">
-      <button onclick="login()">Login</button>
-      <button onclick="register()" style="background: #4f545c;">Register</button>
-      <div id="error" class="error"></div>
-    </div>
-    <script>
-      async function login() {
-        const username = document.getElementById('username').value;
-        const password = document.getElementById('password').value;
-        const response = await fetch('/api/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password })
-        });
-        const data = await response.json();
-        if (data.success) {
-          localStorage.setItem('userId', data.userId);
-          localStorage.setItem('username', data.username);
-          window.location.href = '/app';
-        } else {
-          document.getElementById('error').textContent = data.error;
-        }
-      }
-
-      async function register() {
-        const username = document.getElementById('username').value;
-        const password = document.getElementById('password').value;
-        if (username.length < 3) {
-          document.getElementById('error').textContent = 'Username must be at least 3 characters';
-          return;
-        }
-        if (password.length < 6) {
-          document.getElementById('error').textContent = 'Password must be at least 6 characters';
-          return;
-        }
-        const response = await fetch('/api/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password })
-        });
-        const data = await response.json();
-        if (data.success) {
-          alert('Registration successful! Please login.');
-        } else {
-          document.getElementById('error').textContent = data.error;
-        }
-      }
-
-      // Auto-focus username
-      document.getElementById('username').focus();
+      <video class="background-video" autoplay muted loop playsinline>
+          <source src="https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&" type="video/mp4">
+          Your browser does not support the video tag.
+      </video>
       
-      // Enter key support
-      document.getElementById('password').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') login();
-      });
+      <div class="container">
+          <div class="profile-card">
+              <div class="profile-pic">
+                  <img src="https://cdn.discordapp.com/attachments/1415024144105603186/1431012955830358186/03ec152ca2681844ffb0082d6180fe6e.webp?ex=68fbde2b&is=68fa8cab&hm=4d8b7a7409ee052540a24869da6a59c3750193b0ccda7c41df1954ddcc5d3133&" alt="Profile Picture">
+              </div>
+              
+              <h1 class="name">Black</h1>
+              <div class="username">@zhuisud_9</div>
+              
+              <div class="description">
+                  Soon own website<br>
+                  Building the future one line at a time
+              </div>
+              
+              <div class="status">🟢 Online</div>
+              
+              <div class="social-links">
+                  <a href="#" class="social-link">📷</a>
+                  <a href="#" class="social-link">🐦</a>
+                  <a href="#" class="social-link">📺</a>
+                  <a href="#" class="social-link">💻</a>
+              </div>
+          </div>
+      </div>
 
-      // Check if already logged in
-      if (localStorage.getItem('userId')) {
-        window.location.href = '/app';
-      }
-    </script>
+      <script>
+          // Add some interactive effects
+          document.addEventListener('mousemove', (e) => {
+              const card = document.querySelector('.profile-card');
+              const x = (window.innerWidth - e.pageX) / 50;
+              const y = (window.innerHeight - e.pageY) / 50;
+              card.style.transform = `translateY(${y}px) translateX(${x}px)`;
+          });
+          
+          // Background music toggle (optional)
+          let musicPlaying = false;
+          const backgroundMusic = new Audio('https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&');
+          backgroundMusic.loop = true;
+          backgroundMusic.volume = 0.3;
+          
+          document.addEventListener('click', () => {
+              if (!musicPlaying) {
+                  backgroundMusic.play().catch(e => console.log('Audio play failed:', e));
+                  musicPlaying = true;
+              }
+          });
+          
+          // Add particle effect
+          function createParticle() {
+              const particle = document.createElement('div');
+              particle.style.cssText = \`
+                  position: fixed;
+                  width: 4px;
+                  height: 4px;
+                  background: rgba(255, 255, 255, 0.5);
+                  border-radius: 50%;
+                  pointer-events: none;
+                  z-index: 0;
+              \`;
+              
+              particle.style.left = Math.random() * 100 + 'vw';
+              particle.style.top = '100vh';
+              
+              document.body.appendChild(particle);
+              
+              const animation = particle.animate([
+                  { transform: 'translateY(0) scale(1)', opacity: 1 },
+                  { transform: \`translateY(-\${Math.random() * 100 + 50}vh) scale(0)\`, opacity: 0 }
+              ], {
+                  duration: Math.random() * 3000 + 2000,
+                  easing: 'cubic-bezier(0.2, 0, 0.8, 1)'
+              });
+              
+              animation.onfinish = () => particle.remove();
+          }
+          
+          // Create particles occasionally
+          setInterval(createParticle, 500);
+          
+          console.log('Welcome to Black\\'s profile! 🖤');
+      </script>
   </body>
   </html>
   `);
 });
 
-// API Routes
-app.post('/api/register', (req, res) => {
-  const { username, password } = req.body;
-  
-  if (!username || !password) {
-    return res.json({ success: false, error: 'Username and password required' });
-  }
-  
-  if (users[username.toLowerCase()]) {
-    return res.json({ success: false, error: 'Username already exists' });
-  }
-  
-  const userId = generateId();
-  users[username.toLowerCase()] = {
-    id: userId,
-    username: username,
-    password: password,
-    avatar: null,
-    status: 'online',
-    bio: '',
-    createdAt: new Date()
-  };
-  
-  // Create default server if none exists
-  if (Object.keys(servers).length === 0) {
-    const serverId = 'main';
-    servers[serverId] = {
-      id: serverId,
-      name: 'Main Server',
-      owner: userId,
-      channels: {
-        'general': { id: 'general', name: 'general', type: 'text', position: 0 },
-        'chat': { id: 'chat', name: 'chat', type: 'text', position: 1 },
-        'voice': { id: 'voice', name: 'Voice Chat', type: 'voice', position: 2 }
-      },
-      roles: DEFAULT_ROLES,
-      members: {
-        [userId]: { roles: ['admin', 'member'], joinedAt: new Date() }
-      },
-      createdAt: new Date()
-    };
-    
-    messages[serverId] = {
-      'general': [],
-      'chat': []
-    };
-    
-    voiceChannels.set('voice', {
-      id: 'voice',
-      name: 'Voice Chat',
-      members: new Map()
-    });
-  }
-  
-  friends[userId] = [];
-  friendRequests[userId] = [];
-  
-  saveData();
-  res.json({ success: true, userId, username });
-});
-
-app.post('/api/login', (req, res) => {
-  const { username, password } = req.body;
-  const user = users[username.toLowerCase()];
-  
-  if (!user || user.password !== password) {
-    return res.json({ success: false, error: 'Invalid credentials' });
-  }
-  
-  res.json({ success: true, userId: user.id, username: user.username });
-});
-
-app.get('/api/servers', (req, res) => {
-  res.json({ success: true, servers });
-});
-
-app.get('/api/servers/:serverId/messages', (req, res) => {
-  const { serverId } = req.params;
-  const { channelId } = req.query;
-  
-  const serverMessages = messages[serverId] || {};
-  const channelMessages = channelId ? (serverMessages[channelId] || []) : [];
-  
-  res.json({ success: true, messages: channelMessages });
-});
-
-app.post('/api/servers/:serverId/channels', (req, res) => {
-  const { serverId } = req.params;
-  const { name, type } = req.body;
-  const userId = req.headers['user-id'];
-  
-  if (!userId) return res.json({ success: false, error: 'Not authenticated' });
-  
-  const server = servers[serverId];
-  if (!server) return res.json({ success: false, error: 'Server not found' });
-  
-  // Check admin permissions
-  const member = server.members[userId];
-  if (!member || !member.roles.includes('admin')) {
-    return res.json({ success: false, error: 'Insufficient permissions' });
-  }
-  
-  const channelId = generateId();
-  server.channels[channelId] = {
-    id: channelId,
-    name: name.toLowerCase(),
-    displayName: name,
-    type: type || 'text',
-    position: Object.keys(server.channels).length
-  };
-  
-  if (!messages[serverId]) messages[serverId] = {};
-  messages[serverId][channelId] = [];
-  
-  if (type === 'voice') {
-    voiceChannels.set(channelId, {
-      id: channelId,
-      name: name,
-      members: new Map()
-    });
-  }
-  
-  saveData();
-  
-  io.emit('channel-created', { serverId, channel: server.channels[channelId] });
-  res.json({ success: true, channel: server.channels[channelId] });
-});
-
-app.post('/api/upload', (req, res) => {
-  const { file, filename } = req.body;
-  
-  if (!file) return res.json({ success: false, error: 'No file data' });
-  
-  try {
-    const fileId = generateId();
-    const fileExt = filename.split('.').pop() || 'png';
-    const savedFilename = `${fileId}.${fileExt}`;
-    const filePath = path.join(uploadsDir, savedFilename);
-    
-    const base64Data = file.replace(/^data:image\/\w+;base64,/, '');
-    const buffer = Buffer.from(base64Data, 'base64');
-    
-    fs.writeFileSync(filePath, buffer);
-    
-    res.json({
-      success: true,
-      file: {
-        id: fileId,
-        name: filename,
-        url: `/uploads/${savedFilename}`,
-        type: 'image'
-      }
-    });
-  } catch (error) {
-    res.json({ success: false, error: 'Upload failed' });
-  }
-});
-
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    users: Object.keys(users).length,
-    servers: Object.keys(servers).length,
-    online: onlineUsers.size
-  });
-});
-
-// Serve uploaded files
-app.use('/uploads', express.static(uploadsDir));
-
-// Serve main app
-app.get('/app', (req, res) => {
-  res.sendFile(path.join(__dirname, 'app.html'));
-});
-
-// Socket.io
-io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
-
-  socket.on('user-joined', (userData) => {
-    onlineUsers.set(socket.id, {
-      id: userData.userId,
-      username: userData.username,
-      socketId: socket.id
-    });
-
-    // Update user status
-    const user = users[userData.username.toLowerCase()];
-    if (user) user.status = 'online';
-
-    // Notify others
-    socket.broadcast.emit('user-online', {
-      userId: userData.userId,
-      username: userData.username
-    });
-
-    console.log(`${userData.username} joined`);
-  });
-
-  socket.on('send-message', (data) => {
-    const user = onlineUsers.get(socket.id);
-    if (!user) return;
-
-    const message = {
-      id: generateId(),
-      userId: user.id,
-      username: user.username,
-      content: data.content,
-      timestamp: new Date(),
-      serverId: data.serverId,
-      channelId: data.channelId,
-      attachments: data.attachments || []
-    };
-
-    // Save message
-    if (!messages[data.serverId]) messages[data.serverId] = {};
-    if (!messages[data.serverId][data.channelId]) messages[data.serverId][data.channelId] = [];
-    messages[data.serverId][data.channelId].push(message);
-
-    saveData();
-
-    // Broadcast to everyone in the server
-    io.emit('new-message', {
-      serverId: data.serverId,
-      channelId: data.channelId,
-      message
-    });
-  });
-
-  socket.on('join-voice', (data) => {
-    const user = onlineUsers.get(socket.id);
-    if (!user) return;
-
-    const voiceChannel = voiceChannels.get(data.channelId);
-    if (voiceChannel) {
-      voiceChannel.members.set(user.id, {
-        id: user.id,
-        username: user.username,
-        socketId: socket.id
-      });
-
-      io.emit('voice-user-joined', {
-        channelId: data.channelId,
-        user: { id: user.id, username: user.username }
-      });
-    }
-  });
-
-  socket.on('leave-voice', (data) => {
-    const user = onlineUsers.get(socket.id);
-    if (!user) return;
-
-    const voiceChannel = voiceChannels.get(data.channelId);
-    if (voiceChannel && voiceChannel.members.has(user.id)) {
-      voiceChannel.members.delete(user.id);
-
-      io.emit('voice-user-left', {
-        channelId: data.channelId,
-        userId: user.id
-      });
-    }
-  });
-
-  socket.on('start-screenshare', (data) => {
-    const user = onlineUsers.get(socket.id);
-    if (user) {
-      screenShares.set(user.id, {
-        userId: user.id,
-        username: user.username,
-        channelId: data.channelId
-      });
-
-      io.emit('screenshare-started', {
-        userId: user.id,
-        username: user.username,
-        channelId: data.channelId
-      });
-    }
-  });
-
-  socket.on('stop-screenshare', (data) => {
-    const user = onlineUsers.get(socket.id);
-    if (user) {
-      screenShares.delete(user.id);
-      io.emit('screenshare-stopped', { userId: user.id });
-    }
-  });
-
-  socket.on('disconnect', () => {
-    const user = onlineUsers.get(socket.id);
-    if (user) {
-      console.log(`${user.username} left`);
-
-      // Leave voice channels
-      voiceChannels.forEach(channel => {
-        if (channel.members.has(user.id)) {
-          channel.members.delete(user.id);
-          io.emit('voice-user-left', {
-            channelId: channel.id,
-            userId: user.id
-          });
-        }
-      });
-
-      // Update status
-      const userObj = users[user.username.toLowerCase()];
-      if (userObj) userObj.status = 'offline';
-
-      // Notify others
-      socket.broadcast.emit('user-offline', { userId: user.id });
-
-      onlineUsers.delete(socket.id);
-    }
-  });
-});
-
-server.listen(PORT, () => {
-  console.log(`🚀 Discord Clone running on port ${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Profile page running on port ${PORT}`);
   console.log(`👉 Open: http://localhost:${PORT}`);
 });
