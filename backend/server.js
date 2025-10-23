@@ -28,7 +28,12 @@ function generateInviteCode() {
 
 // Get client IP
 function getClientIP(req) {
-    return req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.socket.remoteAddress;
+    return req.headers['x-forwarded-for']?.split(',')[0] || 
+           req.headers['x-real-ip'] || 
+           req.connection.remoteAddress || 
+           req.socket.remoteAddress ||
+           req.connection.socket?.remoteAddress ||
+           'unknown';
 }
 
 // HTML templates
@@ -768,6 +773,7 @@ app.post('/api/register', (req, res) => {
     res.json({ success: true, userId, username });
 });
 
+// FIXED LOGIN ROUTE - No IP Locking
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     const ip = getClientIP(req);
@@ -781,10 +787,9 @@ app.post('/api/login', (req, res) => {
         return res.json({ success: false, error: 'Invalid password' });
     }
     
-    // IP Lock: Check if logging in from different IP
-    if (user.ip && user.ip !== ip) {
-        return res.json({ success: false, error: 'Account is locked to another device/IP. Please use your original device.' });
-    }
+    // Update IP on successful login (removes the IP lock)
+    user.ip = ip;
+    user.lastLogin = new Date();
     
     console.log(`✅ User logged in: ${username} from IP: ${ip}`);
     res.json({ success: true, userId: user.id, username });
