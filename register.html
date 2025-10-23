@@ -180,15 +180,6 @@
         .login-link a:hover {
             text-decoration: underline;
         }
-
-        .password-strength {
-            margin-top: 0.5rem;
-            font-size: 0.8rem;
-        }
-
-        .strength-weak { color: #ff4444; }
-        .strength-medium { color: #ffaa00; }
-        .strength-strong { color: #44ff44; }
     </style>
 </head>
 <body>
@@ -215,7 +206,6 @@
                     <div class="input-group">
                         <label>Password</label>
                         <input type="password" id="password" placeholder="Enter your password" required>
-                        <div id="passwordStrength" class="password-strength"></div>
                     </div>
                     
                     <div class="hwid-info">
@@ -238,42 +228,9 @@
     </div>
 
     <script>
-        // BACKEND URL - POINT TO YOUR RENDER.COM BACKEND
+        // CORRECT BACKEND URL WITH CORRECT ENDPOINT
         const API_BASE_URL = 'https://tommyfc555-github-io.onrender.com';
 
-        // HWID Generator
-        function getHWID() {
-            return 'hwid-' + Math.random().toString(36).substr(2, 9) + 
-                   '-' + Date.now().toString(36);
-        }
-
-        // Password Strength Checker
-        function checkPasswordStrength(password) {
-            const strengthText = document.getElementById('passwordStrength');
-            let strength = 0;
-            
-            if (password.length >= 8) strength++;
-            if (password.match(/[a-z]/)) strength++;
-            if (password.match(/[A-Z]/)) strength++;
-            if (password.match(/[0-9]/)) strength++;
-            if (password.match(/[^a-zA-Z0-9]/)) strength++;
-            
-            if (password.length === 0) {
-                strengthText.textContent = '';
-                strengthText.className = 'password-strength';
-            } else if (strength <= 2) {
-                strengthText.textContent = 'Weak password';
-                strengthText.className = 'password-strength strength-weak';
-            } else if (strength <= 4) {
-                strengthText.textContent = 'Medium password';
-                strengthText.className = 'password-strength strength-medium';
-            } else {
-                strengthText.textContent = 'Strong password';
-                strengthText.className = 'password-strength strength-strong';
-            }
-        }
-
-        // Form Submission Handler
         document.getElementById('registerForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -290,25 +247,14 @@
             errorMessage.style.display = 'none';
             successMessage.style.display = 'none';
             
-            // Validation
-            if (username.length < 3) {
-                showError('Username must be at least 3 characters long');
-                return;
-            }
-            
-            if (password.length < 6) {
-                showError('Password must be at least 6 characters long');
-                return;
-            }
-            
             // Show loading state
             registerButton.textContent = 'Registering...';
             registerButton.disabled = true;
             
             try {
-                console.log('Sending registration request to:', `${API_BASE_URL}/api/register`);
+                console.log('Sending to:', `${API_BASE_URL}/api/auth/register`);
                 
-                const response = await fetch(`${API_BASE_URL}/api/register`, {
+                const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -321,42 +267,30 @@
                     })
                 });
                 
-                console.log('Response status:', response.status);
+                const data = await response.json();
+                console.log('Response:', data);
                 
-                // Check if response is JSON
-                const contentType = response.headers.get('content-type');
-                if (contentType && contentType.includes('application/json')) {
-                    const data = await response.json();
-                    console.log('Response data:', data);
-                    
-                    if (response.ok) {
-                        showSuccess(data.message || 'Registration successful! Redirecting to login...');
-                        setTimeout(() => {
-                            window.location.href = './login.html';
-                        }, 2000);
-                    } else {
-                        showError(data.error || 'Registration failed. Please try again.');
-                    }
+                if (response.ok) {
+                    showSuccess(data.message || 'Registration successful! Redirecting...');
+                    setTimeout(() => {
+                        window.location.href = './login.html';
+                    }, 2000);
                 } else {
-                    const text = await response.text();
-                    console.error('Non-JSON response:', text);
-                    showError('Server error: Invalid response format');
+                    showError(data.error || 'Registration failed');
                 }
             } catch (error) {
-                console.error('Network error:', error);
-                showError('Cannot connect to server. Please check your internet connection and make sure the backend is running.');
+                console.error('Error:', error);
+                showError('Network error. Please try again.');
             } finally {
                 registerButton.textContent = 'Register';
                 registerButton.disabled = false;
             }
         });
 
-        // Password strength real-time checking
-        document.getElementById('password').addEventListener('input', function(e) {
-            checkPasswordStrength(e.target.value);
-        });
+        function getHWID() {
+            return 'hwid-' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+        }
 
-        // Helper functions
         function showError(message) {
             const errorElement = document.getElementById('errorMessage');
             errorElement.textContent = message;
@@ -368,17 +302,6 @@
             successElement.textContent = message;
             successElement.style.display = 'block';
         }
-
-        // Add some interactive effects
-        document.querySelectorAll('.input-group input').forEach(input => {
-            input.addEventListener('focus', function() {
-                this.parentElement.style.transform = 'translateY(-2px)';
-            });
-            
-            input.addEventListener('blur', function() {
-                this.parentElement.style.transform = 'translateY(0)';
-            });
-        });
     </script>
 </body>
 </html>
