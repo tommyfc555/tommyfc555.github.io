@@ -3,46 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Roblox Joiner</title>
+    <title>Dashboard - KeyAuth System</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Arial', sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
         body {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
             color: white;
             min-height: 100vh;
-            padding: 20px;
         }
 
         .container {
             max-width: 1200px;
             margin: 0 auto;
+            padding: 20px;
         }
 
         header {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
             margin-bottom: 2rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
         }
 
-        header h1 {
+        .header-left h1 {
             font-size: 2.5rem;
-            background: linear-gradient(45deg, #ff8a00, #ff2070);
+            background: linear-gradient(45deg, #ff8a00, #ff2070, #00c6ff);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
         }
 
-        header p {
-            color: #ccc;
+        .header-left p {
+            color: #8892b0;
             font-size: 1.1rem;
+        }
+
+        .user-info {
+            text-align: right;
+        }
+
+        .user-info .username {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #64ffda;
+        }
+
+        .user-info .role {
+            background: rgba(255, 138, 0, 0.2);
+            color: #ff8a00;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-top: 0.5rem;
+            display: inline-block;
         }
 
         .btn {
@@ -53,16 +78,9 @@
             font-size: 1rem;
             font-weight: 600;
             transition: all 0.3s ease;
-        }
-
-        .btn-logout {
-            background: rgba(255, 68, 68, 0.2);
-            color: #ff4444;
-            border: 1px solid #ff4444;
-        }
-
-        .btn-logout:hover {
-            background: rgba(255, 68, 68, 0.3);
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
         }
 
         .btn-primary {
@@ -75,90 +93,62 @@
             box-shadow: 0 10px 25px rgba(255, 138, 0, 0.4);
         }
 
-        .btn-small {
-            padding: 0.5rem 1rem;
+        .btn-secondary {
             background: rgba(255, 255, 255, 0.1);
             color: white;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            margin: 0.2rem;
-        }
-
-        .btn-small:hover {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        .dashboard {
-            display: grid;
-            gap: 2rem;
-            grid-template-columns: 1fr 1fr;
-        }
-
-        .user-info, .joiner-section, .stats-section {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 2rem;
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
-        .joiner-section {
-            grid-column: 1 / -1;
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
         }
 
-        .hwid-display {
-            text-align: center;
+        .btn-logout {
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+            border: 1px solid #ff6b6b;
         }
 
-        .hwid-display code {
-            display: block;
-            background: rgba(0, 0, 0, 0.4);
-            padding: 1rem;
-            border-radius: 10px;
-            margin: 1rem 0;
-            font-family: monospace;
-            word-break: break-all;
+        .btn-logout:hover {
+            background: rgba(255, 107, 107, 0.3);
         }
 
-        .input-group {
-            margin: 1.5rem 0;
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
         }
 
-        .input-group label {
-            display: block;
-            margin-bottom: 0.8rem;
-            font-weight: 600;
+        .card {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 2rem;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
         }
 
-        .input-group input {
-            width: 100%;
-            padding: 1rem;
-            border-radius: 10px;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            font-size: 1rem;
+        .card h2 {
+            color: #ff8a00;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid rgba(255, 138, 0, 0.3);
+            padding-bottom: 0.5rem;
         }
 
-        .input-group input:focus {
-            outline: none;
-            border-color: #ff8a00;
+        .admin-card {
+            border: 2px solid #64ffda;
+            background: rgba(100, 255, 218, 0.05);
         }
 
-        .quick-links {
-            margin-top: 2rem;
-            padding-top: 1rem;
-            border-top: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .quick-links h4 {
-            margin-bottom: 1rem;
+        .admin-card h2 {
+            color: #64ffda;
         }
 
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
             gap: 1rem;
-            margin-top: 1rem;
+            margin-bottom: 2rem;
         }
 
         .stat-card {
@@ -169,200 +159,331 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        .stat-card h4 {
-            color: #ccc;
-            font-size: 0.9rem;
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #ff8a00;
             margin-bottom: 0.5rem;
         }
 
-        .stat-card p {
+        .stat-label {
+            color: #ccd6f6;
+            font-size: 0.9rem;
+        }
+
+        .subscription-status {
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .status-active {
+            color: #64ffda;
             font-size: 1.2rem;
             font-weight: bold;
         }
 
-        .error-message {
-            color: #ff4444;
-            background: rgba(255, 68, 68, 0.1);
-            padding: 1rem;
-            border-radius: 10px;
-            margin-top: 1rem;
-            text-align: center;
-            display: none;
+        .status-inactive {
+            color: #ff6b6b;
+            font-size: 1.2rem;
+            font-weight: bold;
         }
 
-        .success-message {
-            color: #44ff44;
-            background: rgba(68, 255, 68, 0.1);
+        .quick-actions {
+            display: grid;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .feature-list {
+            list-style: none;
+            margin-top: 1rem;
+        }
+
+        .feature-list li {
+            padding: 0.5rem 0;
+            color: #ccd6f6;
+        }
+
+        .feature-list li:before {
+            content: "✅ ";
+            margin-right: 0.5rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #8892b0;
+        }
+
+        .error-message {
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid #ff6b6b;
+            color: #ff6b6b;
             padding: 1rem;
             border-radius: 10px;
-            margin-top: 1rem;
             text-align: center;
-            display: none;
+            margin: 1rem 0;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <div>
+            <div class="header-left">
                 <h1>🎮 Dashboard</h1>
-                <p>Welcome back, <span id="usernameDisplay">User</span>!</p>
+                <p>Welcome to your KeyAuth System</p>
             </div>
-            <button onclick="logout()" class="btn btn-logout">Logout</button>
+            <div class="user-info">
+                <div class="username" id="usernameDisplay">Loading...</div>
+                <div class="role" id="roleDisplay">User</div>
+                <div style="margin-top: 1rem;">
+                    <button onclick="logout()" class="btn btn-logout">Logout</button>
+                </div>
+            </div>
         </header>
 
-        <div class="dashboard">
-            <div class="user-info">
-                <div class="hwid-display">
-                    <h3>🔐 Your HWID</h3>
-                    <code id="userHWID">Loading...</code>
-                    <small>This unique identifier is locked to your device</small>
-                </div>
-            </div>
-
-            <div class="stats-section">
-                <h3>📊 Account Info</h3>
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <h4>Status</h4>
-                        <p>🟢 Active</p>
-                    </div>
-                    <div class="stat-card">
-                        <h4>HWID Lock</h4>
-                        <p>🔒 Enabled</p>
-                    </div>
-                    <div class="stat-card">
-                        <h4>Joins Today</h4>
-                        <p id="joinsCount">0</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="joiner-section">
-                <h3>🚀 Roblox Game Joiner</h3>
-                <div class="input-group">
-                    <label>Enter Job ID (UUID format):</label>
-                    <input type="text" id="jobId" placeholder="b525a501-8e03-45ad-9aa7-0bb2544f6bf4">
-                </div>
-                <button onclick="joinGame()" class="btn btn-primary">Join Game Instantly</button>
-                
-                <div id="joinMessage" class="success-message"></div>
-                <div id="errorMessage" class="error-message"></div>
-                
-                <div class="quick-links">
-                    <h4>💡 Quick Join Examples:</h4>
-                    <button onclick="setJobId('b525a501-8e03-45ad-9aa7-0bb2544f6bf4')" class="btn btn-small">Game #1</button>
-                    <button onclick="setJobId('a1b2c3d4-5e6f-7g8h-9i0j-k1l2m3n4o5p6')" class="btn btn-small">Game #2</button>
-                    <button onclick="setJobId('f47ac10b-58cc-4372-a567-0e02b2c3d479')" class="btn btn-small">Game #3</button>
-                </div>
+        <div id="dashboardContent">
+            <div class="loading">
+                <h2>Loading your dashboard...</h2>
             </div>
         </div>
     </div>
 
     <script>
-        // Check authentication on page load
-        window.addEventListener('load', function() {
+        const API_BASE_URL = 'https://tommyfc555-github-io.onrender.com';
+        let userData = null;
+
+        // Check authentication and load dashboard
+        async function loadDashboard() {
             const token = localStorage.getItem('authToken');
-            const username = localStorage.getItem('username');
             
             if (!token) {
-                alert('Please login first!');
                 window.location.href = './login.html';
                 return;
             }
-            
-            // Display user info
-            if (username) {
-                document.getElementById('usernameDisplay').textContent = username;
-            }
-            
-            // Generate and display HWID
-            const hwid = getHWID();
-            document.getElementById('userHWID').textContent = hwid;
-            
-            // Load user stats
-            loadUserStats();
-        });
 
-        function getHWID() {
-            // Use consistent HWID generation
-            return 'hwid-' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+            try {
+                // Get user dashboard data
+                const response = await fetch(`${API_BASE_URL}/api/auth/dashboard`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    userData = data.user;
+                    displayDashboard(data.user);
+                } else {
+                    throw new Error('Failed to load dashboard');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('dashboardContent').innerHTML = `
+                    <div class="error-message">
+                        Failed to load dashboard. Please <a href="./login.html" style="color: #ff8a00;">login again</a>.
+                    </div>
+                `;
+            }
         }
 
-        function setJobId(jobId) {
-            document.getElementById('jobId').value = jobId;
+        function displayDashboard(user) {
+            document.getElementById('usernameDisplay').textContent = user.username;
+            document.getElementById('roleDisplay').textContent = user.isAdmin ? 'Administrator' : 'User';
+
+            if (user.isAdmin) {
+                displayAdminDashboard(user);
+            } else {
+                displayUserDashboard(user);
+            }
+        }
+
+        function displayAdminDashboard(user) {
+            document.getElementById('dashboardContent').innerHTML = `
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number">🔑</div>
+                        <div class="stat-label">Key Management</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">👥</div>
+                        <div class="stat-label">User Control</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">📊</div>
+                        <div class="stat-label">Analytics</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">⚙️</div>
+                        <div class="stat-label">Settings</div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="card admin-card">
+                        <h2>👑 Administrator Panel</h2>
+                        <p>Welcome, ${user.username}! You have administrator privileges.</p>
+                        
+                        <div class="quick-actions">
+                            <a href="./admin.html" class="btn btn-primary">🔑 Manage License Keys</a>
+                            <a href="./users.html" class="btn btn-secondary">👥 User Management</a>
+                            <a href="./analytics.html" class="btn btn-secondary">📊 View Analytics</a>
+                        </div>
+
+                        <ul class="feature-list">
+                            <li>Create and manage license keys</li>
+                            <li>View all users and their subscriptions</li>
+                            <li>Monitor system statistics</li>
+                            <li>Generate usage reports</li>
+                        </ul>
+                    </div>
+
+                    <div class="card">
+                        <h2>📊 Your Account</h2>
+                        <div class="subscription-status">
+                            ${user.hasActiveSubscription ? 
+                                `<div class="status-active">✅ Active Subscription</div>
+                                 <p>Days remaining: ${user.daysLeft}</p>
+                                 <p>Expires: ${new Date(user.subscription.expiresAt).toLocaleDateString()}</p>` :
+                                `<div class="status-inactive">❌ No Active Subscription</div>
+                                 <p>Purchase a license key to access all features</p>`
+                            }
+                        </div>
+                        
+                        <div class="quick-actions">
+                            <button onclick="redeemKey()" class="btn btn-primary">🎫 Redeem License Key</button>
+                            <button onclick="joinGame()" class="btn btn-secondary">🎮 Join Game</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function displayUserDashboard(user) {
+            document.getElementById('dashboardContent').innerHTML = `
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number">${user.hasActiveSubscription ? '✅' : '❌'}</div>
+                        <div class="stat-label">Subscription</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${user.daysLeft || 0}</div>
+                        <div class="stat-label">Days Left</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">🎮</div>
+                        <div class="stat-label">Game Access</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">🔒</div>
+                        <div class="stat-label">HWID Locked</div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <h2>📊 Account Overview</h2>
+                        <div class="subscription-status">
+                            ${user.hasActiveSubscription ? 
+                                `<div class="status-active">✅ Subscription Active</div>
+                                 <p>You have <strong>${user.daysLeft} days</strong> remaining in your subscription</p>
+                                 <p>Expires on: ${new Date(user.subscription.expiresAt).toLocaleDateString()}</p>` :
+                                `<div class="status-inactive">❌ No Active Subscription</div>
+                                 <p>You need a license key to access game features</p>
+                                 <p>Contact an administrator to get a license key</p>`
+                            }
+                        </div>
+                        
+                        <div class="quick-actions">
+                            <button onclick="redeemKey()" class="btn btn-primary">🎫 Redeem License Key</button>
+                            <button onclick="joinGame()" class="btn btn-secondary">🎮 Join Game</button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h2>⚡ Quick Actions</h2>
+                        <ul class="feature-list">
+                            <li>Redeem license keys for subscription time</li>
+                            <li>Join Roblox games with active subscription</li>
+                            <li>Check your subscription status</li>
+                            <li>View account information</li>
+                        </ul>
+                        
+                        <div style="margin-top: 2rem; padding: 1rem; background: rgba(0,0,0,0.3); border-radius: 10px;">
+                            <h3>🔒 Device Locked</h3>
+                            <p style="color: #ccd6f6; font-size: 0.9rem; margin-top: 0.5rem;">
+                                Your account is locked to this device. You cannot login from any other device.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function redeemKey() {
+            const key = prompt("Enter your license key:");
+            if (key) {
+                // Call redeem API
+                fetch(`${API_BASE_URL}/api/auth/redeem`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+                    },
+                    body: JSON.stringify({ key: key })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ Key redeemed successfully!');
+                        loadDashboard(); // Reload to show updated subscription
+                    } else {
+                        alert('❌ ' + (data.error || 'Key redemption failed'));
+                    }
+                })
+                .catch(error => {
+                    alert('🚫 Network error: ' + error.message);
+                });
+            }
         }
 
         function joinGame() {
-            const jobId = document.getElementById('jobId').value.trim();
-            const joinMessage = document.getElementById('joinMessage');
-            const errorMessage = document.getElementById('errorMessage');
-            
-            // Reset messages
-            joinMessage.style.display = 'none';
-            errorMessage.style.display = 'none';
-            
-            if (!jobId) {
-                showError('Please enter a Job ID');
-                return;
+            const jobId = prompt("Enter Roblox Job ID:");
+            if (jobId) {
+                // Call join game API
+                fetch(`${API_BASE_URL}/api/game/join`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+                    },
+                    body: JSON.stringify({ jobId: jobId })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ Joined game successfully!');
+                    // In a real app, this would actually join the Roblox game
+                        console.log('Joining game with Job ID:', jobId);
+                    } else {
+                        alert('❌ ' + (data.error || 'Failed to join game'));
+                    }
+                })
+                .catch(error => {
+                    alert('🚫 Network error: ' + error.message);
+                });
             }
-            
-            // Simple UUID validation
-            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-            if (!uuidRegex.test(jobId)) {
-                showError('Please enter a valid UUID format');
-                return;
-            }
-            
-            // Simulate joining game
-            showSuccess(`Joining game with Job ID: ${jobId}...`);
-            
-            // Update joins count
-            updateJoinsCount();
-            
-            // In a real app, you would call your backend API here
-            console.log('Joining game:', jobId);
-        }
-
-        function loadUserStats() {
-            // Simulate loading user stats
-            const joinsCount = localStorage.getItem('joinsCount') || '0';
-            document.getElementById('joinsCount').textContent = joinsCount;
-        }
-
-        function updateJoinsCount() {
-            const currentCount = parseInt(localStorage.getItem('joinsCount') || '0');
-            const newCount = currentCount + 1;
-            localStorage.setItem('joinsCount', newCount.toString());
-            document.getElementById('joinsCount').textContent = newCount;
         }
 
         function logout() {
-            // Clear authentication data
             localStorage.removeItem('authToken');
             localStorage.removeItem('username');
-            localStorage.removeItem('joinsCount');
-            
-            // Redirect to login
             window.location.href = './login.html';
         }
 
-        function showError(message) {
-            const errorElement = document.getElementById('errorMessage');
-            errorElement.textContent = message;
-            errorElement.style.display = 'block';
-        }
-
-        function showSuccess(message) {
-            const successElement = document.getElementById('joinMessage');
-            successElement.textContent = message;
-            successElement.style.display = 'block';
-            
-            // Auto-hide success message after 3 seconds
-            setTimeout(() => {
-                successElement.style.display = 'none';
-            }, 3000);
-        }
+        // Load dashboard on page load
+        window.addEventListener('load', loadDashboard);
     </script>
 </body>
 </html>
