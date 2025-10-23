@@ -16,7 +16,7 @@ app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 // Database setup
-const db = new sqlite3.Database('./database/app.db');
+const db = new sqlite3.Database(':memory:'); // Use in-memory DB for testing
 
 // Initialize database
 db.serialize(() => {
@@ -41,11 +41,27 @@ db.serialize(() => {
 app.use('/api/auth', require('./routes/auth')(db, bcrypt, jwt, JWT_SECRET));
 app.use('/api/hwid', require('./routes/hwid')(db));
 
-// Serve frontend
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/index.html'));
+// Test route
+app.get('/api/test', (req, res) => {
+    res.json({ message: 'Backend is working!' });
 });
 
-app.listen(PORT, () => {
+// Serve frontend
+app.get('/', (req, res) => {
+    res.json({ message: 'Roblox Joiner Backend API' });
+});
+
+// Error handling
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ error: 'Something went wrong!' });
+});
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({ error: 'Route not found' });
+});
+
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
 });
