@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Roblox Joiner</title>
+    <title>Login - KeyAuth System</title>
     <style>
-        /* Same premium styling as register page */
         * {
             margin: 0;
             padding: 0;
@@ -129,6 +128,10 @@
             transform: translateY(-2px);
         }
 
+        .input-group input::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+        }
+
         .hwid-info {
             background: rgba(0, 0, 0, 0.4);
             padding: 1.2rem;
@@ -243,8 +246,8 @@
 <body>
     <div class="container">
         <header>
-            <h1>🎮 Secure Login</h1>
-            <p>HWID-Locked Account - One Device Access Only</p>
+            <h1>🔑 KeyAuth Login</h1>
+            <p>Secure HWID-Locked Authentication System</p>
         </header>
         
         <div class="auth-container">
@@ -287,7 +290,7 @@
     <script>
         const API_BASE_URL = 'https://tommyfc555-github-io.onrender.com';
 
-        // Generate consistent HWID (same as register page)
+        // Generate consistent HWID
         function generateSecureHWID() {
             const components = [
                 navigator.userAgent,
@@ -315,6 +318,12 @@
         window.addEventListener('load', function() {
             const hwid = generateSecureHWID();
             document.getElementById('displayHWID').textContent = hwid;
+            
+            // Check if user is already logged in
+            const token = localStorage.getItem('authToken');
+            if (token) {
+                window.location.href = './dashboard.html';
+            }
         });
 
         document.getElementById('loginForm').addEventListener('submit', async function(e) {
@@ -353,15 +362,17 @@
                 
                 if (response.ok) {
                     showSuccess('✅ Device verified! Login successful...');
+                    
                     // Save token to localStorage
                     if (data.token) {
                         localStorage.setItem('authToken', data.token);
                         localStorage.setItem('username', data.username);
                     }
                     
+                    // Redirect to dashboard (admin/user based on role)
                     setTimeout(() => {
                         window.location.href = './dashboard.html';
-                    }, 2000);
+                    }, 1500);
                 } else {
                     // Special handling for HWID lock error
                     if (data.error && data.error.includes('locked to another device')) {
@@ -390,14 +401,6 @@
             successElement.textContent = message;
             successElement.style.display = 'block';
         }
-
-        // Check if user is already logged in
-        window.addEventListener('load', function() {
-            const token = localStorage.getItem('authToken');
-            if (token) {
-                window.location.href = './dashboard.html';
-            }
-        });
     </script>
 </body>
 </html>
