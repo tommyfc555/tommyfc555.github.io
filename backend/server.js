@@ -14,7 +14,7 @@ app.get('/api/test', (req, res) => {
     res.json({ message: 'Backend is working!' });
 });
 
-// Auth routes
+// Auth routes - FIXED PATHS
 app.post('/api/auth/register', (req, res) => {
     const { username, email, password, hwid } = req.body;
     
@@ -68,25 +68,12 @@ app.get('/api/hwid/my-hwid', (req, res) => {
     res.json({ hwid: 'demo-hwid-12345' });
 });
 
-// Root route
-app.get('/', (req, res) => {
-    res.json({ 
-        message: 'Roblox Joiner Backend API',
-        endpoints: {
-            test: '/api/test',
-            register: '/api/auth/register',
-            login: '/api/auth/login',
-            hwid_test: '/api/hwid/test'
-        }
-    });
-});
-
-// 404 handler
+// Catch-all route - MUST BE LAST
 app.use('*', (req, res) => {
-    res.status(404).json({ error: 'Route not found' });
+    console.log('Route not found:', req.originalUrl);
+    res.status(404).json({ error: 'Route not found: ' + req.originalUrl });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📡 Test URL: http://localhost:${PORT}/api/test`);
 });
