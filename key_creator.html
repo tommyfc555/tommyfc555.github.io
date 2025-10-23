@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Key Creator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+        
+        body {
+            background: #1a1a1a;
+            color: white;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #2a2a2a;
+            border-radius: 10px;
+        }
+        
+        h1 {
+            color: #ff8a00;
+            margin-bottom: 10px;
+        }
+        
+        .card {
+            background: #2a2a2a;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #ccc;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #444;
+            background: #1a1a1a;
+            color: white;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        
+        button {
+            width: 100%;
+            padding: 15px;
+            background: #ff8a00;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background: #e67a00;
+        }
+        
+        .key-result {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+            border-left: 4px solid #00ff88;
+            display: none;
+        }
+        
+        .key-code {
+            font-family: monospace;
+            font-size: 20px;
+            font-weight: bold;
+            color: #00ff88;
+            margin: 10px 0;
+        }
+        
+        .keys-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .key-item {
+            background: #333;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #ff8a00;
+        }
+        
+        .key-text {
+            font-family: monospace;
+            font-weight: bold;
+            color: #ff8a00;
+            font-size: 16px;
+        }
+        
+        .key-info {
+            font-size: 14px;
+            color: #888;
+            margin-top: 5px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .status-active { background: #00ff88; color: black; }
+        .status-expired { background: #ff4444; color: white; }
+        .status-used { background: #ffaa00; color: black; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔑 Key Creator</h1>
+            <p>Create and manage license keys</p>
+        </header>
+        
+        <div class="card">
+            <h2>Create New Key</h2>
+            <form id="keyForm">
+                <div class="form-group">
+                    <label>Duration (Days)</label>
+                    <input type="number" id="duration" value="30" min="1" max="365" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Max Uses</label>
+                    <input type="number" id="uses" value="1" min="1" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Note (Optional)</label>
+                    <input type="text" id="note" placeholder="What's this key for?">
+                </div>
+                
+                <button type="submit">Generate Key</button>
+            </form>
+            
+            <div class="key-result" id="keyResult">
+                <h3>✅ Key Created!</h3>
+                <div class="key-code" id="generatedKey">KEY-HERE</div>
+                <p>Give this key to users. They enter it in the application.</p>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>All Keys</h2>
+            <button onclick="loadKeys()" style="margin-bottom: 15px; width: auto; padding: 10px 20px;">🔄 Refresh</button>
+            <div class="keys-list" id="keysList">
+                <p style="text-align: center; color: #888;">Loading keys...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://tommyfc555-github-io.onrender.com';
+
+        // Create key
+        document.getElementById('keyForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const duration = document.getElementById('duration').value;
+            const uses = document.getElementById('uses').value;
+            const note = document.getElementById('note').value;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/create-key`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ duration, uses, note })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('generatedKey').textContent = data.key;
+                    document.getElementById('keyResult').style.display = 'block';
+                    document.getElementById('keyForm').reset();
+                    loadKeys();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Failed to create key: ' + error);
+            }
+        });
+
+        // Load all keys
+        async function loadKeys() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/keys`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const keysList = document.getElementById('keysList');
+                    
+                    if (data.keys.length === 0) {
+                        keysList.innerHTML = '<p style="text-align: center; color: #888;">No keys created yet</p>';
+                        return;
+                    }
+                    
+                    keysList.innerHTML = data.keys.map(key => {
+                        const isExpired = new Date() > new Date(key.expiresAt);
+                        const isUsed = key.used >= key.uses;
+                        let status = 'Active';
+                        let statusClass = 'status-active';
+                        
+                        if (isExpired) {
+                            status = 'Expired';
+                            statusClass = 'status-expired';
+                        } else if (isUsed) {
+                            status = 'Used';
+                            statusClass = 'status-used';
+                        }
+                        
+                        return `
+                            <div class="key-item">
+                                <div class="key-text">${key.key}</div>
+                                <div class="key-info">
+                                    ${key.duration} days • ${key.used}/${key.uses} uses
+                                    • Created: ${new Date(key.createdAt).toLocaleDateString()}
+                                    • Expires: ${new Date(key.expiresAt).toLocaleDateString()}
+                                    <span class="status-badge ${statusClass}">${status}</span>
+                                    ${key.note ? `<br>Note: ${key.note}` : ''}
+                                    ${key.usedBy ? `<br>Used by: ${key.usedBy}` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            } catch (error) {
+                document.getElementById('keysList').innerHTML = '<p style="text-align: center; color: #ff4444;">Failed to load keys</p>';
+            }
+        }
+
+        // Initialize
+        loadKeys();
+    </script>
+</body>
+</html>
