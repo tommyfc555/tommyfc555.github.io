@@ -4,81 +4,191 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register - Roblox Joiner</title>
-    <link rel="stylesheet" href="./frontend/css/style.css">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(45deg, #ff8a00, #ff2070);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        header p {
+            color: #ccc;
+            font-size: 1.1rem;
+        }
+
         .auth-container {
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 80vh;
+            min-height: 60vh;
         }
+
         .auth-box {
             background: rgba(255, 255, 255, 0.1);
-            padding: 2rem;
-            border-radius: 15px;
+            padding: 2.5rem;
+            border-radius: 20px;
             backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
             width: 100%;
-            max-width: 400px;
+            max-width: 450px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
         }
+
+        .auth-box h2 {
+            text-align: center;
+            margin-bottom: 2rem;
+            font-size: 1.8rem;
+            color: #ff8a00;
+        }
+
         .input-group {
-            margin: 1rem 0;
+            margin: 1.5rem 0;
         }
+
         .input-group label {
             display: block;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.8rem;
             font-weight: 600;
+            color: #fff;
+            font-size: 0.95rem;
         }
+
         .input-group input {
             width: 100%;
-            padding: 0.8rem;
-            border-radius: 8px;
-            border: 1px solid rgba(255,255,255,0.3);
-            background: rgba(255,255,255,0.1);
+            padding: 1rem;
+            border-radius: 10px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
             color: white;
             font-size: 1rem;
-        }
-        .hwid-info {
-            background: rgba(0, 0, 0, 0.3);
-            padding: 0.8rem;
-            border-radius: 8px;
-            margin: 1rem 0;
-            text-align: center;
-            font-size: 0.9rem;
-        }
-        .btn {
-            padding: 0.8rem 1.5rem;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 1rem;
-            font-weight: 600;
             transition: all 0.3s ease;
         }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #ff8a00;
+            background: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 20px rgba(255, 138, 0, 0.3);
+        }
+
+        .input-group input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .hwid-info {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 1rem;
+            border-radius: 10px;
+            margin: 1.5rem 0;
+            text-align: center;
+            font-size: 0.9rem;
+            border-left: 4px solid #ff8a00;
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            width: 100%;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
         .btn-primary {
-            background: #ff8a00;
+            background: linear-gradient(45deg, #ff8a00, #ff2070);
             color: white;
         }
+
         .btn-primary:hover {
-            background: #e67a00;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(255, 138, 0, 0.4);
         }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         .error-message {
             color: #ff4444;
             background: rgba(255, 68, 68, 0.1);
-            padding: 0.5rem;
-            border-radius: 5px;
+            padding: 1rem;
+            border-radius: 10px;
             margin-top: 1rem;
             text-align: center;
             display: none;
+            border-left: 4px solid #ff4444;
         }
+
         .success-message {
             color: #44ff44;
             background: rgba(68, 255, 68, 0.1);
-            padding: 0.5rem;
-            border-radius: 5px;
+            padding: 1rem;
+            border-radius: 10px;
             margin-top: 1rem;
             text-align: center;
             display: none;
+            border-left: 4px solid #44ff44;
         }
+
+        .login-link {
+            text-align: center;
+            margin-top: 1.5rem;
+            color: #ccc;
+        }
+
+        .login-link a {
+            color: #ff8a00;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .login-link a:hover {
+            text-decoration: underline;
+        }
+
+        .password-strength {
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+        }
+
+        .strength-weak { color: #ff4444; }
+        .strength-medium { color: #ffaa00; }
+        .strength-strong { color: #44ff44; }
     </style>
 </head>
 <body>
@@ -94,50 +204,85 @@
                 <form id="registerForm">
                     <div class="input-group">
                         <label>Username</label>
-                        <input type="text" id="username" required>
+                        <input type="text" id="username" placeholder="Enter your username" required>
                     </div>
+                    
                     <div class="input-group">
                         <label>Email</label>
-                        <input type="email" id="email" required>
+                        <input type="email" id="email" placeholder="Enter your email" required>
                     </div>
+                    
                     <div class="input-group">
                         <label>Password</label>
-                        <input type="password" id="password" required>
+                        <input type="password" id="password" placeholder="Enter your password" required>
+                        <div id="passwordStrength" class="password-strength"></div>
                     </div>
+                    
                     <div class="hwid-info">
                         🔒 Your HWID will be automatically registered and locked to this device
                     </div>
-                    <button type="submit" class="btn btn-primary" style="width: 100%;">Register</button>
+                    
+                    <button type="submit" class="btn btn-primary" id="registerButton">
+                        Register
+                    </button>
                 </form>
                 
                 <div id="errorMessage" class="error-message"></div>
                 <div id="successMessage" class="success-message"></div>
                 
-                <p style="margin-top: 1rem; text-align: center;">
-                    Already have an account? <a href="./login.html" style="color: #ff8a00;">Login here</a>
+                <p class="login-link">
+                    Already have an account? <a href="./login.html">Login here</a>
                 </p>
             </div>
         </div>
     </div>
 
     <script>
-        // Simple HWID generator (you might want to use a more sophisticated method)
+        // BACKEND URL - POINT TO YOUR RENDER.COM BACKEND
+        const API_BASE_URL = 'https://tommyfc555-github-io.onrender.com';
+
+        // HWID Generator
         function getHWID() {
-            // This is a simple implementation - you might want to use a proper HWID library
             return 'hwid-' + Math.random().toString(36).substr(2, 9) + 
                    '-' + Date.now().toString(36);
         }
 
-        // Handle form submission
+        // Password Strength Checker
+        function checkPasswordStrength(password) {
+            const strengthText = document.getElementById('passwordStrength');
+            let strength = 0;
+            
+            if (password.length >= 8) strength++;
+            if (password.match(/[a-z]/)) strength++;
+            if (password.match(/[A-Z]/)) strength++;
+            if (password.match(/[0-9]/)) strength++;
+            if (password.match(/[^a-zA-Z0-9]/)) strength++;
+            
+            if (password.length === 0) {
+                strengthText.textContent = '';
+                strengthText.className = 'password-strength';
+            } else if (strength <= 2) {
+                strengthText.textContent = 'Weak password';
+                strengthText.className = 'password-strength strength-weak';
+            } else if (strength <= 4) {
+                strengthText.textContent = 'Medium password';
+                strengthText.className = 'password-strength strength-medium';
+            } else {
+                strengthText.textContent = 'Strong password';
+                strengthText.className = 'password-strength strength-strong';
+            }
+        }
+
+        // Form Submission Handler
         document.getElementById('registerForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            const username = document.getElementById('username').value;
-            const email = document.getElementById('email').value;
+            const username = document.getElementById('username').value.trim();
+            const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
             const hwid = getHWID();
             
-            const registerButton = document.querySelector('button[type="submit"]');
+            const registerButton = document.getElementById('registerButton');
             const errorMessage = document.getElementById('errorMessage');
             const successMessage = document.getElementById('successMessage');
             
@@ -145,12 +290,25 @@
             errorMessage.style.display = 'none';
             successMessage.style.display = 'none';
             
+            // Validation
+            if (username.length < 3) {
+                showError('Username must be at least 3 characters long');
+                return;
+            }
+            
+            if (password.length < 6) {
+                showError('Password must be at least 6 characters long');
+                return;
+            }
+            
             // Show loading state
             registerButton.textContent = 'Registering...';
             registerButton.disabled = true;
             
             try {
-                const response = await fetch('/api/register', {
+                console.log('Sending registration request to:', `${API_BASE_URL}/api/register`);
+                
+                const response = await fetch(`${API_BASE_URL}/api/register`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -163,31 +321,63 @@
                     })
                 });
                 
-                const data = await response.json();
+                console.log('Response status:', response.status);
                 
-                if (response.ok) {
-                    // Registration successful
-                    successMessage.textContent = data.message || 'Registration successful!';
-                    successMessage.style.display = 'block';
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    const data = await response.json();
+                    console.log('Response data:', data);
                     
-                    // Redirect to login or dashboard after 2 seconds
-                    setTimeout(() => {
-                        window.location.href = './login.html';
-                    }, 2000);
+                    if (response.ok) {
+                        showSuccess(data.message || 'Registration successful! Redirecting to login...');
+                        setTimeout(() => {
+                            window.location.href = './login.html';
+                        }, 2000);
+                    } else {
+                        showError(data.error || 'Registration failed. Please try again.');
+                    }
                 } else {
-                    // Registration failed
-                    errorMessage.textContent = data.error || 'Registration failed. Please try again.';
-                    errorMessage.style.display = 'block';
+                    const text = await response.text();
+                    console.error('Non-JSON response:', text);
+                    showError('Server error: Invalid response format');
                 }
             } catch (error) {
-                console.error('Error:', error);
-                errorMessage.textContent = 'Network error. Please check your connection.';
-                errorMessage.style.display = 'block';
+                console.error('Network error:', error);
+                showError('Cannot connect to server. Please check your internet connection and make sure the backend is running.');
             } finally {
-                // Reset button
                 registerButton.textContent = 'Register';
                 registerButton.disabled = false;
             }
+        });
+
+        // Password strength real-time checking
+        document.getElementById('password').addEventListener('input', function(e) {
+            checkPasswordStrength(e.target.value);
+        });
+
+        // Helper functions
+        function showError(message) {
+            const errorElement = document.getElementById('errorMessage');
+            errorElement.textContent = message;
+            errorElement.style.display = 'block';
+        }
+
+        function showSuccess(message) {
+            const successElement = document.getElementById('successMessage');
+            successElement.textContent = message;
+            successElement.style.display = 'block';
+        }
+
+        // Add some interactive effects
+        document.querySelectorAll('.input-group input').forEach(input => {
+            input.addEventListener('focus', function() {
+                this.parentElement.style.transform = 'translateY(-2px)';
+            });
+            
+            input.addEventListener('blur', function() {
+                this.parentElement.style.transform = 'translateY(0)';
+            });
         });
     </script>
 </body>
