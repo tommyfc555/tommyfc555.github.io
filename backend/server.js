@@ -15,6 +15,7 @@ const subscriptions = new Map();
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
+app.use(express.static('public'));
 
 // Utility functions
 function generateToken() {
@@ -86,6 +87,9 @@ function authenticateAdmin(req, res, next) {
 app.post('/api/auth/register', (req, res) => {
     const { username, email, password, hwid } = req.body;
     
+    console.log('📝 Register attempt:', { username, email, hwid });
+    
+    // Validation
     if (!username || !password || !hwid) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
@@ -94,68 +98,195 @@ app.post('/api/auth/register', (req, res) => {
         return res.status(400).json({ error: 'Username must be at least 3 characters' });
     }
     
+    if (username.length > 20) {
+        return res.status(400).json({ error: 'Username must be less than 20 characters' });
+    }
+    
+    if (password.length < 6) {
+        return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+    
+    if (email && !email.includes('@')) {
+        return res.status(400).json({ error: 'Invalid email format' });
+    }
+    
+    // Check if user already exists
     if (users.has(username)) {
         return res.status(400).json({ error: 'Username already taken' });
     }
     
-    // Check HWID uniqueness
-    for (let userData of users.values()) {
+    // Check if HWID is already registered to another account
+    for (let [existingUser, userData] of users.entries()) {
         if (userData.hwid === hwid) {
-            return res.status(400).json({ error: 'This device is already registered' });
+            return res.status(400).json({ 
+                error: 'This device is already registered to another account',
+                details: `Device is locked to username: ${existingUser}`
+            });
         }
     }
     
+    // Create user account
     const userData = {
         email: email || '',
         password: password,
         hwid: hwid,
         createdAt: new Date(),
+        lastLogin: null,
         isOnline: false,
         token: null,
-        isAdmin: false, // Default to non-admin
-        subscription: null
+        isAdmin: false,
+        subscription: null,
+        gameJoins: 0
     };
     
     users.set(username, userData);
     
+    console.log('✅ User registered:', username);
+    
+    // Success response
     res.json({ 
         success: true,
-        message: 'Account created!',
+        message: 'Account created and locked to this device!',
         token: generateToken(),
-        username: username
+        username: username,
+        hwid: hwid
     });
 });
 
 app.post('/api/auth/login', (req, res) => {
     const { username, password, hwid } = req.body;
     
+    console.log('🔐 Login attempt:', { username, hwid });
+    
+    // Validation
+    if (!username || !password || !hwid) {
+        return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    // Check if user exists
     const user = users.get(username);
     if (!user) {
-        return res.status(400).json({ error: 'Invalid credentials' });
+        return res.status(400).json({ error: 'Invalid username or password' });
     }
     
+    // Check password
     if (user.password !== password) {
-        return res.status(400).json({ error: 'Invalid credentials' });
+        return res.status(400).json({ error: 'Invalid username or password' });
     }
     
+    // HWID LOCK: Check if HWID matches
     if (user.hwid !== hwid) {
-        return res.status(403).json({ error: 'Account locked to another device' });
+        console.log('🚫 HWID mismatch for user:', username);
+        return res.status(403).json({ 
+            error: 'ACCOUNT LOCKED TO ANOTHER DEVICE',
+            details: 'This account can only be accessed from the original registration device.',
+            solution: 'If this is your device, contact support. Otherwise, create a new account.'
+        });
     }
     
+    // Check if user is already logged in elsewhere
+    if (user.isOnline) {
+        return res.status(409).json({ 
+            error: 'Account is already active',
+            details: 'This account is currently logged in on another session.'
+        });
+    }
+    
+    // Update user status
     const token = generateToken();
     user.isOnline = true;
-    user.token = token;
     user.lastLogin = new Date();
+    user.lastActive = new Date();
+    user.token = token;
     
-    activeSessions.set(token, { username, loginTime: new Date() });
+    // Track active session
+    activeSessions.set(token, {
+        username: username,
+        loginTime: new Date(),
+        hwid: hwid
+    });
     
+    console.log('✅ User logged in:', username);
+    
+    // Success response
     res.json({ 
         success: true,
-        message: 'Login successful!',
+        message: 'Login successful! Device verified.',
         token: token,
         username: username,
         isAdmin: user.isAdmin,
         subscription: user.subscription
+    });
+});
+
+// Check if user is admin
+app.get('/api/auth/check-admin', authenticateToken, (req, res) => {
+    const user = req.user;
+    
+    res.json({
+        success: true,
+        isAdmin: user.isAdmin || false,
+        username: req.username
+    });
+});
+
+// Get user dashboard data
+app.get('/api/auth/dashboard', authenticateToken, (req, res) => {
+    const user = req.user;
+    const username = req.username;
+    
+    const hasActiveSub = user.subscription && new Date(user.subscription.expiresAt) > new Date();
+    const daysLeft = hasActiveSub ? 
+        Math.ceil((new Date(user.subscription.expiresAt) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
+    
+    res.json({
+        success: true,
+        user: {
+            username: username,
+            email: user.email,
+            isAdmin: user.isAdmin || false,
+            subscription: user.subscription,
+            hasActiveSubscription: hasActiveSub,
+            daysLeft: daysLeft,
+            createdAt: user.createdAt,
+            lastLogin: user.lastLogin,
+            gameJoins: user.gameJoins || 0
+        }
+    });
+});
+
+// Logout route
+app.post('/api/auth/logout', authenticateToken, (req, res) => {
+    const { username, user } = req;
+    
+    user.isOnline = false;
+    user.token = null;
+    activeSessions.delete(req.headers.authorization.replace('Bearer ', ''));
+    
+    console.log('👋 User logged out:', username);
+    
+    res.json({ 
+        success: true,
+        message: 'Logged out successfully'
+    });
+});
+
+// Get user profile
+app.get('/api/auth/profile', authenticateToken, (req, res) => {
+    const { username, user } = req;
+    
+    res.json({
+        success: true,
+        profile: {
+            username: username,
+            email: user.email,
+            hwid: user.hwid,
+            createdAt: user.createdAt,
+            lastLogin: user.lastLogin,
+            gameJoins: user.gameJoins,
+            isOnline: user.isOnline,
+            isAdmin: user.isAdmin
+        }
     });
 });
 
@@ -170,11 +301,11 @@ app.post('/api/admin/keys/create', authenticateAdmin, (req, res) => {
     }
     
     const key = generateLicenseKey();
-    const expiresAt = new Date(Date.now() + duration * 24 * 60 * 60 * 1000); // Convert days to ms
+    const expiresAt = new Date(Date.now() + duration * 24 * 60 * 60 * 1000);
     
     const keyData = {
         key: key,
-        duration: duration, // in days
+        duration: duration,
         uses: uses || 1,
         used: 0,
         createdAt: new Date(),
@@ -331,7 +462,8 @@ app.get('/api/admin/users', authenticateAdmin, (req, res) => {
         lastLogin: userData.lastLogin,
         isOnline: userData.isOnline,
         isAdmin: userData.isAdmin,
-        subscription: userData.subscription
+        subscription: userData.subscription,
+        gameJoins: userData.gameJoins || 0
     }));
     
     res.json({
@@ -397,11 +529,16 @@ app.post('/api/game/join', authenticateToken, (req, res) => {
         return res.status(400).json({ error: 'Valid Job ID required' });
     }
     
+    // Update user stats
+    user.gameJoins = (user.gameJoins || 0) + 1;
+    user.lastActive = new Date();
+    
     res.json({
         success: true,
         message: `Joined game: ${jobId}`,
         jobId: jobId,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        totalJoins: user.gameJoins
     });
 });
 
@@ -411,7 +548,16 @@ app.get('/api/status', (req, res) => {
         status: '🟢 Online',
         users: users.size,
         online: Array.from(users.values()).filter(u => u.isOnline).length,
-        uptime: process.uptime()
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
+    });
+});
+
+app.get('/api/test', (req, res) => {
+    res.json({ 
+        message: '✅ Backend is working!',
+        version: '2.0.0',
+        timestamp: new Date().toISOString()
     });
 });
 
@@ -419,12 +565,14 @@ app.get('/', (req, res) => {
     res.json({
         message: '🔑 KeyAuth System API',
         version: '2.0.0',
+        status: '🟢 Operational',
         endpoints: {
             auth: {
                 register: 'POST /api/auth/register',
                 login: 'POST /api/auth/login',
                 redeem: 'POST /api/auth/redeem',
-                subscription: 'GET /api/auth/subscription'
+                subscription: 'GET /api/auth/subscription',
+                dashboard: 'GET /api/auth/dashboard'
             },
             game: {
                 join: 'POST /api/game/join'
@@ -439,43 +587,86 @@ app.get('/', (req, res) => {
     });
 });
 
+// 404 handler
+app.use('*', (req, res) => {
+    res.status(404).json({ 
+        error: 'Route not found: ' + req.originalUrl,
+        availableEndpoints: {
+            home: 'GET /',
+            test: 'GET /api/test',
+            register: 'POST /api/auth/register',
+            login: 'POST /api/auth/login'
+        }
+    });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+    console.error('💥 Server error:', err);
+    res.status(500).json({ 
+        error: 'Internal server error',
+        message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+    });
+});
+
 // Initialize with admin user
 function initializeAdmin() {
     if (!users.has('admin')) {
         const adminHWID = 'admin-hwid-default';
         users.set('admin', {
             email: 'admin@system.com',
-            password: 'admin123', // Change this!
+            password: 'admin123',
             hwid: adminHWID,
             createdAt: new Date(),
             isOnline: false,
             token: null,
             isAdmin: true,
-            subscription: null
+            subscription: null,
+            gameJoins: 0
         });
         console.log('👑 Admin user created: admin / admin123');
     }
 }
 
-// Cleanup expired subscriptions
+// Cleanup expired subscriptions and sessions
 setInterval(() => {
-    let cleaned = 0;
+    let cleanedSubs = 0;
+    let cleanedSessions = 0;
+    
+    // Clean expired subscriptions
     users.forEach(user => {
         if (user.subscription && new Date(user.subscription.expiresAt) <= new Date()) {
             user.subscription = null;
-            cleaned++;
+            cleanedSubs++;
         }
     });
-    if (cleaned > 0) {
-        console.log(`🧹 Cleaned ${cleaned} expired subscriptions`);
+    
+    // Clean old sessions (24 hours)
+    const now = new Date();
+    activeSessions.forEach((session, token) => {
+        if (now - session.loginTime > 24 * 60 * 60 * 1000) {
+            const user = users.get(session.username);
+            if (user) {
+                user.isOnline = false;
+                user.token = null;
+            }
+            activeSessions.delete(token);
+            cleanedSessions++;
+        }
+    });
+    
+    if (cleanedSubs > 0 || cleanedSessions > 0) {
+        console.log(`🧹 Cleaned ${cleanedSubs} expired subscriptions and ${cleanedSessions} old sessions`);
     }
 }, 60 * 60 * 1000); // Every hour
 
+// Start server
 app.listen(PORT, '0.0.0.0', () => {
     initializeAdmin();
     console.log('🚀 KeyAuth Server Started!');
     console.log('📍 Port:', PORT);
     console.log('🔑 License System: Active');
     console.log('👑 Admin Panel: Ready');
+    console.log('🔒 HWID Locking: Enabled');
     console.log('⚡ Server ready!');
 });
