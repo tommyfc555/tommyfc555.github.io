@@ -1,226 +1,118 @@
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const cors = require('cors');
-const bodyParser = require('body-parser');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    }
-});
+const io = socketIo(server);
 
 const PORT = process.env.PORT || 3000;
 
-// In-memory storage
-const users = new Map();
-const messages = [];
-const onlineUsers = new Map();
+// Store users and messages
+let users = [];
+let messages = [];
 
-// Middleware
-app.use(cors());
-app.use(bodyParser.json());
+// Serve static files
 app.use(express.static('public'));
+app.use(express.json());
 
-// Serve chat page
-app.get('/chat', (req, res) => {
-    res.sendFile(__dirname + '/public/chat.html');
-});
-
-// Serve login page
+// Routes
 app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/public/login.html');
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Auth routes
+app.get('/chat', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'chat.html'));
+});
+
+// API routes
 app.post('/api/register', (req, res) => {
     const { username, password } = req.body;
     
     if (!username || !password) {
-        return res.status(400).json({ error: 'Username and password required' });
+        return res.json({ success: false, error: 'Username and password required' });
     }
     
-    if (username.length < 3) {
-        return res.status(400).json({ error: 'Username must be at least 3 characters' });
+    if (users.find(u => u.username === username)) {
+        return res.json({ success: false, error: 'Username already exists' });
     }
     
-    if (password.length < 3) {
-        return res.status(400).json({ error: 'Password must be at least 3 characters' });
-    }
+    users.push({ username, password });
+    console.log(`✅ User registered: ${username}`);
     
-    if (users.has(username)) {
-        return res.status(400).json({ error: 'Username already taken' });
-    }
-    
-    // Store user
-    users.set(username, {
-        password: password,
-        createdAt: new Date(),
-        lastSeen: new Date()
-    });
-    
-    console.log(`👤 User registered: ${username}`);
-    
-    res.json({
-        success: true,
-        message: 'Registration successful!',
-        username: username
-    });
+    res.json({ success: true, message: 'Registration successful' });
 });
 
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     
-    if (!username || !password) {
-        return res.status(400).json({ error: 'Username and password required' });
-    }
-    
-    const user = users.get(username);
+    const user = users.find(u => u.username === username && u.password === password);
     if (!user) {
-        return res.status(400).json({ error: 'User not found' });
+        return res.json({ success: false, error: 'Invalid credentials' });
     }
     
-    if (user.password !== password) {
-        return res.status(400).json({ error: 'Invalid password' });
-    }
-    
-    user.lastSeen = new Date();
-    
-    console.log(`🔐 User logged in: ${username}`);
-    
-    res.json({
-        success: true,
-        message: 'Login successful!',
-        username: username
-    });
+    console.log(`✅ User logged in: ${username}`);
+    res.json({ success: true, message: 'Login successful', username });
 });
 
-// Get chat messages
-app.get('/api/messages', (req, res) => {
-    res.json({
-        success: true,
-        messages: messages.slice(-100) // Last 100 messages
-    });
-});
-
-// Get online users
-app.get('/api/online-users', (req, res) => {
-    const online = Array.from(onlineUsers.values());
-    res.json({
-        success: true,
-        users: online
-    });
-});
-
-// Socket.io for real-time chat
+// Socket.io
 io.on('connection', (socket) => {
     console.log('🔌 User connected:', socket.id);
     
-    socket.on('join-chat', (userData) => {
-        const { username } = userData;
-        
-        // Store online user
-        onlineUsers.set(socket.id, {
-            id: socket.id,
-            username: username,
-            joinedAt: new Date()
-        });
-        
-        // Notify everyone about new user
-        socket.broadcast.emit('user-joined', {
-            username: username,
-            message: `${username} joined the chat`,
-            timestamp: new Date()
-        });
-        
-        // Send current online users to everyone
-        io.emit('online-users-update', Array.from(onlineUsers.values()));
-        
-        console.log(`💬 ${username} joined the chat`);
-    });
+    // Send previous messages to new user
+    socket.emit('previous-messages', messages);
     
-    socket.on('send-message', (messageData) => {
-        const { username, message } = messageData;
+    socket.on('user-joined', (username) => {
+        console.log(`👋 ${username} joined the chat`);
         
-        if (!username || !message) return;
+        // Add user to online list
+        socket.username = username;
         
-        // Create message object
-        const messageObj = {
-            id: Date.now().toString(),
-            username: username,
-            message: message.trim(),
-            timestamp: new Date(),
-            socketId: socket.id
+        // Broadcast to all users
+        const joinMessage = {
+            type: 'system',
+            content: `${username} joined the chat`,
+            timestamp: new Date()
         };
         
-        // Add to messages array (keep last 200 messages)
-        messages.push(messageObj);
-        if (messages.length > 200) {
-            messages.shift();
-        }
-        
-        // Broadcast to all clients
-        io.emit('new-message', messageObj);
-        
-        console.log(`💭 ${username}: ${message}`);
+        messages.push(joinMessage);
+        io.emit('user-joined', joinMessage);
+        io.emit('update-users', users.map(u => u.username));
     });
     
-    socket.on('typing-start', (data) => {
-        socket.broadcast.emit('user-typing', {
+    socket.on('send-message', (data) => {
+        const message = {
+            type: 'user',
             username: data.username,
-            isTyping: true
-        });
-    });
-    
-    socket.on('typing-stop', (data) => {
-        socket.broadcast.emit('user-typing', {
-            username: data.username,
-            isTyping: false
-        });
+            content: data.message,
+            timestamp: new Date()
+        };
+        
+        messages.push(message);
+        
+        // Broadcast to all users
+        io.emit('new-message', message);
+        console.log(`💬 ${data.username}: ${data.message}`);
     });
     
     socket.on('disconnect', () => {
-        const user = onlineUsers.get(socket.id);
-        if (user) {
-            // Notify everyone about user leaving
-            socket.broadcast.emit('user-left', {
-                username: user.username,
-                message: `${user.username} left the chat`,
+        if (socket.username) {
+            console.log(`👋 ${socket.username} left the chat`);
+            
+            const leaveMessage = {
+                type: 'system',
+                content: `${socket.username} left the chat`,
                 timestamp: new Date()
-            });
+            };
             
-            // Remove from online users
-            onlineUsers.delete(socket.id);
-            
-            // Update online users for everyone
-            io.emit('online-users-update', Array.from(onlineUsers.values()));
-            
-            console.log(`👋 ${user.username} left the chat`);
+            messages.push(leaveMessage);
+            io.emit('user-left', leaveMessage);
         }
-        
-        console.log('🔌 User disconnected:', socket.id);
     });
 });
 
-// API routes
-app.get('/api/status', (req, res) => {
-    res.json({
-        status: '🟢 Online',
-        totalUsers: users.size,
-        onlineUsers: onlineUsers.size,
-        totalMessages: messages.length,
-        uptime: process.uptime()
-    });
-});
-
-// Start server
-server.listen(PORT, '0.0.0.0', () => {
-    console.log('🚀 Chat Server Started!');
-    console.log('📍 Port:', PORT);
-    console.log('💬 Real-time Chat: Ready');
-    console.log('👤 User System: Ready');
-    console.log('⚡ Server ready!');
+server.listen(PORT, () => {
+    console.log(`🚀 Chat server running on port ${PORT}`);
+    console.log(`📧 Open http://localhost:3000 in your browser`);
 });
