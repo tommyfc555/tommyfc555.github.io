@@ -3,37 +3,223 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roblox Joiner - HWID Protected</title>
-    <link rel="stylesheet" href="./frontend/css/style.css">
+    <title>Chat App - Login</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            width: 400px;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 2rem;
+            color: #333;
+        }
+        
+        .tabs {
+            display: flex;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid #eee;
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 1rem;
+            text-align: center;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .tab.active {
+            border-bottom-color: #667eea;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .form {
+            display: none;
+        }
+        
+        .form.active {
+            display: block;
+        }
+        
+        .input-group {
+            margin-bottom: 1rem;
+        }
+        
+        input {
+            width: 100%;
+            padding: 0.8rem;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        button {
+            width: 100%;
+            padding: 0.8rem;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 1rem;
+        }
+        
+        button:hover {
+            background: #5a6fd8;
+        }
+        
+        .message {
+            margin-top: 1rem;
+            padding: 0.8rem;
+            border-radius: 5px;
+            text-align: center;
+            display: none;
+        }
+        
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>🎮 Roblox Game Joiner</h1>
-            <p>HWID-Protected Service</p>
-        </header>
+        <h1>💬 Chat App</h1>
         
-        <div class="auth-buttons">
-            <button onclick="location.href='./login.html'" class="btn btn-primary">Login</button>
-            <button onclick="location.href='./register.html'" class="btn btn-secondary">Register</button>
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('login')">Login</div>
+            <div class="tab" onclick="showTab('register')">Register</div>
         </div>
-
-        <div class="features">
-            <div class="feature-card">
-                <h3>🔒 HWID Locked</h3>
-                <p>Your account is tied to your hardware for security</p>
+        
+        <form id="loginForm" class="form active" onsubmit="login(event)">
+            <div class="input-group">
+                <input type="text" id="loginUsername" placeholder="Username" required>
             </div>
-            <div class="feature-card">
-                <h3>⚡ Instant Join</h3>
-                <p>Join any Roblox game instantly with Job IDs</p>
+            <div class="input-group">
+                <input type="password" id="loginPassword" placeholder="Password" required>
             </div>
-            <div class="feature-card">
-                <h3>🎯 Easy to Use</h3>
-                <p>Simple interface for quick game joining</p>
+            <button type="submit">Login</button>
+        </form>
+        
+        <form id="registerForm" class="form" onsubmit="register(event)">
+            <div class="input-group">
+                <input type="text" id="registerUsername" placeholder="Username" required>
             </div>
-        </div>
+            <div class="input-group">
+                <input type="password" id="registerPassword" placeholder="Password" required>
+            </div>
+            <button type="submit">Register</button>
+        </form>
+        
+        <div id="message" class="message"></div>
     </div>
 
-    <script src="./frontend/js/auth.js"></script>
+    <script>
+        function showTab(tabName) {
+            // Update tabs
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.form').forEach(form => form.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName + 'Form').classList.add('active');
+        }
+        
+        async function login(e) {
+            e.preventDefault();
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    localStorage.setItem('username', username);
+                    window.location.href = '/chat';
+                } else {
+                    showMessage(data.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Connection error', 'error');
+            }
+        }
+        
+        async function register(e) {
+            e.preventDefault();
+            const username = document.getElementById('registerUsername').value;
+            const password = document.getElementById('registerPassword').value;
+            
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage('Registration successful! Please login.', 'success');
+                    document.getElementById('registerForm').reset();
+                    setTimeout(() => showTab('login'), 2000);
+                } else {
+                    showMessage(data.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Connection error', 'error');
+            }
+        }
+        
+        function showMessage(text, type) {
+            const messageEl = document.getElementById('message');
+            messageEl.textContent = text;
+            messageEl.className = `message ${type}`;
+            messageEl.style.display = 'block';
+        }
+        
+        // Check if already logged in
+        if (localStorage.getItem('username')) {
+            window.location.href = '/chat';
+        }
+    </script>
 </body>
 </html>
