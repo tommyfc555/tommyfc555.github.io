@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - KeyAuth System</title>
+    <title>Chat Login</title>
     <style>
         * {
             margin: 0;
@@ -11,395 +11,282 @@
             box-sizing: border-box;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-
+        
         body {
-            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            position: relative;
-            overflow: hidden;
         }
-
-        body::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: 
-                radial-gradient(circle at 20% 80%, rgba(255, 138, 0, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 80% 20%, rgba(255, 32, 112, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 40% 40%, rgba(0, 150, 255, 0.05) 0%, transparent 50%);
-            pointer-events: none;
-        }
-
+        
         .container {
             width: 100%;
-            max-width: 1200px;
+            max-width: 400px;
             padding: 20px;
-            position: relative;
-            z-index: 1;
         }
-
-        header {
-            text-align: center;
-            margin-bottom: 3rem;
-        }
-
-        header h1 {
-            font-size: 3rem;
-            margin-bottom: 0.5rem;
-            background: linear-gradient(45deg, #ff8a00, #ff2070, #00c6ff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            animation: gradientShift 3s ease-in-out infinite;
-        }
-
-        @keyframes gradientShift {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-        }
-
-        header p {
-            color: #8892b0;
-            font-size: 1.2rem;
-        }
-
-        .auth-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 60vh;
-        }
-
+        
         .auth-box {
-            background: rgba(255, 255, 255, 0.08);
-            padding: 3rem;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2.5rem;
             border-radius: 20px;
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            width: 100%;
-            max-width: 480px;
-            box-shadow: 
-                0 25px 50px rgba(0, 0, 0, 0.5),
-                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
         }
-
-        .auth-box h2 {
+        
+        h1 {
             text-align: center;
-            margin-bottom: 2.5rem;
-            font-size: 2rem;
-            color: #ff8a00;
-            text-shadow: 0 2px 10px rgba(255, 138, 0, 0.3);
+            margin-bottom: 0.5rem;
+            font-size: 2.5rem;
         }
-
-        .input-group {
-            margin: 1.8rem 0;
+        
+        .subtitle {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 2rem;
         }
-
-        .input-group label {
-            display: block;
-            margin-bottom: 0.8rem;
-            font-weight: 600;
-            color: #ccd6f6;
-            font-size: 1rem;
+        
+        .tabs {
+            display: flex;
+            margin-bottom: 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 5px;
         }
-
-        .input-group input {
-            width: 100%;
-            padding: 1.2rem;
-            border-radius: 12px;
-            border: 2px solid rgba(255, 255, 255, 0.1);
-            background: rgba(255, 255, 255, 0.05);
-            color: white;
-            font-size: 1rem;
+        
+        .tab {
+            flex: 1;
+            padding: 1rem;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 8px;
             transition: all 0.3s ease;
         }
-
-        .input-group input:focus {
-            outline: none;
-            border-color: #ff8a00;
-            background: rgba(255, 255, 255, 0.08);
-            box-shadow: 0 0 30px rgba(255, 138, 0, 0.3);
-            transform: translateY(-2px);
-        }
-
-        .input-group input::placeholder {
-            color: rgba(255, 255, 255, 0.4);
-        }
-
-        .hwid-info {
-            background: rgba(0, 0, 0, 0.4);
-            padding: 1.2rem;
-            border-radius: 12px;
-            margin: 2rem 0;
-            text-align: center;
-            border-left: 4px solid #ff8a00;
-            position: relative;
-        }
-
-        .hwid-info::before {
-            content: '🔍';
-            position: absolute;
-            left: 1rem;
-            top: 50%;
-            transform: translateY(-50%);
-        }
-
-        .hwid-info code {
-            font-family: 'Courier New', monospace;
-            color: #64ffda;
+        
+        .tab.active {
+            background: rgba(255, 255, 255, 0.2);
             font-weight: bold;
         }
-
-        .btn {
-            padding: 1.2rem 2rem;
+        
+        .form {
+            display: none;
+        }
+        
+        .form.active {
+            display: block;
+        }
+        
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        
+        input {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        button {
+            width: 100%;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
             border: none;
-            border-radius: 12px;
-            cursor: pointer;
+            border-radius: 10px;
             font-size: 1.1rem;
             font-weight: 600;
+            cursor: pointer;
             transition: all 0.3s ease;
-            width: 100%;
-            text-transform: uppercase;
-            letter-spacing: 1px;
         }
-
-        .btn-primary {
-            background: linear-gradient(45deg, #ff8a00, #ff2070);
-            color: white;
-            box-shadow: 0 10px 30px rgba(255, 138, 0, 0.4);
+        
+        button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
         }
-
-        .btn-primary:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 40px rgba(255, 138, 0, 0.6);
-        }
-
-        .btn-primary:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .error-message {
-            color: #ff6b6b;
-            background: rgba(255, 107, 107, 0.1);
-            padding: 1.2rem;
-            border-radius: 12px;
-            margin-top: 1.5rem;
-            text-align: center;
-            display: none;
-            border-left: 4px solid #ff6b6b;
-            animation: shake 0.5s ease-in-out;
-        }
-
-        .success-message {
-            color: #64ffda;
-            background: rgba(100, 255, 218, 0.1);
-            padding: 1.2rem;
-            border-radius: 12px;
-            margin-top: 1.5rem;
-            text-align: center;
-            display: none;
-            border-left: 4px solid #64ffda;
-        }
-
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-5px); }
-            75% { transform: translateX(5px); }
-        }
-
-        .register-link {
-            text-align: center;
-            margin-top: 2rem;
-            color: #8892b0;
-        }
-
-        .register-link a {
-            color: #64ffda;
-            text-decoration: none;
-            font-weight: 600;
-        }
-
-        .register-link a:hover {
-            color: #ff8a00;
-            text-decoration: underline;
-        }
-
-        .device-warning {
-            background: rgba(255, 193, 7, 0.1);
-            border: 1px solid rgba(255, 193, 7, 0.3);
+        
+        .message {
+            margin-top: 1rem;
             padding: 1rem;
             border-radius: 10px;
-            margin: 1rem 0;
             text-align: center;
-            color: #ffd54f;
+            display: none;
+        }
+        
+        .message.success {
+            background: rgba(76, 175, 80, 0.3);
+            border: 1px solid rgba(76, 175, 80, 0.5);
+            display: block;
+        }
+        
+        .message.error {
+            background: rgba(244, 67, 54, 0.3);
+            border: 1px solid rgba(244, 67, 54, 0.5);
+            display: block;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>🔑 KeyAuth Login</h1>
-            <p>Secure HWID-Locked Authentication System</p>
-        </header>
-        
-        <div class="auth-container">
-            <div class="auth-box">
-                <h2>Device Verification</h2>
-                <form id="loginForm">
-                    <div class="input-group">
-                        <label>Username</label>
-                        <input type="text" id="username" placeholder="Enter your username" required>
-                    </div>
-                    <div class="input-group">
-                        <label>Password</label>
-                        <input type="password" id="password" placeholder="Enter your password" required>
-                    </div>
-                    
-                    <div class="hwid-info">
-                        <strong>Verifying Device HWID:</strong><br>
-                        <code id="displayHWID">Checking...</code>
-                    </div>
-
-                    <div class="device-warning">
-                        ⚠️ Login only works from your original registration device!
-                    </div>
-                    
-                    <button type="submit" class="btn btn-primary" id="loginButton">
-                        Verify Device & Login
-                    </button>
-                </form>
-                
-                <div id="errorMessage" class="error-message"></div>
-                <div id="successMessage" class="success-message"></div>
-                
-                <p class="register-link">
-                    Don't have an account? <a href="./register.html">Register here</a>
-                </p>
+        <div class="auth-box">
+            <h1>💬 Chat App</h1>
+            <p class="subtitle">Join the conversation</p>
+            
+            <div class="tabs">
+                <div class="tab active" onclick="showTab('login')">Login</div>
+                <div class="tab" onclick="showTab('register')">Register</div>
             </div>
+            
+            <form id="loginForm" class="form active">
+                <div class="input-group">
+                    <label>Username</label>
+                    <input type="text" id="loginUsername" placeholder="Enter your username" required>
+                </div>
+                <div class="input-group">
+                    <label>Password</label>
+                    <input type="password" id="loginPassword" placeholder="Enter your password" required>
+                </div>
+                <button type="submit">Login</button>
+            </form>
+            
+            <form id="registerForm" class="form">
+                <div class="input-group">
+                    <label>Username</label>
+                    <input type="text" id="registerUsername" placeholder="Choose a username" required>
+                </div>
+                <div class="input-group">
+                    <label>Password</label>
+                    <input type="password" id="registerPassword" placeholder="Choose a password" required>
+                </div>
+                <button type="submit">Register</button>
+            </form>
+            
+            <div id="message" class="message"></div>
         </div>
     </div>
 
     <script>
-        const API_BASE_URL = 'https://tommyfc555-github-io.onrender.com';
-
-        // Generate consistent HWID
-        function generateSecureHWID() {
-            const components = [
-                navigator.userAgent,
-                navigator.platform,
-                screen.width + 'x' + screen.height,
-                new Date().getTimezoneOffset(),
-                navigator.language
-            ];
+        const API_BASE_URL = window.location.origin;
+        
+        function showTab(tabName) {
+            // Update tabs
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.form').forEach(form => form.classList.remove('active'));
             
-            let hwid = '';
-            components.forEach(comp => {
-                let hash = 0;
-                for (let i = 0; i < comp.length; i++) {
-                    const char = comp.charCodeAt(i);
-                    hash = ((hash << 5) - hash) + char;
-                    hash = hash & hash;
-                }
-                hwid += Math.abs(hash).toString(36) + '-';
-            });
-            
-            return 'hwid-' + hwid.slice(0, -1) + '-' + Date.now().toString(36);
+            document.querySelector(`.tab:nth-child(${tabName === 'login' ? 1 : 2})`).classList.add('active');
+            document.getElementById(tabName + 'Form').classList.add('active');
         }
-
-        // Display HWID on page load
-        window.addEventListener('load', function() {
-            const hwid = generateSecureHWID();
-            document.getElementById('displayHWID').textContent = hwid;
-            
-            // Check if user is already logged in
-            const token = localStorage.getItem('authToken');
-            if (token) {
-                window.location.href = './dashboard.html';
-            }
-        });
-
-        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+        
+        // Login form
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value;
-            const hwid = generateSecureHWID();
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
             
-            const loginButton = document.getElementById('loginButton');
-            const errorMessage = document.getElementById('errorMessage');
-            const successMessage = document.getElementById('successMessage');
-            
-            // Reset messages
-            errorMessage.style.display = 'none';
-            successMessage.style.display = 'none';
-            
-            // Show loading state
-            loginButton.textContent = 'Verifying Device...';
-            loginButton.disabled = true;
+            if (!username || !password) {
+                showMessage('Please fill in all fields', 'error');
+                return;
+            }
             
             try {
-                const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+                const response = await fetch(API_BASE_URL + '/api/login', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        username: username,
-                        password: password,
-                        hwid: hwid
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
                 });
                 
                 const data = await response.json();
                 
-                if (response.ok) {
-                    showSuccess('✅ Device verified! Login successful...');
-                    
-                    // Save token to localStorage
-                    if (data.token) {
-                        localStorage.setItem('authToken', data.token);
-                        localStorage.setItem('username', data.username);
-                    }
-                    
-                    // Redirect to dashboard (admin/user based on role)
-                    setTimeout(() => {
-                        window.location.href = './dashboard.html';
-                    }, 1500);
+                if (data.success) {
+                    localStorage.setItem('chatUsername', username);
+                    window.location.href = '/chat';
                 } else {
-                    // Special handling for HWID lock error
-                    if (data.error && data.error.includes('locked to another device')) {
-                        showError('🚫 ACCESS DENIED: This account is locked to another device!<br><br>You can only login from the original registration device.');
-                    } else {
-                        showError(data.error || 'Login failed');
-                    }
+                    showMessage(data.error, 'error');
                 }
             } catch (error) {
-                console.error('Error:', error);
-                showError('Network error. Please try again.');
-            } finally {
-                loginButton.textContent = 'Verify Device & Login';
-                loginButton.disabled = false;
+                showMessage('Connection error', 'error');
             }
         });
-
-        function showError(message) {
-            const errorElement = document.getElementById('errorMessage');
-            errorElement.innerHTML = message;
-            errorElement.style.display = 'block';
+        
+        // Register form
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('registerUsername').value.trim();
+            const password = document.getElementById('registerPassword').value;
+            
+            if (!username || !password) {
+                showMessage('Please fill in all fields', 'error');
+                return;
+            }
+            
+            if (username.length < 3) {
+                showMessage('Username must be at least 3 characters', 'error');
+                return;
+            }
+            
+            if (password.length < 3) {
+                showMessage('Password must be at least 3 characters', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(API_BASE_URL + '/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage('Registration successful! Please login.', 'success');
+                    document.getElementById('registerForm').reset();
+                    setTimeout(() => showTab('login'), 2000);
+                } else {
+                    showMessage(data.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Connection error', 'error');
+            }
+        });
+        
+        function showMessage(text, type) {
+            const messageEl = document.getElementById('message');
+            messageEl.textContent = text;
+            messageEl.className = `message ${type}`;
+            
+            setTimeout(() => {
+                messageEl.style.display = 'none';
+            }, 5000);
         }
-
-        function showSuccess(message) {
-            const successElement = document.getElementById('successMessage');
-            successElement.textContent = message;
-            successElement.style.display = 'block';
+        
+        // Check if already logged in
+        if (localStorage.getItem('chatUsername')) {
+            window.location.href = '/chat';
         }
     </script>
 </body>
