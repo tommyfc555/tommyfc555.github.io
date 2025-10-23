@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE = 'https://tommyfc555-github-io.onrender.com/api';
 
 // Register function
 document.getElementById('registerForm')?.addEventListener('submit', async (e) => {
@@ -34,8 +34,8 @@ document.getElementById('registerForm')?.addEventListener('submit', async (e) =>
         if (response.ok) {
             localStorage.setItem('token', data.token);
             localStorage.setItem('username', username);
-            alert('Registration successful! Your HWID has been locked to this account.');
-            window.location.href = 'dashboard.html';
+            alert('Registration successful!');
+            window.location.href = './dashboard.html';
         } else {
             alert('Error: ' + data.error);
         }
@@ -71,7 +71,7 @@ document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
         if (response.ok) {
             localStorage.setItem('token', data.token);
             localStorage.setItem('username', username);
-            window.location.href = 'dashboard.html';
+            window.location.href = './dashboard.html';
         } else {
             alert('Error: ' + data.error);
         }
@@ -84,7 +84,7 @@ document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
 function checkAuth() {
     const token = localStorage.getItem('token');
     if (token && (window.location.pathname.includes('index.html') || window.location.pathname === '/')) {
-        window.location.href = 'dashboard.html';
+        window.location.href = './dashboard.html';
     }
 }
 
