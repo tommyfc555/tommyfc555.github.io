@@ -1,6 +1,5 @@
 const express = require('express');
 const http = require('http');
-const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
@@ -143,33 +142,6 @@ app.get('/', (req, res) => {
               transform: translateY(-2px);
           }
           
-          /* Glow effect */
-          .profile-card::before {
-              content: '';
-              position: absolute;
-              top: -2px;
-              left: -2px;
-              right: -2px;
-              bottom: -2px;
-              background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4);
-              border-radius: 22px;
-              z-index: -1;
-              animation: glow 3s ease-in-out infinite;
-              background-size: 400%;
-          }
-          
-          @keyframes glow {
-              0%, 100% {
-                  filter: blur(20px);
-                  opacity: 0.5;
-              }
-              50% {
-                  filter: blur(30px);
-                  opacity: 0.8;
-              }
-          }
-          
-          /* Floating animation */
           .profile-card {
               animation: float 6s ease-in-out infinite;
           }
@@ -183,7 +155,6 @@ app.get('/', (req, res) => {
               }
           }
           
-          /* Responsive */
           @media (max-width: 768px) {
               .profile-card {
                   padding: 30px 20px;
@@ -232,39 +203,22 @@ app.get('/', (req, res) => {
       </div>
 
       <script>
-          // Add some interactive effects
           document.addEventListener('mousemove', (e) => {
               const card = document.querySelector('.profile-card');
               const x = (window.innerWidth - e.pageX) / 50;
               const y = (window.innerHeight - e.pageY) / 50;
-              card.style.transform = `translateY(${y}px) translateX(${x}px)`;
+              card.style.transform = 'translateY(' + y + 'px) translateX(' + x + 'px)';
           });
           
-          // Background music toggle (optional)
-          let musicPlaying = false;
-          const backgroundMusic = new Audio('https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&');
-          backgroundMusic.loop = true;
-          backgroundMusic.volume = 0.3;
-          
-          document.addEventListener('click', () => {
-              if (!musicPlaying) {
-                  backgroundMusic.play().catch(e => console.log('Audio play failed:', e));
-                  musicPlaying = true;
-              }
-          });
-          
-          // Add particle effect
           function createParticle() {
               const particle = document.createElement('div');
-              particle.style.cssText = \`
-                  position: fixed;
-                  width: 4px;
-                  height: 4px;
-                  background: rgba(255, 255, 255, 0.5);
-                  border-radius: 50%;
-                  pointer-events: none;
-                  z-index: 0;
-              \`;
+              particle.style.position = 'fixed';
+              particle.style.width = '4px';
+              particle.style.height = '4px';
+              particle.style.background = 'rgba(255, 255, 255, 0.5)';
+              particle.style.borderRadius = '50%';
+              particle.style.pointerEvents = 'none';
+              particle.style.zIndex = '0';
               
               particle.style.left = Math.random() * 100 + 'vw';
               particle.style.top = '100vh';
@@ -273,19 +227,18 @@ app.get('/', (req, res) => {
               
               const animation = particle.animate([
                   { transform: 'translateY(0) scale(1)', opacity: 1 },
-                  { transform: \`translateY(-\${Math.random() * 100 + 50}vh) scale(0)\`, opacity: 0 }
+                  { transform: 'translateY(-' + (Math.random() * 100 + 50) + 'vh) scale(0)', opacity: 0 }
               ], {
                   duration: Math.random() * 3000 + 2000,
                   easing: 'cubic-bezier(0.2, 0, 0.8, 1)'
               });
               
-              animation.onfinish = () => particle.remove();
+              animation.onfinish = function() { particle.remove(); };
           }
           
-          // Create particles occasionally
           setInterval(createParticle, 500);
           
-          console.log('Welcome to Black\\'s profile! 🖤');
+          console.log('Welcome to Black profile!');
       </script>
   </body>
   </html>
@@ -293,6 +246,6 @@ app.get('/', (req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Profile page running on port ${PORT}`);
-  console.log(`👉 Open: http://localhost:${PORT}`);
+  console.log('🚀 Profile page running on port ' + PORT);
+  console.log('👉 Open: http://localhost:' + PORT);
 });
