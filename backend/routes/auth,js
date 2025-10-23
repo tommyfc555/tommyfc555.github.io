@@ -1,81 +1,92 @@
-module.exports = (db, bcrypt, jwt, JWT_SECRET) => {
-    const router = require('express').Router();
+const API_BASE = 'https://tommyfc555-github-io.onrender.com/api';
 
-    // Test route
-    router.get('/test', (req, res) => {
-        res.json({ message: 'Auth API is working!' });
-    });
+// Register function
+document.getElementById('registerForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const username = document.getElementById('username').value;
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const hwid = getHWID();
 
-    // Register
-    router.post('/register', async (req, res) => {
-        const { username, email, password, hwid } = req.body;
+    // Basic validation
+    if (username.length < 3) {
+        alert('Username must be at least 3 characters long');
+        return;
+    }
 
-        try {
-            const hashedPassword = await bcrypt.hash(password, 10);
-            
-            db.run(
-                'INSERT INTO users (username, email, password) VALUES (?, ?, ?)',
-                [username, email, hashedPassword],
-                function(err) {
-                    if (err) {
-                        return res.status(400).json({ error: 'User already exists' });
-                    }
-                    
-                    const userId = this.lastID;
-                    
-                    // Store HWID
-                    db.run(
-                        'INSERT INTO hwids (user_id, hwid) VALUES (?, ?)',
-                        [userId, hwid],
-                        function(err) {
-                            if (err) {
-                                return res.status(400).json({ error: 'HWID already registered' });
-                            }
-                            
-                            const token = jwt.sign({ userId, username }, JWT_SECRET);
-                            res.json({ token, message: 'Registration successful' });
-                        }
-                    );
-                }
-            );
-        } catch (error) {
-            res.status(500).json({ error: 'Server error' });
+    if (password.length < 6) {
+        alert('Password must be at least 6 characters long');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/auth/register`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username, email, password, hwid })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('username', username);
+            alert('Registration successful!');
+            window.location.href = './dashboard.html';
+        } else {
+            alert('Error: ' + data.error);
         }
-    });
+    } catch (error) {
+        alert('Registration failed: ' + error.message);
+    }
+});
 
-    // Login
-    router.post('/login', (req, res) => {
-        const { username, password, hwid } = req.body;
+// Login function
+document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    const hwid = getHWID();
 
-        db.get(
-            'SELECT * FROM users WHERE username = ?',
-            [username],
-            async (err, user) => {
-                if (err || !user) {
-                    return res.status(400).json({ error: 'Invalid credentials' });
-                }
+    if (!username || !password) {
+        alert('Please fill in all fields');
+        return;
+    }
 
-                const validPassword = await bcrypt.compare(password, user.password);
-                if (!validPassword) {
-                    return res.status(400).json({ error: 'Invalid credentials' });
-                }
+    try {
+        const response = await fetch(`${API_BASE}/auth/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username, password, hwid })
+        });
 
-                // Check HWID
-                db.get(
-                    'SELECT * FROM hwids WHERE user_id = ? AND hwid = ?',
-                    [user.id, hwid],
-                    (err, hwidRecord) => {
-                        if (err || !hwidRecord) {
-                            return res.status(400).json({ error: 'HWID not authorized for this account' });
-                        }
+        const data = await response.json();
 
-                        const token = jwt.sign({ userId: user.id, username }, JWT_SECRET);
-                        res.json({ token, message: 'Login successful' });
-                    }
-                );
-            }
-        );
-    });
+        if (response.ok) {
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('username', username);
+            window.location.href = './dashboard.html';
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        alert('Login failed: ' + error.message);
+    }
+});
 
-    return router;
-};
+// Check if user is already logged in
+function checkAuth() {
+    const token = localStorage.getItem('token');
+    if (token && (window.location.pathname.includes('index.html') || window.location.pathname === '/')) {
+        window.location.href = './dashboard.html';
+    }
+}
+
+// Initialize auth check
+checkAuth();
