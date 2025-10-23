@@ -9,7 +9,7 @@
   "dependencies": {
     "express": "^4.18.2"
   },
-  "keywords": ["profile", "personal", "portfolio"],
+  "keywords": ["profile", "personal"],
   "author": "Black",
   "license": "MIT"
 }
