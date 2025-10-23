@@ -4,11 +4,206 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Roblox Joiner</title>
-    <link rel="stylesheet" href="./frontend/css/style.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(45deg, #ff8a00, #ff2070);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        header p {
+            color: #ccc;
+            font-size: 1.1rem;
+        }
+
+        .btn {
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-logout {
+            background: rgba(255, 68, 68, 0.2);
+            color: #ff4444;
+            border: 1px solid #ff4444;
+        }
+
+        .btn-logout:hover {
+            background: rgba(255, 68, 68, 0.3);
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #ff8a00, #ff2070);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(255, 138, 0, 0.4);
+        }
+
+        .btn-small {
+            padding: 0.5rem 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            margin: 0.2rem;
+        }
+
+        .btn-small:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .dashboard {
+            display: grid;
+            gap: 2rem;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .user-info, .joiner-section, .stats-section {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2rem;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .joiner-section {
+            grid-column: 1 / -1;
+        }
+
+        .hwid-display {
+            text-align: center;
+        }
+
+        .hwid-display code {
+            display: block;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 1rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+            font-family: monospace;
+            word-break: break-all;
+        }
+
+        .input-group {
+            margin: 1.5rem 0;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 0.8rem;
+            font-weight: 600;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 1rem;
+            border-radius: 10px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 1rem;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #ff8a00;
+        }
+
+        .quick-links {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .quick-links h4 {
+            margin-bottom: 1rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1.5rem;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat-card h4 {
+            color: #ccc;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card p {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .error-message {
+            color: #ff4444;
+            background: rgba(255, 68, 68, 0.1);
+            padding: 1rem;
+            border-radius: 10px;
+            margin-top: 1rem;
+            text-align: center;
+            display: none;
+        }
+
+        .success-message {
+            color: #44ff44;
+            background: rgba(68, 255, 68, 0.1);
+            padding: 1rem;
+            border-radius: 10px;
+            margin-top: 1rem;
+            text-align: center;
+            display: none;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <header style="display: flex; justify-content: space-between; align-items: center;">
+        <header>
             <div>
                 <h1>🎮 Dashboard</h1>
                 <p>Welcome back, <span id="usernameDisplay">User</span>!</p>
@@ -25,22 +220,6 @@
                 </div>
             </div>
 
-            <div class="joiner-section">
-                <h3>🚀 Roblox Game Joiner</h3>
-                <div class="input-group">
-                    <label>Enter Job ID (UUID format):</label>
-                    <input type="text" id="jobId" placeholder="b525a501-8e03-45ad-9aa7-0bb2544f6bf4">
-                </div>
-                <button onclick="joinGame()" class="btn btn-primary">Join Game Instantly</button>
-                
-                <div class="quick-links">
-                    <h4>💡 Quick Join Examples:</h4>
-                    <button onclick="setJobId('b525a501-8e03-45ad-9aa7-0bb2544f6bf4')" class="btn btn-small">Game #1</button>
-                    <button onclick="setJobId('a1b2c3d4-5e6f-7g8h-9i0j-k1l2m3n4o5p6')" class="btn btn-small">Game #2</button>
-                    <button onclick="setJobId('f47ac10b-58cc-4372-a567-0e02b2c3d479')" class="btn btn-small">Game #3</button>
-                </div>
-            </div>
-
             <div class="stats-section">
                 <h3>📊 Account Info</h3>
                 <div class="stats-grid">
@@ -54,14 +233,136 @@
                     </div>
                     <div class="stat-card">
                         <h4>Joins Today</h4>
-                        <p>0</p>
+                        <p id="joinsCount">0</p>
                     </div>
+                </div>
+            </div>
+
+            <div class="joiner-section">
+                <h3>🚀 Roblox Game Joiner</h3>
+                <div class="input-group">
+                    <label>Enter Job ID (UUID format):</label>
+                    <input type="text" id="jobId" placeholder="b525a501-8e03-45ad-9aa7-0bb2544f6bf4">
+                </div>
+                <button onclick="joinGame()" class="btn btn-primary">Join Game Instantly</button>
+                
+                <div id="joinMessage" class="success-message"></div>
+                <div id="errorMessage" class="error-message"></div>
+                
+                <div class="quick-links">
+                    <h4>💡 Quick Join Examples:</h4>
+                    <button onclick="setJobId('b525a501-8e03-45ad-9aa7-0bb2544f6bf4')" class="btn btn-small">Game #1</button>
+                    <button onclick="setJobId('a1b2c3d4-5e6f-7g8h-9i0j-k1l2m3n4o5p6')" class="btn btn-small">Game #2</button>
+                    <button onclick="setJobId('f47ac10b-58cc-4372-a567-0e02b2c3d479')" class="btn btn-small">Game #3</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="./frontend/js/hwid.js"></script>
-    <script src="./frontend/js/dashboard.js"></script>
+    <script>
+        // Check authentication on page load
+        window.addEventListener('load', function() {
+            const token = localStorage.getItem('authToken');
+            const username = localStorage.getItem('username');
+            
+            if (!token) {
+                alert('Please login first!');
+                window.location.href = './login.html';
+                return;
+            }
+            
+            // Display user info
+            if (username) {
+                document.getElementById('usernameDisplay').textContent = username;
+            }
+            
+            // Generate and display HWID
+            const hwid = getHWID();
+            document.getElementById('userHWID').textContent = hwid;
+            
+            // Load user stats
+            loadUserStats();
+        });
+
+        function getHWID() {
+            // Use consistent HWID generation
+            return 'hwid-' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+        }
+
+        function setJobId(jobId) {
+            document.getElementById('jobId').value = jobId;
+        }
+
+        function joinGame() {
+            const jobId = document.getElementById('jobId').value.trim();
+            const joinMessage = document.getElementById('joinMessage');
+            const errorMessage = document.getElementById('errorMessage');
+            
+            // Reset messages
+            joinMessage.style.display = 'none';
+            errorMessage.style.display = 'none';
+            
+            if (!jobId) {
+                showError('Please enter a Job ID');
+                return;
+            }
+            
+            // Simple UUID validation
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            if (!uuidRegex.test(jobId)) {
+                showError('Please enter a valid UUID format');
+                return;
+            }
+            
+            // Simulate joining game
+            showSuccess(`Joining game with Job ID: ${jobId}...`);
+            
+            // Update joins count
+            updateJoinsCount();
+            
+            // In a real app, you would call your backend API here
+            console.log('Joining game:', jobId);
+        }
+
+        function loadUserStats() {
+            // Simulate loading user stats
+            const joinsCount = localStorage.getItem('joinsCount') || '0';
+            document.getElementById('joinsCount').textContent = joinsCount;
+        }
+
+        function updateJoinsCount() {
+            const currentCount = parseInt(localStorage.getItem('joinsCount') || '0');
+            const newCount = currentCount + 1;
+            localStorage.setItem('joinsCount', newCount.toString());
+            document.getElementById('joinsCount').textContent = newCount;
+        }
+
+        function logout() {
+            // Clear authentication data
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('username');
+            localStorage.removeItem('joinsCount');
+            
+            // Redirect to login
+            window.location.href = './login.html';
+        }
+
+        function showError(message) {
+            const errorElement = document.getElementById('errorMessage');
+            errorElement.textContent = message;
+            errorElement.style.display = 'block';
+        }
+
+        function showSuccess(message) {
+            const successElement = document.getElementById('joinMessage');
+            successElement.textContent = message;
+            successElement.style.display = 'block';
+            
+            // Auto-hide success message after 3 seconds
+            setTimeout(() => {
+                successElement.style.display = 'none';
+            }, 3000);
+        }
+    </script>
 </body>
 </html>
