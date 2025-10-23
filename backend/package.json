@@ -1,17 +1,15 @@
 {
-  "name": "discord-clone",
+  "name": "black-profile",
   "version": "1.0.0",
-  "description": "Full Discord clone with all features",
+  "description": "Black's personal profile page",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "socket.io": "^4.7.2",
-    "crypto": "^1.0.1"
+    "express": "^4.18.2"
   },
-  "keywords": ["discord", "chat", "voice", "screenshare"],
-  "author": "Your Name",
+  "keywords": ["profile", "personal", "portfolio"],
+  "author": "Black",
   "license": "MIT"
 }
