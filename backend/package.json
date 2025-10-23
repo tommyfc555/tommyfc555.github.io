@@ -1,7 +1,7 @@
 {
-  "name": "enhanced-chat",
+  "name": "discord-clone",
   "version": "1.0.0",
-  "description": "Discord-like chat with voice, screenshare, and ping system",
+  "description": "Full Discord clone with all features",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -11,13 +11,7 @@
     "socket.io": "^4.7.2",
     "crypto": "^1.0.1"
   },
-  "keywords": [
-    "chat",
-    "discord",
-    "websocket",
-    "voice",
-    "screenshare"
-  ],
+  "keywords": ["discord", "chat", "voice", "screenshare"],
   "author": "Your Name",
   "license": "MIT"
 }
