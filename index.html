@@ -57,12 +57,6 @@
             color: transparent;
         }
 
-        .subtitle {
-            font-size: 1.1rem;
-            opacity: 0.8;
-            margin-bottom: 2rem;
-        }
-
         .status-section {
             padding: 2rem;
             border-radius: 15px;
@@ -89,6 +83,7 @@
             padding: 1rem;
             background: rgba(0, 0, 0, 0.3);
             border-radius: 10px;
+            word-break: break-all;
         }
 
         .countdown {
@@ -149,15 +144,6 @@
             text-align: center;
         }
 
-        .instructions ol {
-            margin-left: 1.5rem;
-            line-height: 1.8;
-        }
-
-        .instructions li {
-            margin-bottom: 0.5rem;
-        }
-
         .url-example {
             background: rgba(0, 0, 0, 0.3);
             padding: 0.5rem 1rem;
@@ -168,10 +154,12 @@
             color: #ff8a00;
         }
 
-        footer {
-            margin-top: 3rem;
-            text-align: center;
-            opacity: 0.7;
+        .debug-info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+            text-align: left;
             font-size: 0.9rem;
         }
 
@@ -191,15 +179,6 @@
             margin-bottom: 1rem;
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .fade-in {
-            animation: fadeIn 0.5s ease;
-        }
-
         @media (max-width: 600px) {
             .container {
                 padding: 1.5rem;
@@ -216,8 +195,7 @@
         <div id="loadingSection">
             <div class="spinner">⏳</div>
             <h1>Roblox Game Joiner</h1>
-            <div class="subtitle">Processing your request...</div>
-            <div class="status-message" id="loadingMessage">Checking Job ID...</div>
+            <div class="status-message" id="loadingMessage">Checking URL parameters...</div>
         </div>
 
         <div id="statusSection" class="status-section hidden">
@@ -225,7 +203,7 @@
             <div class="status-message" id="statusMessage"></div>
             <div class="job-id-display" id="jobIdDisplay"></div>
             <div class="countdown" id="countdown"></div>
-            <div id="actionButtons" class="hidden">
+            <div id="actionButtons">
                 <button id="launchBtn" class="btn btn-primary">
                     <span>Launch in Roblox Now</span>
                 </button>
@@ -238,22 +216,17 @@
         <div id="errorSection" class="status-section hidden">
             <div class="status-icon">❌</div>
             <div class="status-message" id="errorMessage"></div>
+            <div class="debug-info" id="debugInfo"></div>
             <div class="instructions">
                 <h3>How to use this tool</h3>
-                <ol>
-                    <li>Use a URL with the jobId parameter:</li>
-                    <div class="url-example">https://yoursite.com?jobId=1234567890</div>
-                    <li>The page will automatically validate and launch Roblox</li>
-                    <li>Job IDs must be numeric and between 9-20 digits</li>
-                    <li>Fake or invalid Job IDs will be rejected</li>
-                </ol>
+                <p><strong>Correct URL format:</strong></p>
+                <div class="url-example">https://yoursite.com?jobId=1234567890</div>
+                <p><strong>NOT:</strong></p>
+                <div class="url-example">https://yoursite.com?JobId=1c5505d3-f8aa-47c7-9a67-fe711ab2b1cb</div>
+                <p>Job IDs must be numeric (numbers only)</p>
             </div>
         </div>
     </div>
-
-    <footer>
-        <p>This tool uses the official Roblox URL scheme to launch games. No personal data is collected or stored.</p>
-    </footer>
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -265,75 +238,68 @@
             const statusIcon = document.getElementById('statusIcon');
             const jobIdDisplay = document.getElementById('jobIdDisplay');
             const countdownElement = document.getElementById('countdown');
-            const actionButtons = document.getElementById('actionButtons');
             const launchBtn = document.getElementById('launchBtn');
             const browserLink = document.getElementById('browserLink');
             const errorMessage = document.getElementById('errorMessage');
+            const debugInfo = document.getElementById('debugInfo');
             
-            // Function to get URL parameters
+            // Function to get URL parameters (case insensitive)
             function getUrlParameter(name) {
-                name = name.replace(/[\[\]]/g, '\\$&');
-                const regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)');
-                const results = regex.exec(window.location.href);
-                if (!results) return null;
-                if (!results[2]) return '';
-                return decodeURIComponent(results[2].replace(/\+/g, ' '));
+                const url = new URL(window.location.href);
+                const params = new URLSearchParams(url.search);
+                
+                // Check for exact match first
+                if (params.has(name)) {
+                    return params.get(name);
+                }
+                
+                // Check for case-insensitive match
+                for (let key of params.keys()) {
+                    if (key.toLowerCase() === name.toLowerCase()) {
+                        return params.get(key);
+                    }
+                }
+                
+                return null;
             }
             
             // Function to validate Job ID
             function validateJobId(jobId) {
-                // Check if it's a string of digits
-                if (!/^\d+$/.test(jobId)) {
-                    return { valid: false, reason: "Job ID must contain only numbers" };
+                if (!jobId) {
+                    return { valid: false, reason: "No Job ID provided" };
                 }
                 
-                // Check length (Roblox Job IDs are typically 9-20 digits)
-                if (jobId.length < 9 || jobId.length > 20) {
-                    return { valid: false, reason: "Job ID must be between 9 and 20 digits" };
+                // Check if it's a string of digits (Roblox Job ID)
+                if (/^\d+$/.test(jobId)) {
+                    // Check length (Roblox Job IDs are typically 9-20 digits)
+                    if (jobId.length < 9 || jobId.length > 20) {
+                        return { 
+                            valid: false, 
+                            reason: "Job ID must be between 9 and 20 digits",
+                            type: "numeric"
+                        };
+                    }
+                    return { valid: true, type: "jobId" };
                 }
                 
-                // Check for obviously fake patterns
-                if (/^123456789|^987654321|^111111111|^000000000/.test(jobId)) {
-                    return { valid: false, reason: "This appears to be a fake Job ID" };
+                // Check if it's a UUID (Roblox Place ID)
+                if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId)) {
+                    return { 
+                        valid: false, 
+                        reason: "This appears to be a Place ID (UUID), not a Job ID",
+                        type: "placeId"
+                    };
                 }
                 
-                // Check if all digits are the same (likely fake)
-                if (/^(\d)\1+$/.test(jobId)) {
-                    return { valid: false, reason: "This appears to be a fake Job ID" };
-                }
-                
-                return { valid: true };
+                return { 
+                    valid: false, 
+                    reason: "Invalid format. Job ID must be numeric (numbers only)",
+                    type: "invalid"
+                };
             }
             
-            // Function to simulate Job ID verification (in a real app, you'd call an API)
-            function verifyJobId(jobId) {
-                return new Promise((resolve) => {
-                    // Simulate API call delay
-                    setTimeout(() => {
-                        // In a real implementation, you would check against Roblox API
-                        // For this demo, we'll assume 80% of valid-looking IDs are real
-                        const isValidFormat = validateJobId(jobId).valid;
-                        
-                        if (!isValidFormat) {
-                            resolve({ valid: false, reason: "Invalid Job ID format" });
-                            return;
-                        }
-                        
-                        // Simulate real/fake detection
-                        // In reality, you would need to call Roblox API to verify
-                        const isLikelyReal = Math.random() > 0.2; // 80% chance of being "real"
-                        
-                        if (isLikelyReal) {
-                            resolve({ valid: true, gameName: `Roblox Game #${jobId.substring(0, 6)}` });
-                        } else {
-                            resolve({ valid: false, reason: "This Job ID doesn't exist or is invalid" });
-                        }
-                    }, 1500);
-                });
-            }
-            
-            // Function to launch Roblox with a Job ID
-            function launchRoblox(jobId, gameName) {
+            // Function to launch Roblox
+            function launchRoblox(jobId) {
                 // Update UI
                 document.body.classList.remove('loading');
                 document.body.classList.add('success');
@@ -341,7 +307,7 @@
                 statusSection.classList.remove('hidden');
                 
                 statusIcon.textContent = '🎮';
-                statusMessage.textContent = `Ready to join: ${gameName}`;
+                statusMessage.textContent = 'Valid Job ID detected!';
                 jobIdDisplay.textContent = `Job ID: ${jobId}`;
                 
                 // Create Roblox launch URL
@@ -356,70 +322,68 @@
                     window.location.href = robloxUrl;
                 };
                 
-                // Show action buttons
-                actionButtons.classList.remove('hidden');
-                
                 // Start countdown for automatic launch
                 let countdown = 3;
-                countdownElement.textContent = `Launching Roblox in ${countdown} seconds...`;
+                updateCountdown(countdown);
                 
                 const countdownInterval = setInterval(function() {
                     countdown--;
                     if (countdown > 0) {
-                        countdownElement.textContent = `Launching Roblox in ${countdown} seconds...`;
+                        updateCountdown(countdown);
                     } else {
                         clearInterval(countdownInterval);
                         // Automatically launch
                         window.location.href = robloxUrl;
-                        
-                        // Fallback after delay
-                        setTimeout(function() {
-                            countdownElement.textContent = "If Roblox didn't open, use the buttons above";
-                        }, 2000);
                     }
                 }, 1000);
+                
+                function updateCountdown(seconds) {
+                    countdownElement.textContent = `Launching Roblox in ${seconds} seconds...`;
+                }
             }
             
             // Function to show error
-            function showError(message) {
+            function showError(message, debugText = '') {
                 document.body.classList.remove('loading');
                 document.body.classList.add('error');
                 loadingSection.classList.add('hidden');
                 errorSection.classList.remove('hidden');
                 errorMessage.textContent = message;
+                
+                if (debugText) {
+                    debugInfo.textContent = debugText;
+                    debugInfo.classList.remove('hidden');
+                }
             }
             
             // Main execution
             const urlJobId = getUrlParameter('jobId');
             
+            // Debug info
+            const debugText = [
+                `URL: ${window.location.href}`,
+                `Parameter found: ${urlJobId ? 'Yes' : 'No'}`,
+                `Parameter value: ${urlJobId || 'None'}`,
+                `Parameter type: ${typeof urlJobId}`
+            ].join('\n');
+
             if (!urlJobId) {
-                showError('No Job ID found in URL. Please use a URL with the jobId parameter.');
+                showError(
+                    'No Job ID found in URL parameters.', 
+                    `Try using: ${window.location.origin}${window.location.pathname}?jobId=1234567890`
+                );
                 return;
             }
             
-            // Validate Job ID format
+            // Validate Job ID
             const validation = validateJobId(urlJobId);
-            if (!validation.valid) {
-                showError(validation.reason);
-                return;
+            
+            if (validation.valid) {
+                loadingMessage.textContent = 'Valid Job ID detected! Launching Roblox...';
+                setTimeout(() => launchRoblox(urlJobId), 1000);
+            } else {
+                showError(validation.reason, debugText);
             }
-            
-            // Update loading message
-            loadingMessage.textContent = 'Verifying Job ID...';
-            
-            // Verify Job ID (simulated)
-            verifyJobId(urlJobId)
-                .then(result => {
-                    if (result.valid) {
-                        launchRoblox(urlJobId, result.gameName);
-                    } else {
-                        showError(result.reason);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error verifying Job ID:', error);
-                    showError('An error occurred while verifying the Job ID. Please try again.');
-                });
         });
     </script>
 </body>
