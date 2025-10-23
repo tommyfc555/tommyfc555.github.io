@@ -2,12 +2,54 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const crypto = require('crypto');
+const path = require('path');
+const multer = require('multer');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = socketIo(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
 
 const PORT = process.env.PORT || 3000;
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + '-' + file.originalname);
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024 // 50MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif|mp4|webm|pdf|txt|mp3|wav/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Invalid file type'));
+    }
+  }
+});
 
 // Data storage
 const users = new Map();
@@ -17,34 +59,28 @@ const onlineUsers = new Map();
 const friendRequests = new Map();
 const blocks = new Map();
 const rateLimits = new Map();
+const voiceChannels = new Map();
+const calls = new Map();
 
 // Rate limiting configuration
 const RATE_LIMITS = {
-    message: { window: 1000, max: 5 }, // 5 messages per second
-    login: { window: 60000, max: 5 }, // 5 login attempts per minute
-    register: { window: 60000, max: 3 }, // 3 registrations per minute
-    friendRequest: { window: 60000, max: 10 } // 10 friend requests per minute
+    message: { window: 1000, max: 5 },
+    login: { window: 60000, max: 5 },
+    register: { window: 60000, max: 3 },
+    friendRequest: { window: 60000, max: 10 },
+    serverCreate: { window: 60000, max: 2 }
 };
 
 // Comprehensive profanity filter
 const PROFANITY_LIST = [
-    // Racial slurs and hate speech
     'nigger', 'nigga', 'chink', 'spic', 'kike', 'fag', 'faggot', 'tranny',
-    'retard', 'mongoloid', 'cripple', 'midget', 'gimp',
-    
-    // Severe profanity
-    'cunt', 'twat', 'pussy', 'dick', 'cock', 'bastard', 'bitch', 'whore',
-    'slut', 'fuck', 'shit', 'asshole', 'motherfucker', 'cocksucker',
-    
-    // Common variations and misspellings
-    'n1gger', 'n1gga', 'f4g', 'f4ggot', 'r3tard', 'c0ck', 'd1ck', 'b1tch',
-    'f u c k', 's h i t', 'a s s', 'f*ck', 's*it', 'a**', 'b*tch',
-    
-    // Additional offensive terms
-    'rape', 'rapist', 'pedo', 'pedophile', 'nazi', 'kkk', 'isist', 'terrorist'
+    'retard', 'mongoloid', 'cripple', 'midget', 'gimp', 'cunt', 'twat',
+    'pussy', 'dick', 'cock', 'bastard', 'bitch', 'whore', 'slut', 'fuck',
+    'shit', 'asshole', 'motherfucker', 'cocksucker', 'n1gger', 'n1gga',
+    'f4g', 'f4ggot', 'r3tard', 'c0ck', 'd1ck', 'b1tch', 'rape', 'rapist',
+    'pedo', 'pedophile', 'nazi', 'kkk', 'isist', 'terrorist'
 ];
 
-// Enhanced profanity filter with partial matching
 function containsProfanity(text) {
     if (!text) return false;
     
@@ -109,14 +145,16 @@ function checkRateLimit(type, identifier) {
 // Get client IP
 function getClientIP(req) {
     return req.headers['x-forwarded-for']?.split(',')[0] || 
-           req.headers['x-real-ip'] || 
            req.connection.remoteAddress || 
            req.socket.remoteAddress ||
-           req.connection.socket?.remoteAddress ||
            'unknown';
 }
 
-// HTML templates with Discord-like UI
+// Serve static files
+app.use('/uploads', express.static('uploads'));
+app.use(express.json());
+
+// HTML templates
 const loginHTML = `
 <!DOCTYPE html>
 <html lang="en">
@@ -316,7 +354,6 @@ const loginHTML = `
         document.getElementById('loginForm').addEventListener('submit', handleLogin);
         document.getElementById('registerForm').addEventListener('submit', handleRegister);
 
-        // Real-time validation
         document.getElementById('loginUsername').addEventListener('input', function() {
             if (this.value.length >= 5) {
                 document.getElementById('loginUsernameError').style.display = 'none';
@@ -329,7 +366,6 @@ const loginHTML = `
             }
         });
 
-        // Check if already logged in
         if (localStorage.getItem('userId')) {
             window.location.href = '/app';
         }
@@ -338,51 +374,63 @@ const loginHTML = `
 </html>
 `;
 
-// ... (The rest of the HTML and JavaScript code would continue here with the Discord-like UI)
-
-// Enhanced API Routes with profanity filtering
-app.post('/api/servers', (req, res) => {
-    const { name } = req.body;
-    const userId = req.userId; // In real app, get from auth middleware
-    
-    if (!name || name.trim().length < 2) {
-        return res.json({ success: false, error: 'Server name must be at least 2 characters' });
-    }
-    
-    if (containsProfanity(name)) {
-        return res.json({ success: false, error: 'Server name contains inappropriate content' });
-    }
-    
-    if (!checkRateLimit('serverCreate', userId)) {
-        return res.json({ success: false, error: 'Rate limit exceeded. Please try again later.' });
-    }
-    
-    const serverId = generateId();
-    servers.set(serverId, {
-        id: serverId,
-        name: name.trim(),
-        owner: userId,
-        members: [userId],
-        createdAt: new Date(),
-        channels: new Map()
-    });
-    
-    // Create default channel
-    const defaultChannelId = generateId();
-    servers.get(serverId).channels.set(defaultChannelId, {
-        id: defaultChannelId,
-        name: 'general',
-        type: 'text'
-    });
-    
-    messages.set(serverId, new Map());
-    messages.get(serverId).set(defaultChannelId, []);
-    
-    io.emit('server-created', { id: serverId, name: name.trim() });
-    res.json({ success: true, serverId });
+// Routes
+app.get('/', (req, res) => {
+    res.send(loginHTML);
 });
 
-// Enhanced user registration with username validation
+app.get('/app', (req, res) => {
+    res.sendFile(path.join(__dirname, 'app.html'));
+});
+
+app.get('/invite/:serverId', (req, res) => {
+    res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Join Server</title>
+            <style>
+                body { font-family: Arial; text-align: center; padding: 2rem; background: #36393f; color: white; }
+                button { padding: 1rem 2rem; background: #7289da; color: white; border: none; border-radius: 5px; cursor: pointer; }
+                .container { max-width: 400px; margin: 100px auto; padding: 2rem; background: #2f3136; border-radius: 8px; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h2>Server Invitation</h2>
+                <p>You've been invited to join a server!</p>
+                <button onclick="joinServer()">Join Server</button>
+            </div>
+            <script>
+                async function joinServer() {
+                    const userId = localStorage.getItem('userId');
+                    if (!userId) {
+                        alert('Please login first');
+                        window.location.href = '/';
+                        return;
+                    }
+                    
+                    const serverId = window.location.pathname.split('/').pop();
+                    const response = await fetch('/api/servers/join', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ serverId: serverId })
+                    });
+                    
+                    const data = await response.json();
+                    if (data.success) {
+                        window.location.href = '/app';
+                    } else {
+                        alert(data.error);
+                    }
+                }
+            </script>
+        </body>
+        </html>
+    `);
+});
+
+// API Routes
 app.post('/api/register', (req, res) => {
     const { username, password } = req.body;
     const ip = getClientIP(req);
@@ -435,73 +483,524 @@ app.post('/api/register', (req, res) => {
     res.json({ success: true, userId, username, token });
 });
 
-// Enhanced message sending with ping detection
-socket.on('send-server-message', (data) => {
-    const user = onlineUsers.get(socket.id);
-    if (!user) return;
+app.post('/api/login', (req, res) => {
+    const { username, password } = req.body;
+    const ip = getClientIP(req);
     
-    if (!checkRateLimit('message', user.id)) {
-        socket.emit('rate-limit', { type: 'message' });
-        return;
+    const user = users.get(username.toLowerCase());
+    if (!user) {
+        return res.json({ success: false, error: 'User not found' });
     }
     
-    const sanitizedContent = sanitizeText(data.content);
-    
-    // Detect pings (@username)
-    const pingRegex = /@(\w+)/g;
-    let match;
-    const pingedUsers = new Set();
-    
-    while ((match = pingRegex.exec(data.content)) !== null) {
-        const mentionedUsername = match[1].toLowerCase();
-        pingedUsers.add(mentionedUsername);
+    if (user.password !== password) {
+        return res.json({ success: false, error: 'Invalid password' });
     }
     
-    const message = {
-        id: generateId(),
-        username: user.username,
-        userId: user.id,
-        content: sanitizedContent,
-        timestamp: new Date(),
-        serverId: data.serverId,
-        channelId: data.channelId,
-        pings: Array.from(pingedUsers)
-    };
+    if (!checkRateLimit('login', ip)) {
+        return res.json({ success: false, error: 'Too many login attempts. Please try again later.' });
+    }
     
-    const serverMessages = messages.get(data.serverId) || new Map();
-    const channelMessages = serverMessages.get(data.channelId) || [];
-    channelMessages.push(message);
-    serverMessages.set(data.channelId, channelMessages);
-    messages.set(data.serverId, serverMessages);
+    // Update IP and last login
+    user.ip = ip;
+    user.lastLogin = new Date();
+    const token = generateId();
+    user.tokens.push(token);
     
-    // Notify pinged users
-    pingedUsers.forEach(username => {
-        const pingedUser = Array.from(onlineUsers.values()).find(u => 
-            u.username.toLowerCase() === username.toLowerCase()
-        );
-        if (pingedUser) {
-            io.to(pingedUser.socketId).emit('user-pinged', {
-                message: message,
-                serverId: data.serverId,
-                channelId: data.channelId
+    console.log(`✅ User logged in: ${username} from IP: ${ip}`);
+    res.json({ success: true, userId: user.id, username: user.username, token });
+});
+
+// Server routes
+app.get('/api/servers', (req, res) => {
+    const serversArray = Array.from(servers.values()).map(server => ({
+        id: server.id,
+        name: server.name,
+        memberCount: server.members.length,
+        owner: server.owner
+    }));
+    res.json({ success: true, servers: serversArray });
+});
+
+app.post('/api/servers', (req, res) => {
+    const { name } = req.body;
+    const userId = req.headers['user-id']; // In real app, use proper auth
+    
+    if (!name || name.trim().length < 2) {
+        return res.json({ success: false, error: 'Server name must be at least 2 characters' });
+    }
+    
+    if (containsProfanity(name)) {
+        return res.json({ success: false, error: 'Server name contains inappropriate content' });
+    }
+    
+    if (!checkRateLimit('serverCreate', userId || 'anonymous')) {
+        return res.json({ success: false, error: 'Rate limit exceeded. Please try again later.' });
+    }
+    
+    const serverId = generateId();
+    servers.set(serverId, {
+        id: serverId,
+        name: name.trim(),
+        owner: userId,
+        members: [userId],
+        createdAt: new Date(),
+        channels: new Map()
+    });
+    
+    // Create default channels
+    const textChannelId = generateId();
+    const voiceChannelId = generateId();
+    servers.get(serverId).channels.set(textChannelId, {
+        id: textChannelId,
+        name: 'general',
+        type: 'text'
+    });
+    servers.get(serverId).channels.set(voiceChannelId, {
+        id: voiceChannelId,
+        name: 'General Voice',
+        type: 'voice'
+    });
+    
+    messages.set(serverId, new Map());
+    messages.get(serverId).set(textChannelId, []);
+    
+    // Initialize voice channel
+    voiceChannels.set(voiceChannelId, {
+        id: voiceChannelId,
+        serverId: serverId,
+        members: new Map(),
+        name: 'General Voice'
+    });
+    
+    io.emit('server-created', { id: serverId, name: name.trim() });
+    res.json({ success: true, serverId });
+});
+
+app.post('/api/servers/join', (req, res) => {
+    const { serverId } = req.body;
+    const userId = req.headers['user-id'];
+    
+    const server = servers.get(serverId);
+    if (!server) {
+        return res.json({ success: false, error: 'Server not found' });
+    }
+    
+    if (!server.members.includes(userId)) {
+        server.members.push(userId);
+    }
+    
+    io.emit('server-joined', { serverId, userId });
+    res.json({ success: true, message: 'Joined server successfully' });
+});
+
+app.get('/api/servers/:serverId/messages', (req, res) => {
+    const { serverId } = req.params;
+    const { channelId } = req.query;
+    
+    const serverMessages = messages.get(serverId) || new Map();
+    const channelMessages = channelId ? serverMessages.get(channelId) || [] : [];
+    
+    res.json({ success: true, messages: channelMessages });
+});
+
+// File upload route
+app.post('/api/upload', upload.single('file'), (req, res) => {
+    if (!req.file) {
+        return res.json({ success: false, error: 'No file uploaded' });
+    }
+    
+    res.json({ 
+        success: true, 
+        file: {
+            name: req.file.originalname,
+            url: `/uploads/${req.file.filename}`,
+            size: req.file.size,
+            type: req.file.mimetype
+        }
+    });
+});
+
+// Friend routes
+app.get('/api/friends', (req, res) => {
+    const userId = req.headers['user-id'];
+    const user = Array.from(users.values()).find(u => u.id === userId);
+    
+    if (!user) {
+        return res.json({ success: false, error: 'User not found' });
+    }
+    
+    const friends = user.friends.map(friendId => {
+        const friend = Array.from(users.values()).find(u => u.id === friendId);
+        return friend ? { id: friend.id, username: friend.username, online: onlineUsers.has(friend.id) } : null;
+    }).filter(Boolean);
+    
+    res.json({ success: true, friends });
+});
+
+app.post('/api/friends/request', (req, res) => {
+    const { username } = req.body;
+    const fromUserId = req.headers['user-id'];
+    
+    if (!checkRateLimit('friendRequest', fromUserId)) {
+        return res.json({ success: false, error: 'Rate limit exceeded' });
+    }
+    
+    const targetUser = Array.from(users.values()).find(u => u.username.toLowerCase() === username.toLowerCase());
+    if (!targetUser) {
+        return res.json({ success: false, error: 'User not found' });
+    }
+    
+    if (targetUser.id === fromUserId) {
+        return res.json({ success: false, error: 'Cannot add yourself' });
+    }
+    
+    const requestId = generateId();
+    if (!friendRequests.has(targetUser.id)) {
+        friendRequests.set(targetUser.id, []);
+    }
+    
+    friendRequests.get(targetUser.id).push({
+        id: requestId,
+        fromUserId: fromUserId,
+        fromUsername: Array.from(users.values()).find(u => u.id === fromUserId)?.username,
+        timestamp: new Date()
+    });
+    
+    // Notify target user if online
+    const targetSocket = Array.from(onlineUsers.entries()).find(([socketId, user]) => user.id === targetUser.id);
+    if (targetSocket) {
+        io.to(targetSocket[0]).emit('friend-request', {
+            fromUserId: fromUserId,
+            fromUsername: Array.from(users.values()).find(u => u.id === fromUserId)?.username
+        });
+    }
+    
+    res.json({ success: true, message: 'Friend request sent' });
+});
+
+app.get('/api/friends/requests', (req, res) => {
+    const userId = req.headers['user-id'];
+    const requests = friendRequests.get(userId) || [];
+    res.json({ success: true, requests });
+});
+
+app.post('/api/friends/accept', (req, res) => {
+    const { requestId } = req.body;
+    const userId = req.headers['user-id'];
+    
+    const userRequests = friendRequests.get(userId) || [];
+    const requestIndex = userRequests.findIndex(req => req.id === requestId);
+    
+    if (requestIndex === -1) {
+        return res.json({ success: false, error: 'Request not found' });
+    }
+    
+    const request = userRequests[requestIndex];
+    const fromUser = Array.from(users.values()).find(u => u.id === request.fromUserId);
+    const currentUser = Array.from(users.values()).find(u => u.id === userId);
+    
+    if (fromUser && currentUser) {
+        if (!fromUser.friends.includes(userId)) {
+            fromUser.friends.push(userId);
+        }
+        if (!currentUser.friends.includes(request.fromUserId)) {
+            currentUser.friends.push(request.fromUserId);
+        }
+    }
+    
+    userRequests.splice(requestIndex, 1);
+    
+    res.json({ success: true, message: 'Friend request accepted' });
+});
+
+app.post('/api/friends/decline', (req, res) => {
+    const { requestId } = req.body;
+    const userId = req.headers['user-id'];
+    
+    const userRequests = friendRequests.get(userId) || [];
+    const requestIndex = userRequests.findIndex(req => req.id === requestId);
+    
+    if (requestIndex === -1) {
+        return res.json({ success: false, error: 'Request not found' });
+    }
+    
+    userRequests.splice(requestIndex, 1);
+    res.json({ success: true, message: 'Friend request declined' });
+});
+
+// Socket.io connection handling
+io.on('connection', (socket) => {
+    console.log('🔌 User connected:', socket.id);
+    
+    socket.on('user-joined', (userData) => {
+        onlineUsers.set(socket.id, {
+            id: userData.userId,
+            username: userData.username,
+            socketId: socket.id
+        });
+        
+        console.log(`👋 ${userData.username} joined`);
+        
+        // Notify friends
+        const user = Array.from(users.values()).find(u => u.id === userData.userId);
+        if (user) {
+            user.friends.forEach(friendId => {
+                const friendSocket = Array.from(onlineUsers.entries()).find(([sId, u]) => u.id === friendId);
+                if (friendSocket) {
+                    io.to(friendSocket[0]).emit('friend-online', { userId: userData.userId });
+                }
             });
         }
     });
     
-    io.to(data.serverId).emit('new-message', { 
-        serverId: data.serverId, 
-        channelId: data.channelId,
-        message 
+    socket.on('send-server-message', (data) => {
+        const user = onlineUsers.get(socket.id);
+        if (!user) return;
+        
+        if (!checkRateLimit('message', user.id)) {
+            socket.emit('rate-limit', { type: 'message' });
+            return;
+        }
+        
+        const sanitizedContent = sanitizeText(data.content);
+        
+        // Detect pings (@username)
+        const pingRegex = /@(\w+)/g;
+        let match;
+        const pingedUsers = new Set();
+        
+        while ((match = pingRegex.exec(data.content)) !== null) {
+            const mentionedUsername = match[1].toLowerCase();
+            pingedUsers.add(mentionedUsername);
+        }
+        
+        const message = {
+            id: generateId(),
+            username: user.username,
+            userId: user.id,
+            content: sanitizedContent,
+            timestamp: new Date(),
+            serverId: data.serverId,
+            channelId: data.channelId,
+            pings: Array.from(pingedUsers),
+            type: 'text'
+        };
+        
+        const serverMessages = messages.get(data.serverId) || new Map();
+        const channelMessages = serverMessages.get(data.channelId) || [];
+        channelMessages.push(message);
+        serverMessages.set(data.channelId, channelMessages);
+        messages.set(data.serverId, serverMessages);
+        
+        // Notify pinged users
+        pingedUsers.forEach(username => {
+            const pingedUser = Array.from(onlineUsers.values()).find(u => 
+                u.username.toLowerCase() === username.toLowerCase()
+            );
+            if (pingedUser) {
+                io.to(pingedUser.socketId).emit('user-pinged', {
+                    message: message,
+                    serverId: data.serverId,
+                    channelId: data.channelId
+                });
+            }
+        });
+        
+        io.to(data.serverId).emit('new-message', { 
+            serverId: data.serverId, 
+            channelId: data.channelId,
+            message 
+        });
+    });
+    
+    socket.on('send-dm', (data) => {
+        const fromUser = onlineUsers.get(socket.id);
+        if (!fromUser) return;
+        
+        const dmKey = [fromUser.id, data.toUserId].sort().join('_');
+        const message = {
+            id: generateId(),
+            username: fromUser.username,
+            userId: fromUser.id,
+            content: sanitizeText(data.content),
+            timestamp: new Date(),
+            type: 'dm'
+        };
+        
+        const dmMessages = messages.get(dmKey) || [];
+        dmMessages.push(message);
+        messages.set(dmKey, dmMessages);
+        
+        // Notify recipient
+        const recipientSocket = Array.from(onlineUsers.entries()).find(([sId, u]) => u.id === data.toUserId);
+        if (recipientSocket) {
+            io.to(recipientSocket[0]).emit('dm-message', {
+                fromUserId: fromUser.id,
+                toUserId: data.toUserId,
+                message
+            });
+        }
+        
+        socket.emit('dm-message-sent', message);
+    });
+    
+    // Voice chat handlers
+    socket.on('join-voice', (data) => {
+        const user = onlineUsers.get(socket.id);
+        if (!user) return;
+        
+        const voiceChannel = voiceChannels.get(data.channelId);
+        if (voiceChannel) {
+            voiceChannel.members.set(user.id, {
+                id: user.id,
+                username: user.username,
+                socketId: socket.id,
+                muted: false,
+                deafened: false
+            });
+            
+            socket.join(`voice-${data.channelId}`);
+            io.to(`voice-${data.channelId}`).emit('voice-user-joined', {
+                userId: user.id,
+                username: user.username
+            });
+        }
+    });
+    
+    socket.on('leave-voice', (data) => {
+        const user = onlineUsers.get(socket.id);
+        if (!user) return;
+        
+        const voiceChannel = voiceChannels.get(data.channelId);
+        if (voiceChannel && voiceChannel.members.has(user.id)) {
+            voiceChannel.members.delete(user.id);
+            socket.leave(`voice-${data.channelId}`);
+            io.to(`voice-${data.channelId}`).emit('voice-user-left', {
+                userId: user.id
+            });
+        }
+    });
+    
+    socket.on('voice-toggle-mute', (data) => {
+        const user = onlineUsers.get(socket.id);
+        if (!user) return;
+        
+        const voiceChannel = voiceChannels.get(data.channelId);
+        if (voiceChannel && voiceChannel.members.has(user.id)) {
+            const member = voiceChannel.members.get(user.id);
+            member.muted = !member.muted;
+            io.to(`voice-${data.channelId}`).emit('voice-user-updated', {
+                userId: user.id,
+                muted: member.muted,
+                deafened: member.deafened
+            });
+        }
+    });
+    
+    socket.on('voice-toggle-deafen', (data) => {
+        const user = onlineUsers.get(socket.id);
+        if (!user) return;
+        
+        const voiceChannel = voiceChannels.get(data.channelId);
+        if (voiceChannel && voiceChannel.members.has(user.id)) {
+            const member = voiceChannel.members.get(user.id);
+            member.deafened = !member.deafened;
+            io.to(`voice-${data.channelId}`).emit('voice-user-updated', {
+                userId: user.id,
+                muted: member.muted,
+                deafened: member.deafened
+            });
+        }
+    });
+    
+    // WebRTC signaling for voice
+    socket.on('voice-offer', (data) => {
+        socket.to(data.targetSocketId).emit('voice-offer', {
+            offer: data.offer,
+            socketId: socket.id
+        });
+    });
+    
+    socket.on('voice-answer', (data) => {
+        socket.to(data.targetSocketId).emit('voice-answer', {
+            answer: data.answer
+        });
+    });
+    
+    socket.on('voice-ice-candidate', (data) => {
+        socket.to(data.targetSocketId).emit('voice-ice-candidate', {
+            candidate: data.candidate
+        });
+    });
+    
+    // Screen sharing
+    socket.on('start-screenshare', (data) => {
+        const user = onlineUsers.get(socket.id);
+        if (!user) return;
+        
+        io.to(data.channelId).emit('screenshare-started', {
+            userId: user.id,
+            username: user.username,
+            socketId: socket.id
+        });
+    });
+    
+    socket.on('stop-screenshare', (data) => {
+        const user = onlineUsers.get(socket.id);
+        if (!user) return;
+        
+        io.to(data.channelId).emit('screenshare-stopped', {
+            userId: user.id
+        });
+    });
+    
+    socket.on('disconnect', () => {
+        const user = onlineUsers.get(socket.id);
+        if (user) {
+            console.log(`👋 ${user.username} left`);
+            
+            // Leave all voice channels
+            voiceChannels.forEach((channel, channelId) => {
+                if (channel.members.has(user.id)) {
+                    channel.members.delete(user.id);
+                    io.to(`voice-${channelId}`).emit('voice-user-left', {
+                        userId: user.id
+                    });
+                }
+            });
+            
+            // Notify friends
+            const userObj = Array.from(users.values()).find(u => u.id === user.id);
+            if (userObj) {
+                userObj.friends.forEach(friendId => {
+                    const friendSocket = Array.from(onlineUsers.entries()).find(([sId, u]) => u.id === friendId);
+                    if (friendSocket) {
+                        io.to(friendSocket[0]).emit('friend-offline', { userId: user.id });
+                    }
+                });
+            }
+        }
+        onlineUsers.delete(socket.id);
     });
 });
 
-// ... (Rest of the server code with all the other enhancements)
+// Health check
+app.get('/health', (req, res) => {
+    res.json({ 
+        status: 'OK', 
+        users: users.size, 
+        servers: servers.size,
+        online: onlineUsers.size,
+        voiceChannels: voiceChannels.size
+    });
+});
 
 // Start server
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Enhanced Discord-like Chat server running on port ${PORT}`);
-    console.log(`🔒 Features: Rate limiting, profanity filter, ping system, Discord UI`);
+    console.log(`🔒 Features: Voice chat, screen sharing, file uploads, ping system`);
     console.log(`📧 Open your Render URL in browser`);
     console.log(`🏠 Main page: /`);
     console.log(`💬 Chat app: /app`);
+    console.log(`🔧 API health: /health`);
 });
