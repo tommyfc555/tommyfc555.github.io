@@ -1,309 +1,226 @@
 const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 
 const app = express();
+const server = http.createServer(app);
+const io = socketIo(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 
 // In-memory storage
-const licenseKeys = new Map();
-const activatedKeys = new Map(); // HWID -> key data
+const users = new Map();
+const messages = [];
+const onlineUsers = new Map();
 
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
+app.use(express.static('public'));
 
-// Utility functions
-function generateLicenseKey(length = 16) {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let key = '';
-    for (let i = 0; i < length; i++) {
-        key += chars.charAt(Math.floor(Math.random() * chars.length));
+// Serve chat page
+app.get('/chat', (req, res) => {
+    res.sendFile(__dirname + '/public/chat.html');
+});
+
+// Serve login page
+app.get('/', (req, res) => {
+    res.sendFile(__dirname + '/public/login.html');
+});
+
+// Auth routes
+app.post('/api/register', (req, res) => {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Username and password required' });
     }
-    return key.match(/.{1,4}/g).join('-');
-}
-
-// ==================== SIMPLE KEY SYSTEM ====================
-
-// Create license key
-app.post('/api/create-key', (req, res) => {
-    const { duration, uses, note } = req.body;
     
-    if (!duration) {
-        return res.status(400).json({ error: 'Duration is required' });
+    if (username.length < 3) {
+        return res.status(400).json({ error: 'Username must be at least 3 characters' });
     }
     
-    const key = generateLicenseKey();
-    const expiresAt = new Date(Date.now() + duration * 24 * 60 * 60 * 1000);
+    if (password.length < 3) {
+        return res.status(400).json({ error: 'Password must be at least 3 characters' });
+    }
     
-    const keyData = {
-        key: key,
-        duration: parseInt(duration),
-        uses: parseInt(uses) || 1,
-        used: 0,
+    if (users.has(username)) {
+        return res.status(400).json({ error: 'Username already taken' });
+    }
+    
+    // Store user
+    users.set(username, {
+        password: password,
         createdAt: new Date(),
-        expiresAt: expiresAt,
-        note: note || '',
-        isActive: true
-    };
+        lastSeen: new Date()
+    });
     
-    licenseKeys.set(key, keyData);
-    
-    console.log(`🔑 License key created: ${key} (${duration} days)`);
+    console.log(`👤 User registered: ${username}`);
     
     res.json({
         success: true,
-        message: 'License key created successfully',
-        key: key,
-        keyData: keyData
+        message: 'Registration successful!',
+        username: username
     });
 });
 
-// Get all keys
-app.get('/api/keys', (req, res) => {
-    const keysArray = Array.from(licenseKeys.values());
+app.post('/api/login', (req, res) => {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Username and password required' });
+    }
+    
+    const user = users.get(username);
+    if (!user) {
+        return res.status(400).json({ error: 'User not found' });
+    }
+    
+    if (user.password !== password) {
+        return res.status(400).json({ error: 'Invalid password' });
+    }
+    
+    user.lastSeen = new Date();
+    
+    console.log(`🔐 User logged in: ${username}`);
     
     res.json({
         success: true,
-        keys: keysArray,
-        total: keysArray.length,
-        active: keysArray.filter(k => k.isActive).length,
-        expired: keysArray.filter(k => new Date() > new Date(k.expiresAt)).length
+        message: 'Login successful!',
+        username: username
     });
 });
 
-// Simple key validation
-app.post('/api/validate-key', (req, res) => {
-    const { key } = req.body;
-    
-    console.log('🔑 Key validation request:', key);
-    
-    if (!key) {
-        return res.json({ valid: false, error: 'No key provided' });
-    }
-    
-    const keyData = licenseKeys.get(key);
-    if (!keyData) {
-        return res.json({ valid: false, error: 'Invalid key' });
-    }
-    
-    if (!keyData.isActive) {
-        return res.json({ valid: false, error: 'Key is not active' });
-    }
-    
-    if (new Date() > new Date(keyData.expiresAt)) {
-        return res.json({ valid: false, error: 'Key has expired' });
-    }
-    
-    if (keyData.used >= keyData.uses) {
-        return res.json({ valid: false, error: 'Key has reached maximum uses' });
-    }
-    
-    res.json({
-        valid: true,
-        duration: keyData.duration,
-        uses: keyData.uses,
-        used: keyData.used,
-        expiresAt: keyData.expiresAt,
-        note: keyData.note
-    });
-});
-
-// Activate key
-app.post('/api/activate-key', (req, res) => {
-    const { key, hwid } = req.body;
-    
-    console.log('🎯 Key activation request:', { key, hwid });
-    
-    if (!key || !hwid) {
-        return res.json({ success: false, error: 'Key and HWID required' });
-    }
-    
-    const keyData = licenseKeys.get(key);
-    if (!keyData) {
-        return res.json({ success: false, error: 'Invalid key' });
-    }
-    
-    if (!keyData.isActive) {
-        return res.json({ success: false, error: 'Key is not active' });
-    }
-    
-    if (new Date() > new Date(keyData.expiresAt)) {
-        return res.json({ success: false, error: 'Key has expired' });
-    }
-    
-    if (keyData.used >= keyData.uses) {
-        return res.json({ success: false, error: 'Key has reached maximum uses' });
-    }
-    
-    // Check if HWID already has an active key
-    if (activatedKeys.has(hwid)) {
-        const existing = activatedKeys.get(hwid);
-        if (new Date() < new Date(existing.expiresAt)) {
-            return res.json({ 
-                success: false, 
-                error: 'HWID already has an active key',
-                existingKey: existing.key
-            });
-        }
-    }
-    
-    // Mark key as used
-    keyData.used += 1;
-    keyData.lastUsed = new Date();
-    keyData.usedBy = hwid;
-    
-    // Store activation
-    const activationData = {
-        key: key,
-        hwid: hwid,
-        activatedAt: new Date(),
-        expiresAt: new Date(Date.now() + keyData.duration * 24 * 60 * 60 * 1000),
-        duration: keyData.duration
-    };
-    
-    activatedKeys.set(hwid, activationData);
-    
-    console.log(`✅ Key activated: ${key} by HWID: ${hwid}`);
-    
+// Get chat messages
+app.get('/api/messages', (req, res) => {
     res.json({
         success: true,
-        message: `Key activated for ${keyData.duration} days!`,
-        duration: keyData.duration,
-        expiresAt: activationData.expiresAt
+        messages: messages.slice(-100) // Last 100 messages
     });
 });
 
-// Check access status
-app.post('/api/check-access', (req, res) => {
-    const { hwid } = req.body;
+// Get online users
+app.get('/api/online-users', (req, res) => {
+    const online = Array.from(onlineUsers.values());
+    res.json({
+        success: true,
+        users: online
+    });
+});
+
+// Socket.io for real-time chat
+io.on('connection', (socket) => {
+    console.log('🔌 User connected:', socket.id);
     
-    if (!hwid) {
-        return res.json({ hasAccess: false, error: 'HWID required' });
-    }
-    
-    const activation = activatedKeys.get(hwid);
-    
-    if (activation) {
-        const isActive = new Date() < new Date(activation.expiresAt);
-        const daysLeft = isActive ? 
-            Math.ceil((new Date(activation.expiresAt) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
+    socket.on('join-chat', (userData) => {
+        const { username } = userData;
         
-        res.json({
-            hasAccess: isActive,
-            key: activation.key,
-            activatedAt: activation.activatedAt,
-            expiresAt: activation.expiresAt,
-            daysLeft: daysLeft,
-            duration: activation.duration
+        // Store online user
+        onlineUsers.set(socket.id, {
+            id: socket.id,
+            username: username,
+            joinedAt: new Date()
         });
-    } else {
-        res.json({ hasAccess: false });
-    }
-});
-
-// Delete key
-app.delete('/api/keys/:key', (req, res) => {
-    const { key } = req.params;
+        
+        // Notify everyone about new user
+        socket.broadcast.emit('user-joined', {
+            username: username,
+            message: `${username} joined the chat`,
+            timestamp: new Date()
+        });
+        
+        // Send current online users to everyone
+        io.emit('online-users-update', Array.from(onlineUsers.values()));
+        
+        console.log(`💬 ${username} joined the chat`);
+    });
     
-    if (!licenseKeys.has(key)) {
-        return res.status(404).json({ error: 'License key not found' });
-    }
+    socket.on('send-message', (messageData) => {
+        const { username, message } = messageData;
+        
+        if (!username || !message) return;
+        
+        // Create message object
+        const messageObj = {
+            id: Date.now().toString(),
+            username: username,
+            message: message.trim(),
+            timestamp: new Date(),
+            socketId: socket.id
+        };
+        
+        // Add to messages array (keep last 200 messages)
+        messages.push(messageObj);
+        if (messages.length > 200) {
+            messages.shift();
+        }
+        
+        // Broadcast to all clients
+        io.emit('new-message', messageObj);
+        
+        console.log(`💭 ${username}: ${message}`);
+    });
     
-    licenseKeys.delete(key);
+    socket.on('typing-start', (data) => {
+        socket.broadcast.emit('user-typing', {
+            username: data.username,
+            isTyping: true
+        });
+    });
     
-    res.json({
-        success: true,
-        message: 'License key deleted successfully'
+    socket.on('typing-stop', (data) => {
+        socket.broadcast.emit('user-typing', {
+            username: data.username,
+            isTyping: false
+        });
+    });
+    
+    socket.on('disconnect', () => {
+        const user = onlineUsers.get(socket.id);
+        if (user) {
+            // Notify everyone about user leaving
+            socket.broadcast.emit('user-left', {
+                username: user.username,
+                message: `${user.username} left the chat`,
+                timestamp: new Date()
+            });
+            
+            // Remove from online users
+            onlineUsers.delete(socket.id);
+            
+            // Update online users for everyone
+            io.emit('online-users-update', Array.from(onlineUsers.values()));
+            
+            console.log(`👋 ${user.username} left the chat`);
+        }
+        
+        console.log('🔌 User disconnected:', socket.id);
     });
 });
 
-// ==================== PUBLIC ROUTES ====================
+// API routes
 app.get('/api/status', (req, res) => {
     res.json({
         status: '🟢 Online',
-        totalKeys: licenseKeys.size,
-        activeActivations: Array.from(activatedKeys.values()).filter(a => 
-            new Date() < new Date(a.expiresAt)
-        ).length,
-        uptime: process.uptime(),
-        timestamp: new Date().toISOString()
+        totalUsers: users.size,
+        onlineUsers: onlineUsers.size,
+        totalMessages: messages.length,
+        uptime: process.uptime()
     });
 });
-
-app.get('/api/test', (req, res) => {
-    res.json({ 
-        message: '✅ Server is working!',
-        version: '1.0.0',
-        timestamp: new Date().toISOString()
-    });
-});
-
-app.get('/', (req, res) => {
-    res.json({
-        message: '🔑 Simple Key System API',
-        version: '1.0.0',
-        endpoints: {
-            createKey: 'POST /api/create-key',
-            validateKey: 'POST /api/validate-key',
-            activateKey: 'POST /api/activate-key',
-            checkAccess: 'POST /api/check-access',
-            getKeys: 'GET /api/keys',
-            status: 'GET /api/status'
-        }
-    });
-});
-
-// 404 handler
-app.use('*', (req, res) => {
-    res.status(404).json({ 
-        error: 'Route not found: ' + req.originalUrl,
-        availableEndpoints: {
-            home: 'GET /',
-            status: 'GET /api/status',
-            createKey: 'POST /api/create-key',
-            validateKey: 'POST /api/validate-key',
-            activateKey: 'POST /api/activate-key'
-        }
-    });
-});
-
-// Error handler
-app.use((err, req, res, next) => {
-    console.error('💥 Server error:', err);
-    res.status(500).json({ 
-        error: 'Internal server error',
-        message: 'Something went wrong'
-    });
-});
-
-// Cleanup expired activations
-setInterval(() => {
-    let cleaned = 0;
-    const now = new Date();
-    
-    activatedKeys.forEach((activation, hwid) => {
-        if (now > new Date(activation.expiresAt)) {
-            activatedKeys.delete(hwid);
-            cleaned++;
-        }
-    });
-    
-    if (cleaned > 0) {
-        console.log(`🧹 Cleaned ${cleaned} expired activations`);
-    }
-}, 60 * 60 * 1000); // Every hour
 
 // Start server
-app.listen(PORT, '0.0.0.0', () => {
-    console.log('🚀 Simple Key System Started!');
+server.listen(PORT, '0.0.0.0', () => {
+    console.log('🚀 Chat Server Started!');
     console.log('📍 Port:', PORT);
-    console.log('🔑 Key System: Ready');
-    console.log('⚡ Endpoints:');
-    console.log('   POST /api/create-key    - Create license key');
-    console.log('   POST /api/activate-key  - Activate key with HWID');
-    console.log('   POST /api/validate-key  - Check if key is valid');
-    console.log('   POST /api/check-access  - Check HWID access');
-    console.log('');
+    console.log('💬 Real-time Chat: Ready');
+    console.log('👤 User System: Ready');
     console.log('⚡ Server ready!');
 });
