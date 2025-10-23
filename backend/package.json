@@ -1,7 +1,7 @@
 {
-  "name": "simple-chat",
+  "name": "enhanced-chat",
   "version": "1.0.0",
-  "description": "Simple real-time chat",
+  "description": "Enhanced chat with servers, DMs, and friends",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
