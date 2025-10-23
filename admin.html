@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Key Management</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(45deg, #ff8a00, #ff2070, #00c6ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .admin-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 2rem;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .card h2 {
+            color: #ff8a00;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid rgba(255, 138, 0, 0.3);
+            padding-bottom: 0.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #ccd6f6;
+        }
+
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 1rem;
+            border-radius: 10px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            color: white;
+            font-size: 1rem;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #ff8a00;
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #ff8a00, #ff2070);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(255, 138, 0, 0.4);
+        }
+
+        .key-display {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-top: 1rem;
+            text-align: center;
+            border: 2px dashed #64ffda;
+        }
+
+        .key-display code {
+            font-family: 'Courier New', monospace;
+            font-size: 1.2rem;
+            color: #64ffda;
+            font-weight: bold;
+            word-break: break-all;
+        }
+
+        .keys-list {
+            grid-column: 1 / -1;
+        }
+
+        .key-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #64ffda;
+        }
+
+        .key-item.expired {
+            border-left-color: #ff6b6b;
+            opacity: 0.7;
+        }
+
+        .key-item.used {
+            border-left-color: #ffd93d;
+        }
+
+        .key-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .key-code {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #64ffda;
+        }
+
+        .key-status {
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .status-active { background: rgba(100, 255, 218, 0.2); color: #64ffda; }
+        .status-expired { background: rgba(255, 107, 107, 0.2); color: #ff6b6b; }
+        .status-used { background: rgba(255, 217, 61, 0.2); color: #ffd93d; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 1.5rem;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #ff8a00;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: #ccd6f6;
+            font-size: 0.9rem;
+        }
+
+        .message {
+            padding: 1rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+            text-align: center;
+        }
+
+        .message.success {
+            background: rgba(100, 255, 218, 0.1);
+            border: 1px solid #64ffda;
+            color: #64ffda;
+        }
+
+        .message.error {
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid #ff6b6b;
+            color: #ff6b6b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔑 ADMIN PANEL - KEY MANAGEMENT</h1>
+            <p>Create and manage license keys for your application</p>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="totalKeys">0</div>
+                <div class="stat-label">Total Keys</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="activeKeys">0</div>
+                <div class="stat-label">Active Keys</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="usedKeys">0</div>
+                <div class="stat-label">Used Keys</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="expiredKeys">0</div>
+                <div class="stat-label">Expired Keys</div>
+            </div>
+        </div>
+
+        <div class="admin-panel">
+            <div class="card">
+                <h2>🎫 Create New Key</h2>
+                <form id="createKeyForm">
+                    <div class="form-group">
+                        <label>Duration (Days)</label>
+                        <input type="number" id="duration" min="1" max="365" value="30" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Max Uses</label>
+                        <input type="number" id="uses" min="1" value="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Note (Optional)</label>
+                        <textarea id="note" rows="3" placeholder="Add description..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Generate Key</button>
+                </form>
+
+                <div id="keyResult" class="key-display" style="display: none;">
+                    <h3>✅ Key Created Successfully!</h3>
+                    <code id="generatedKey">KEY-HERE</code>
+                    <p style="margin-top: 1rem; font-size: 0.9rem;">
+                        Copy this key and share it with users. They can redeem it in the application.
+                    </p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>📊 Quick Actions</h2>
+                <div style="display: grid; gap: 1rem;">
+                    <button class="btn btn-primary" onclick="refreshKeys()">🔄 Refresh Keys</button>
+                    <button class="btn btn-primary" onclick="exportKeys()">📤 Export Keys</button>
+                    <button class="btn btn-primary" onclick="clearExpired()">🧹 Clear Expired</button>
+                </div>
+                
+                <div style="margin-top: 2rem;">
+                    <h3>📋 Key Format</h3>
+                    <p style="color: #ccd6f6; font-size: 0.9rem;">
+                        Keys are automatically generated in format: <code>XXXX-XXXX-XXXX-XXXX</code><br>
+                        Users enter them exactly as shown in the Python application.
+                    </p>
+                </div>
+            </div>
+
+            <div class="card keys-list">
+                <h2>🔑 All License Keys</h2>
+                <div id="keysList">
+                    <p style="text-align: center; color: #8892b0;">Loading keys...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://tommyfc555-github-io.onrender.com';
+        let adminToken = '';
+
+        // Login first (you'd normally have a proper login system)
+        async function adminLogin() {
+            // For demo - in real app, implement proper admin login
+            const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: 'admin',
+                    password: 'admin123',
+                    hwid: 'admin-hwid-default'
+                })
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                adminToken = data.token;
+                loadKeys();
+                loadStats();
+            } else {
+                alert('Admin login failed: ' + data.error);
+            }
+        }
+
+        // Create new key
+        document.getElementById('createKeyForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const duration = document.getElementById('duration').value;
+            const uses = document.getElementById('uses').value;
+            const note = document.getElementById('note').value;
+
+            const response = await fetch(`${API_BASE_URL}/api/admin/keys/create`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${adminToken}`
+                },
+                body: JSON.stringify({ duration, uses, note })
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                document.getElementById('generatedKey').textContent = data.key;
+                document.getElementById('keyResult').style.display = 'block';
+                document.getElementById('createKeyForm').reset();
+                loadKeys();
+                loadStats();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        });
+
+        // Load all keys
+        async function loadKeys() {
+            const response = await fetch(`${API_BASE_URL}/api/admin/keys`, {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                const keysList = document.getElementById('keysList');
+                keysList.innerHTML = '';
+                
+                data.keys.forEach(key => {
+                    const isExpired = new Date() > new Date(key.expiresAt);
+                    const isUsed = key.used >= key.uses;
+                    
+                    const keyItem = document.createElement('div');
+                    keyItem.className = `key-item ${isExpired ? 'expired' : ''} ${isUsed ? 'used' : ''}`;
+                    
+                    keyItem.innerHTML = `
+                        <div class="key-header">
+                            <div class="key-code">${key.key}</div>
+                            <div class="key-status ${isExpired ? 'status-expired' : isUsed ? 'status-used' : 'status-active'}">
+                                ${isExpired ? 'EXPIRED' : isUsed ? 'USED' : 'ACTIVE'}
+                            </div>
+                        </div>
+                        <div style="color: #8892b0; font-size: 0.9rem;">
+                            Duration: ${key.duration} days • Uses: ${key.used}/${key.uses}<br>
+                            Created: ${new Date(key.createdAt).toLocaleDateString()} • 
+                            Expires: ${new Date(key.expiresAt).toLocaleDateString()}<br>
+                            ${key.note ? `Note: ${key.note}` : ''}
+                            ${key.usedBy ? `• Used by: ${key.usedBy}` : ''}
+                        </div>
+                    `;
+                    
+                    keysList.appendChild(keyItem);
+                });
+            }
+        }
+
+        // Load statistics
+        async function loadStats() {
+            const response = await fetch(`${API_BASE_URL}/api/admin/keys`, {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                document.getElementById('totalKeys').textContent = data.total;
+                document.getElementById('activeKeys').textContent = data.active;
+                document.getElementById('expiredKeys').textContent = data.expired;
+                document.getElementById('usedKeys').textContent = data.keys.filter(k => k.used > 0).length;
+            }
+        }
+
+        // Refresh keys
+        function refreshKeys() {
+            loadKeys();
+            loadStats();
+        }
+
+        // Export keys (simple implementation)
+        function exportKeys() {
+            alert('Export feature would download a CSV file with all keys in a real implementation.');
+        }
+
+        // Clear expired keys
+        async function clearExpired() {
+            if (confirm('Are you sure you want to clear all expired keys?')) {
+                // This would call a backend endpoint to delete expired keys
+                alert('Expired keys cleared! (This would call the backend in a real implementation)');
+                loadKeys();
+                loadStats();
+            }
+        }
+
+        // Initialize
+        adminLogin();
+    </script>
+</body>
+</html>
