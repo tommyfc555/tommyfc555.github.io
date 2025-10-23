@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord Clone</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Whitney', 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+        body { background: #36393f; color: #dcddde; height: 100vh; overflow: hidden; }
+        
+        .app { display: flex; height: 100vh; }
+        
+        /* Server List */
+        .servers { width: 72px; background: #202225; padding: 12px 0; display: flex; flex-direction: column; align-items: center; }
+        .server { width: 48px; height: 48px; background: #36393f; border-radius: 50%; margin: 8px 0; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
+        .server:hover, .server.active { border-radius: 16px; background: #5865f2; }
+        
+        /* Sidebar */
+        .sidebar { width: 240px; background: #2f3136; display: flex; flex-direction: column; }
+        .server-header { padding: 16px; border-bottom: 2px solid #202225; font-weight: bold; color: white; cursor: pointer; }
+        .channels { padding: 16px; flex: 1; overflow-y: auto; }
+        .category { color: #8e9297; font-size: 12px; font-weight: 600; margin: 16px 0 8px; text-transform: uppercase; }
+        .channel { padding: 6px 8px; margin: 2px 0; border-radius: 4px; cursor: pointer; color: #8e9297; display: flex; align-items: center; }
+        .channel:hover { background: #3c3f45; color: #dcddde; }
+        .channel.active { background: #42464d; color: white; }
+        .channel.hash { margin-right: 6px; font-size: 18px; }
+        .channel.voice { margin-right: 6px; }
+        
+        /* Members */
+        .members { width: 240px; background: #2f3136; border-left: 1px solid #202225; padding: 16px; overflow-y: auto; }
+        .member { padding: 8px; margin: 4px 0; border-radius: 4px; cursor: pointer; display: flex; align-items: center; }
+        .member:hover { background: #3c3f45; }
+        .member-avatar { width: 32px; height: 32px; background: #5865f2; border-radius: 50%; margin-right: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        .member-name { font-weight: 500; }
+        .member-status { width: 8px; height: 8px; border-radius: 50%; margin-left: auto; }
+        .member-status.online { background: #3ba55c; }
+        .member-status.offline { background: #747f8d; }
+        
+        /* Main Chat */
+        .main { flex: 1; display: flex; flex-direction: column; background: #36393f; }
+        .chat-header { padding: 16px; border-bottom: 1px solid #2f3136; display: flex; align-items: center; }
+        .chat-header-hash { color: #8e9297; font-size: 24px; margin-right: 8px; }
+        .chat-header-name { font-weight: 600; color: white; }
+        
+        .messages { flex: 1; padding: 16px; overflow-y: auto; }
+        .message { margin-bottom: 16px; display: flex; }
+        .message-avatar { width: 40px; height: 40px; background: #5865f2; border-radius: 50%; margin-right: 16px; display: flex; align-items: center; justify-content: center; font-weight: bold; cursor: pointer; }
+        .message-content { flex: 1; }
+        .message-header { display: flex; align-items: baseline; margin-bottom: 4px; }
+        .message-username { font-weight: 600; color: white; margin-right: 8px; cursor: pointer; }
+        .message-username:hover { text-decoration: underline; }
+        .message-time { color: #72767d; font-size: 12px; }
+        .message-text { color: #dcddde; line-height: 1.4; }
+        .message-image { max-width: 400px; border-radius: 4px; margin-top: 8px; cursor: pointer; }
+        
+        .input-area { margin: 16px; background: #40444b; border-radius: 8px; }
+        .message-input { width: 100%; background: transparent; border: none; color: #dcddde; font-size: 16px; padding: 12px 16px; outline: none; resize: none; min-height: 44px; max-height: 200px; }
+        .input-actions { padding: 8px 16px; display: flex; align-items: center; border-top: 1px solid #40444b; }
+        .action-btn { background: none; border: none; color: #b9bbbe; cursor: pointer; padding: 4px; margin-right: 8px; border-radius: 4px; }
+        .action-btn:hover { color: #dcddde; background: #4f545c; }
+        
+        /* Modals */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-content { background: #36393f; padding: 24px; border-radius: 8px; width: 440px; max-width: 90vw; }
+        .modal-title { font-size: 20px; font-weight: 600; margin-bottom: 16px; color: white; }
+        .modal-input { width: 100%; padding: 10px; background: #303339; border: 1px solid #222428; border-radius: 3px; color: white; margin-bottom: 16px; }
+        .modal-buttons { display: flex; gap: 8px; justify-content: flex-end; }
+        .modal-btn { padding: 10px 16px; border: none; border-radius: 3px; cursor: pointer; }
+        .modal-btn.primary { background: #5865f2; color: white; }
+        .modal-btn.secondary { background: #4f545c; color: white; }
+        
+        /* Voice Controls */
+        .voice-controls { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #2f3136; padding: 12px; border-radius: 8px; display: flex; gap: 8px; }
+        .voice-btn { width: 48px; height: 48px; border-radius: 50%; border: none; background: #4f545c; color: white; cursor: pointer; font-size: 18px; }
+        .voice-btn:hover { background: #5d6269; }
+        .voice-btn.muted { background: #ed4245; }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #2e3338; }
+        ::-webkit-scrollbar-thumb { background: #202225; border-radius: 4px; }
+        
+        /* Loading */
+        .loading { display: flex; align-items: center; justify-content: center; height: 100vh; font-size: 18px; color: #b9bbbe; }
+    </style>
+</head>
+<body>
+    <div id="loading" class="loading">Loading Discord Clone...</div>
+
+    <div id="app" class="app" style="display: none;">
+        <!-- Server List -->
+        <div class="servers" id="serverList"></div>
+        
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="server-header" id="serverHeader">Server Name</div>
+            <div class="channels" id="channelsList"></div>
+        </div>
+        
+        <!-- Main Chat -->
+        <div class="main">
+            <div class="chat-header">
+                <div class="chat-header-hash">#</div>
+                <div class="chat-header-name" id="channelName">general</div>
+            </div>
+            <div class="messages" id="messages"></div>
+            <div class="input-area">
+                <textarea class="message-input" id="messageInput" placeholder="Message #general" rows="1"></textarea>
+                <div class="input-actions">
+                    <button class="action-btn" onclick="uploadFile()" title="Upload File">📎</button>
+                    <button class="action-btn" onclick="showCreateChannel()" title="Create Channel" id="createChannelBtn" style="display: none;">➕</button>
+                    <button class="action-btn" onclick="sendMessage()" title="Send Message" style="margin-left: auto;">➤</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Members List -->
+        <div class="members" id="membersList"></div>
+    </div>
+
+    <!-- Modals -->
+    <div id="createChannelModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-title">Create Channel</div>
+            <input type="text" class="modal-input" id="channelNameInput" placeholder="Channel name">
+            <select class="modal-input" id="channelType">
+                <option value="text">Text Channel</option>
+                <option value="voice">Voice Channel</option>
+            </select>
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" onclick="hideModal('createChannelModal')">Cancel</button>
+                <button class="modal-btn primary" onclick="createChannel()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Input -->
+    <input type="file" id="fileInput" style="display: none;" accept="image/*">
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let currentUser = null;
+        let currentServer = null;
+        let currentChannel = null;
+        let servers = {};
+        let isInVoice = false;
+
+        // Initialize app
+        async function init() {
+            const userId = localStorage.getItem('userId');
+            const username = localStorage.getItem('username');
+            
+            if (!userId || !username) {
+                window.location.href = '/';
+                return;
+            }
+
+            currentUser = { id: userId, username };
+            
+            // Load servers
+            const response = await fetch('/api/servers');
+            const data = await response.json();
+            servers = data.servers;
+            
+            // Join first server by default
+            currentServer = Object.keys(servers)[0];
+            currentChannel = 'general';
+            
+            // Setup UI
+            setupServers();
+            setupChannels();
+            loadMessages();
+            setupMembers();
+            
+            // Show app
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('app').style.display = 'flex';
+            
+            // Socket events
+            socket.emit('user-joined', { userId, username });
+            
+            socket.on('new-message', (data) => {
+                if (data.serverId === currentServer && data.channelId === currentChannel) {
+                    addMessage(data.message);
+                }
+            });
+            
+            socket.on('channel-created', (data) => {
+                if (data.serverId === currentServer) {
+                    servers[currentServer].channels[data.channel.id] = data.channel;
+                    setupChannels();
+                }
+            });
+            
+            socket.on('user-online', (data) => {
+                updateMemberStatus(data.userId, 'online');
+            });
+            
+            socket.on('user-offline', (data) => {
+                updateMemberStatus(data.userId, 'offline');
+            });
+            
+            // Check if user is admin
+            const server = servers[currentServer];
+            const member = server.members[userId];
+            if (member && member.roles.includes('admin')) {
+                document.getElementById('createChannelBtn').style.display = 'block';
+            }
+            
+            // Message input handler
+            document.getElementById('messageInput').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+                autoResize(e.target);
+            });
+            
+            // File input handler
+            document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+        }
+
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+        }
+
+        function setupServers() {
+            const serverList = document.getElementById('serverList');
+            serverList.innerHTML = '';
+            
+            Object.values(servers).forEach(server => {
+                const serverEl = document.createElement('div');
+                serverEl.className = 'server' + (server.id === currentServer ? ' active' : '');
+                serverEl.textContent = server.name.charAt(0).toUpperCase();
+                serverEl.onclick = () => switchServer(server.id);
+                serverList.appendChild(serverEl);
+            });
+        }
+
+        function setupChannels() {
+            const server = servers[currentServer];
+            const channelsList = document.getElementById('channelsList');
+            const serverHeader = document.getElementById('serverHeader');
+            
+            serverHeader.textContent = server.name;
+            channelsList.innerHTML = '';
+            
+            // Text channels
+            channelsList.innerHTML += '<div class="category">TEXT CHANNELS</div>';
+            Object.values(server.channels)
+                .filter(ch => ch.type === 'text')
+                .forEach(channel => {
+                    const channelEl = document.createElement('div');
+                    channelEl.className = 'channel' + (channel.id === currentChannel ? ' active' : '');
+                    channelEl.innerHTML = `<span class="channel hash">#</span> ${channel.displayName || channel.name}`;
+                    channelEl.onclick = () => switchChannel(channel.id);
+                    channelsList.appendChild(channelEl);
+                });
+            
+            // Voice channels
+            channelsList.innerHTML += '<div class="category" style="margin-top: 20px;">VOICE CHANNELS</div>';
+            Object.values(server.channels)
+                .filter(ch => ch.type === 'voice')
+                .forEach(channel => {
+                    const channelEl = document.createElement('div');
+                    channelEl.className = 'channel';
+                    channelEl.innerHTML = `<span class="channel voice">🔊</span> ${channel.displayName || channel.name}`;
+                    channelEl.onclick = () => joinVoice(channel.id);
+                    channelsList.appendChild(channelEl);
+                });
+        }
+
+        function setupMembers() {
+            const server = servers[currentServer];
+            const membersList = document.getElementById('membersList');
+            membersList.innerHTML = '<div class="category">MEMBERS</div>';
+            
+            Object.entries(server.members).forEach(([memberId, memberData]) => {
+                const user = Object.values(users).find(u => u.id === memberId);
+                if (user) {
+                    const memberEl = document.createElement('div');
+                    memberEl.className = 'member';
+                    memberEl.innerHTML = `
+                        <div class="member-avatar">${user.username.charAt(0).toUpperCase()}</div>
+                        <div class="member-name">${user.username}</div>
+                        <div class="member-status ${user.status || 'offline'}"></div>
+                    `;
+                    memberEl.onclick = () => openProfile(user.id);
+                    membersList.appendChild(memberEl);
+                }
+            });
+        }
+
+        function updateMemberStatus(userId, status) {
+            const members = document.querySelectorAll('.member');
+            members.forEach(member => {
+                const nameEl = member.querySelector('.member-name');
+                if (nameEl && nameEl.textContent === getUsernameById(userId)) {
+                    const statusEl = member.querySelector('.member-status');
+                    statusEl.className = `member-status ${status}`;
+                }
+            });
+        }
+
+        function getUsernameById(userId) {
+            const user = Object.values(users).find(u => u.id === userId);
+            return user ? user.username : 'Unknown';
+        }
+
+        async function loadMessages() {
+            const response = await fetch(`/api/servers/${currentServer}/messages?channelId=${currentChannel}`);
+            const data = await response.json();
+            
+            const messagesContainer = document.getElementById('messages');
+            messagesContainer.innerHTML = '';
+            
+            if (data.messages) {
+                data.messages.forEach(message => {
+                    addMessage(message);
+                });
+            }
+        }
+
+        function addMessage(message) {
+            const messagesContainer = document.getElementById('messages');
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message';
+            
+            const time = new Date(message.timestamp).toLocaleTimeString();
+            
+            let attachmentsHTML = '';
+            if (message.attachments && message.attachments.length > 0) {
+                message.attachments.forEach(att => {
+                    if (att.type === 'image') {
+                        attachmentsHTML += `<img src="${att.url}" class="message-image" onclick="openImage('${att.url}')">`;
+                    }
+                });
+            }
+            
+            messageEl.innerHTML = `
+                <div class="message-avatar">${message.username.charAt(0).toUpperCase()}</div>
+                <div class="message-content">
+                    <div class="message-header">
+                        <div class="message-username">${message.username}</div>
+                        <div class="message-time">${time}</div>
+                    </div>
+                    <div class="message-text">${message.content}</div>
+                    ${attachmentsHTML}
+                </div>
+            `;
+            
+            messagesContainer.appendChild(messageEl);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const content = input.value.trim();
+            
+            if (!content) return;
+            
+            socket.emit('send-message', {
+                serverId: currentServer,
+                channelId: currentChannel,
+                content: content,
+                attachments: [] // Would include files if uploaded
+            });
+            
+            input.value = '';
+            input.style.height = 'auto';
+        }
+
+        function switchServer(serverId) {
+            currentServer = serverId;
+            currentChannel = Object.values(servers[serverId].channels).find(ch => ch.type === 'text').id;
+            
+            setupServers();
+            setupChannels();
+            loadMessages();
+            setupMembers();
+            
+            // Update channel name
+            document.getElementById('channelName').textContent = servers[serverId].channels[currentChannel].displayName || servers[serverId].channels[currentChannel].name;
+            document.getElementById('messageInput').placeholder = `Message #${servers[serverId].channels[currentChannel].name}`;
+            
+            // Check admin permissions
+            const member = servers[serverId].members[currentUser.id];
+            document.getElementById('createChannelBtn').style.display = member && member.roles.includes('admin') ? 'block' : 'none';
+        }
+
+        function switchChannel(channelId) {
+            currentChannel = channelId;
+            document.querySelectorAll('.channel').forEach(ch => ch.classList.remove('active'));
+            event.target.closest('.channel').classList.add('active');
+            
+            document.getElementById('channelName').textContent = servers[currentServer].channels[channelId].displayName || servers[currentServer].channels[channelId].name;
+            document.getElementById('messageInput').placeholder = `Message #${servers[currentServer].channels[channelId].name}`;
+            
+            loadMessages();
+        }
+
+        function joinVoice(channelId) {
+            if (isInVoice) {
+                socket.emit('leave-voice', { channelId: currentChannel });
+            }
+            socket.emit('join-voice', { channelId });
+            isInVoice = true;
+            alert('Joined voice channel: ' + servers[currentServer].channels[channelId].name);
+        }
+
+        function uploadFile() {
+            document.getElementById('fileInput').click();
+        }
+
+        async function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            if (!file.type.startsWith('image/')) {
+                alert('Please select an image file');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        file: e.target.result,
+                        filename: file.name,
+                        filetype: file.type
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    // Add file to message
+                    const input = document.getElementById('messageInput');
+                    input.value = input.value + ' '; // Add space before file
+                    sendMessage(); // This would need to be modified to include attachments
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function showCreateChannel() {
+            document.getElementById('createChannelModal').style.display = 'flex';
+        }
+
+        function hideModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        async function createChannel() {
+            const name = document.getElementById('channelNameInput').value;
+            const type = document.getElementById('channelType').value;
+            
+            if (!name) {
+                alert('Please enter a channel name');
+                return;
+            }
+            
+            const response = await fetch(`/api/servers/${currentServer}/channels`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'user-id': currentUser.id
+                },
+                body: JSON.stringify({ name, type })
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                hideModal('createChannelModal');
+                document.getElementById('channelNameInput').value = '';
+            } else {
+                alert('Error: ' + data.error);
+            }
+        }
+
+        function openProfile(userId) {
+            alert('Profile: ' + getUsernameById(userId) + '\nDM feature would open here');
+        }
+
+        function openImage(url) {
+            window.open(url, '_blank');
+        }
+
+        // Global users object (would be populated from server)
+        const users = {};
+
+        // Initialize when page loads
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
