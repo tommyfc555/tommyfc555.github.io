@@ -158,8 +158,7 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // Enhanced Discord-like HTML for /app
-const appHTML = `
-<!DOCTYPE html>
+const appHTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -405,14 +404,6 @@ const appHTML = `
         let peerConnections = new Map();
         let filesToUpload = [];
         
-        // WebRTC configuration
-        const rtcConfig = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
-            ]
-        };
-        
         // Initialize app
         async function init() {
             const userId = localStorage.getItem('userId');
@@ -438,7 +429,7 @@ const appHTML = `
             document.getElementById('app').style.display = 'flex';
             
             // Socket events
-            socket.emit('user-joined', { userId, username });
+            socket.emit('user-joined', { userId: userId, username: username });
             
             socket.on('new-message', (data) => {
                 if (data.serverId === currentServer && data.channelId === currentChannel) {
@@ -449,7 +440,7 @@ const appHTML = `
             socket.on('user-pinged', (data) => {
                 if (data.message.pings.includes(currentUser.username.toLowerCase())) {
                     playPingSound();
-                    showNotification(\`\${data.message.username} mentioned you!\`);
+                    showNotification(data.message.username + ' mentioned you!');
                     
                     if (data.serverId === currentServer && data.channelId === currentChannel) {
                         addMessage(data.message, true);
@@ -459,12 +450,11 @@ const appHTML = `
             
             socket.on('voice-user-joined', (data) => {
                 updateVoiceUsers();
-                showNotification(\`\${data.username} joined voice chat\`);
+                showNotification(data.username + ' joined voice chat');
             });
             
             socket.on('voice-user-left', (data) => {
                 updateVoiceUsers();
-                removePeerConnection(data.userId);
             });
             
             socket.on('voice-user-updated', (data) => {
@@ -472,28 +462,11 @@ const appHTML = `
             });
             
             socket.on('screenshare-started', (data) => {
-                showNotification(\`\${data.username} started screen sharing\`);
-                if (data.userId !== currentUser.id) {
-                    setupScreenShareViewer(data);
-                }
+                showNotification(data.username + ' started screen sharing');
             });
             
             socket.on('screenshare-stopped', (data) => {
-                if (data.userId !== currentUser.id) {
-                    stopScreenShareViewer(data.userId);
-                }
-            });
-            
-            socket.on('webrtc-offer', async (data) => {
-                await handleOffer(data);
-            });
-            
-            socket.on('webrtc-answer', async (data) => {
-                await handleAnswer(data);
-            });
-            
-            socket.on('webrtc-ice-candidate', async (data) => {
-                await handleIceCandidate(data);
+                // Handle screen share stop
             });
             
             // Request notification permission
@@ -523,7 +496,7 @@ const appHTML = `
         
         async function loadChannelMessages() {
             try {
-                const response = await fetch(\`/api/servers/\${currentServer}/messages?channelId=\${currentChannel}\`);
+                const response = await fetch('/api/servers/' + currentServer + '/messages?channelId=' + currentChannel);
                 const data = await response.json();
                 
                 if (data.success && data.messages) {
@@ -569,28 +542,27 @@ const appHTML = `
             let attachmentsHTML = '';
             if (message.attachments && message.attachments.length > 0) {
                 message.attachments.forEach(att => {
-                    if (att.type.startsWith('image/')) {
-                        attachmentsHTML += \`<div style="margin-top: 8px;"><img src="\${att.url}" style="max-width: 400px; border-radius: 4px; cursor: pointer;" onclick="openImageModal('\${att.url}')" /></div>\`;
+                    if (att.type && att.type.startsWith('image/')) {
+                        attachmentsHTML += '<div style="margin-top: 8px;"><img src="' + att.url + '" style="max-width: 400px; border-radius: 4px; cursor: pointer;" onclick="openImageModal(\\'' + att.url + '\\')" /></div>';
                     } else {
-                        attachmentsHTML += \`<div style="margin-top: 8px; padding: 8px; background: #2f3136; border-radius: 4px; display: flex; align-items: center;">
-                            <span style="margin-right: 8px;">📎</span>
-                            <a href="\${att.url}" target="_blank" style="color: #7289da; text-decoration: none;">\${att.name}</a>
-                        </div>\`;
+                        attachmentsHTML += '<div style="margin-top: 8px; padding: 8px; background: #2f3136; border-radius: 4px; display: flex; align-items: center;">' +
+                            '<span style="margin-right: 8px;">📎</span>' +
+                            '<a href="' + att.url + '" target="_blank" style="color: #7289da; text-decoration: none;">' + att.name + '</a>' +
+                        '</div>';
                     }
                 });
             }
             
-            messageEl.innerHTML = \`
-                <div class="message-avatar" onclick="mentionUser('\${message.username}')">\${message.username.charAt(0).toUpperCase()}</div>
-                <div class="message-content">
-                    <div class="message-header">
-                        <div class="message-username" onclick="mentionUser('\${message.username}')">\${message.username}</div>
-                        <div class="message-time">\${time}</div>
-                    </div>
-                    <div class="message-text">\${formatMessage(message.content)}</div>
-                    \${attachmentsHTML}
-                </div>
-            \`;
+            messageEl.innerHTML = 
+                '<div class="message-avatar" onclick="mentionUser(\\'' + message.username + '\\')">' + message.username.charAt(0).toUpperCase() + '</div>' +
+                '<div class="message-content">' +
+                    '<div class="message-header">' +
+                        '<div class="message-username" onclick="mentionUser(\\'' + message.username + '\\')">' + message.username + '</div>' +
+                        '<div class="message-time">' + time + '</div>' +
+                    '</div>' +
+                    '<div class="message-text">' + formatMessage(message.content) + '</div>' +
+                    attachmentsHTML +
+                '</div>';
             
             container.appendChild(messageEl);
             container.scrollTop = container.scrollHeight;
@@ -598,12 +570,12 @@ const appHTML = `
         
         function formatMessage(content) {
             if (!content) return '';
-            return content.replace(/@(\w+)/g, '<span class="message-mention" onclick="mentionUser(\'$1\')">@$1</span>');
+            return content.replace(/@(\w+)/g, '<span class="message-mention" onclick="mentionUser(\\'$1\\')">@$1</span>');
         }
         
         function mentionUser(username) {
             const input = document.getElementById('messageInput');
-            input.value = input.value + \`@\${username} \`;
+            input.value = input.value + '@' + username + ' ';
             input.focus();
         }
         
@@ -651,7 +623,6 @@ const appHTML = `
                 });
                 
                 updateVoiceUsers();
-                setupVoiceConnections();
                 
             } catch (error) {
                 console.error('Error accessing microphone:', error);
@@ -680,9 +651,6 @@ const appHTML = `
                 serverId: currentServer,
                 channelId: 'general-voice' 
             });
-            
-            peerConnections.forEach(pc => pc.close());
-            peerConnections.clear();
         }
         
         function toggleMute() {
@@ -693,7 +661,7 @@ const appHTML = `
                 track.enabled = !track.enabled;
             });
             
-            isMuted = !track.enabled;
+            isMuted = !audioTracks[0].enabled;
             document.getElementById('muteBtn').classList.toggle('muted', isMuted);
             document.getElementById('muteBtnBig').classList.toggle('muted', isMuted);
             document.getElementById('muteBtnBig').textContent = isMuted ? '🎤❌' : '🎤';
@@ -710,14 +678,6 @@ const appHTML = `
             document.getElementById('deafenBtn').classList.toggle('deafened', isDeafened);
             document.getElementById('deafenBtnBig').classList.toggle('deafened', isDeafened);
             document.getElementById('deafenBtnBig').textContent = isDeafened ? '🔇❌' : '🔇';
-            
-            // Mute all audio outputs when deafened
-            peerConnections.forEach(pc => {
-                const audioElements = document.querySelectorAll(\`audio[data-user-id="\${pc.userId}"]\`);
-                audioElements.forEach(audio => {
-                    audio.muted = isDeafened;
-                });
-            });
         }
         
         async function toggleScreenShare() {
@@ -738,7 +698,7 @@ const appHTML = `
                 isScreenSharing = true;
                 document.getElementById('screenShareBtn').classList.add('screensharing');
                 document.getElementById('screenshareContainer').style.display = 'block';
-                document.getElementById('screenshareTitle').textContent = \`\${currentUser.username}'s Screen\`;
+                document.getElementById('screenshareTitle').textContent = currentUser.username + "'s Screen";
                 
                 const video = document.getElementById('screenshareVideo');
                 video.srcObject = screenStream;
@@ -746,13 +706,6 @@ const appHTML = `
                 socket.emit('start-screenshare', { 
                     serverId: currentServer,
                     channelId: 'general-voice'
-                });
-                
-                // Add screen track to existing peer connections
-                peerConnections.forEach(pc => {
-                    if (pc.addTrack && screenStream.getVideoTracks().length > 0) {
-                        pc.addTrack(screenStream.getVideoTracks()[0], screenStream);
-                    }
                 });
                 
                 screenStream.getVideoTracks()[0].onended = () => {
@@ -780,44 +733,10 @@ const appHTML = `
             });
         }
         
-        function setupScreenShareViewer(data) {
-            // This would set up viewing someone else's screen share
-            console.log('Setting up screen share viewer for:', data.username);
-        }
-        
-        function stopScreenShareViewer(userId) {
-            console.log('Stopping screen share viewer for:', userId);
-        }
-        
         function updateVoiceUsers() {
             // This would update the voice users list from server data
             const usersList = document.getElementById('voiceUsersList');
             usersList.innerHTML = '<div class="voice-user"><div class="voice-user-avatar">Y</div><span>You</span></div>';
-        }
-        
-        // WebRTC Functions
-        async function setupVoiceConnections() {
-            // Initialize WebRTC connections with other users in voice channel
-            // This is a simplified version - real implementation would be more complex
-        }
-        
-        async function handleOffer(data) {
-            // Handle incoming WebRTC offer
-        }
-        
-        async function handleAnswer(data) {
-            // Handle incoming WebRTC answer
-        }
-        
-        async function handleIceCandidate(data) {
-            // Handle incoming ICE candidate
-        }
-        
-        function removePeerConnection(userId) {
-            if (peerConnections.has(userId)) {
-                peerConnections.get(userId).close();
-                peerConnections.delete(userId);
-            }
         }
         
         // File Handling
@@ -837,11 +756,10 @@ const appHTML = `
             filesToUpload.forEach((file, index) => {
                 const fileItem = document.createElement('div');
                 fileItem.className = 'file-item';
-                fileItem.innerHTML = \`
-                    <span class="file-icon">\${getFileIcon(file.type)}</span>
-                    <span class="file-name">\${file.name}</span>
-                    <button class="file-remove" onclick="removeFile(\${index})">×</button>
-                \`;
+                fileItem.innerHTML = 
+                    '<span class="file-icon">' + getFileIcon(file.type) + '</span>' +
+                    '<span class="file-name">' + file.name + '</span>' +
+                    '<button class="file-remove" onclick="removeFile(' + index + ')">×</button>';
                 preview.appendChild(fileItem);
             });
         }
@@ -878,7 +796,7 @@ const appHTML = `
             document.querySelectorAll('.channel').forEach(ch => ch.classList.remove('active'));
             event.target.closest('.channel').classList.add('active');
             document.getElementById('currentChannelName').textContent = channelName;
-            document.getElementById('messageInput').placeholder = \`Message #\${channelName}\`;
+            document.getElementById('messageInput').placeholder = 'Message #' + channelName;
             loadChannelMessages();
         }
         
@@ -899,8 +817,7 @@ const appHTML = `
         window.addEventListener('load', init);
     </script>
 </body>
-</html>
-`;
+</html>`;
 
 // Routes
 app.get('/', (req, res) => {
@@ -1137,7 +1054,7 @@ io.on('connection', (socket) => {
             status: 'online'
         });
         
-        console.log(`👋 ${userData.username} joined`);
+        console.log('👋 ' + userData.username + ' joined');
         
         // Update user status
         const user = users.get(userData.username.toLowerCase());
@@ -1226,7 +1143,7 @@ io.on('connection', (socket) => {
                 speaking: false
             });
             
-            socket.join(`voice-${data.channelId}`);
+            socket.join('voice-' + data.channelId);
             
             io.emit('voice-user-joined', {
                 userId: user.id,
@@ -1257,7 +1174,7 @@ io.on('connection', (socket) => {
         const voiceChannel = voiceChannels.get(data.channelId);
         if (voiceChannel && voiceChannel.members.has(user.id)) {
             voiceChannel.members.delete(user.id);
-            socket.leave(`voice-${data.channelId}`);
+            socket.leave('voice-' + data.channelId);
             
             io.emit('voice-user-left', { 
                 userId: user.id,
@@ -1322,7 +1239,7 @@ io.on('connection', (socket) => {
                 channelId: data.channelId
             });
             
-            console.log(`🖥️ ${user.username} started screen sharing`);
+            console.log('🖥️ ' + user.username + ' started screen sharing');
         }
     });
     
@@ -1336,34 +1253,14 @@ io.on('connection', (socket) => {
                 channelId: data.channelId
             });
             
-            console.log(`🖥️ ${user.username} stopped screen sharing`);
+            console.log('🖥️ ' + user.username + ' stopped screen sharing');
         }
-    });
-    
-    // WebRTC signaling
-    socket.on('webrtc-offer', (data) => {
-        socket.to(data.targetSocketId).emit('webrtc-offer', {
-            offer: data.offer,
-            socketId: socket.id
-        });
-    });
-    
-    socket.on('webrtc-answer', (data) => {
-        socket.to(data.targetSocketId).emit('webrtc-answer', {
-            answer: data.answer
-        });
-    });
-    
-    socket.on('webrtc-ice-candidate', (data) => {
-        socket.to(data.targetSocketId).emit('webrtc-ice-candidate', {
-            candidate: data.candidate
-        });
     });
     
     socket.on('disconnect', () => {
         const user = onlineUsers.get(socket.id);
         if (user) {
-            console.log(`👋 ${user.username} left`);
+            console.log('👋 ' + user.username + ' left');
             
             // Leave all voice channels
             voiceChannels.forEach((channel, channelId) => {
@@ -1397,8 +1294,8 @@ io.on('connection', (socket) => {
 setInterval(saveData, 30000);
 
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Enhanced Discord Chat running on port ${PORT}`);
-    console.log(`🔒 Features: Voice chat, screen sharing, file sharing, ping system`);
-    console.log(`💾 Data persistence enabled`);
-    console.log(`👉 Open: https://tommyfc555-github-io.onrender.com`);
+    console.log('🚀 Enhanced Discord Chat running on port ' + PORT);
+    console.log('🔒 Features: Voice chat, screen sharing, file sharing, ping system');
+    console.log('💾 Data persistence enabled');
+    console.log('👉 Open: https://tommyfc555-github-io.onrender.com');
 });
