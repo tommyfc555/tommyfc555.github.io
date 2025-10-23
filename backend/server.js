@@ -344,18 +344,26 @@ const appHTML = `
         }
         
         async function loadServers() {
-            const response = await fetch('/api/servers');
-            const data = await response.json();
-            
-            const serversList = document.getElementById('serversList');
-            serversList.innerHTML = '';
-            
-            data.servers.forEach(server => {
-                const serverEl = document.createElement('div');
-                serverEl.className = 'server-item';
-                serverEl.innerHTML = '<div><strong>' + server.name + '</strong></div><div style="font-size: 0.8rem; color: #8892b0;">Members: ' + server.memberCount + '</div><button onclick="joinServer(\\'' + server.id + '\\')" style="margin-top: 0.5rem; padding: 0.3rem 0.6rem; background: #64ffda; color: #1a1a2e; border: none; border-radius: 3px;">Join</button><button onclick="showInviteModal(\\'' + server.id + '\\')" style="margin-top: 0.5rem; padding: 0.3rem 0.6rem; background: #667eea; color: white; border: none; border-radius: 3px;">Invite</button>';
-                serversList.appendChild(serverEl);
-            });
+            try {
+                const response = await fetch('/api/servers');
+                const data = await response.json();
+                
+                const serversList = document.getElementById('serversList');
+                serversList.innerHTML = '';
+                
+                if (data.servers && data.servers.length > 0) {
+                    data.servers.forEach(server => {
+                        const serverEl = document.createElement('div');
+                        serverEl.className = 'server-item';
+                        serverEl.innerHTML = '<div><strong>' + server.name + '</strong></div><div style="font-size: 0.8rem; color: #8892b0;">Members: ' + server.memberCount + '</div><button onclick="joinServer(\\'' + server.id + '\\')" style="margin-top: 0.5rem; padding: 0.3rem 0.6rem; background: #64ffda; color: #1a1a2e; border: none; border-radius: 3px;">Join</button><button onclick="showInviteModal(\\'' + server.id + '\\')" style="margin-top: 0.5rem; padding: 0.3rem 0.6rem; background: #667eea; color: white; border: none; border-radius: 3px;">Invite</button>';
+                        serversList.appendChild(serverEl);
+                    });
+                } else {
+                    serversList.innerHTML = '<p>No servers found. Create one!</p>';
+                }
+            } catch (error) {
+                console.error('Error loading servers:', error);
+            }
         }
         
         function showCreateServerModal() {
@@ -366,14 +374,21 @@ const appHTML = `
             const name = document.getElementById('serverName').value;
             if (!name) return;
             
-            const response = await fetch('/api/servers', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name })
-            });
-            
-            hideModal('createServerModal');
-            loadServers();
+            try {
+                const response = await fetch('/api/servers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    hideModal('createServerModal');
+                    loadServers();
+                }
+            } catch (error) {
+                console.error('Error creating server:', error);
+            }
         }
         
         function showInviteModal(serverId) {
@@ -405,95 +420,139 @@ const appHTML = `
         }
         
         async function loadServerMessages(serverId) {
-            const response = await fetch('/api/servers/' + serverId + '/messages');
-            const data = await response.json();
-            
-            const container = document.getElementById('messagesContainer');
-            container.innerHTML = '';
-            
-            data.messages.forEach(message => {
-                addMessage(message);
-            });
+            try {
+                const response = await fetch('/api/servers/' + serverId + '/messages');
+                const data = await response.json();
+                
+                const container = document.getElementById('messagesContainer');
+                container.innerHTML = '';
+                
+                if (data.messages && data.messages.length > 0) {
+                    data.messages.forEach(message => {
+                        addMessage(message);
+                    });
+                } else {
+                    container.innerHTML = '<div class="message system"><div class="message-content">No messages yet. Start the conversation!</div></div>';
+                }
+            } catch (error) {
+                console.error('Error loading messages:', error);
+            }
         }
         
         async function loadFriends() {
-            const response = await fetch('/api/friends');
-            const data = await response.json();
-            
-            const friendsList = document.getElementById('friendsList');
-            friendsList.innerHTML = '';
-            
-            data.friends.forEach(friend => {
-                const friendEl = document.createElement('div');
-                friendEl.className = 'friend-item';
-                friendEl.innerHTML = '<div>' + friend.username + '</div><div class="friend-actions"><button onclick="startDM(\\'' + friend.id + '\\')" style="background: #64ffda; color: #1a1a2e;">Message</button><button onclick="blockUser(\\'' + friend.id + '\\')" style="background: #ff6b6b; color: white;">Block</button></div>';
-                friendsList.appendChild(friendEl);
-            });
-            
-            loadFriendRequests();
+            try {
+                const response = await fetch('/api/friends');
+                const data = await response.json();
+                
+                const friendsList = document.getElementById('friendsList');
+                friendsList.innerHTML = '';
+                
+                if (data.friends && data.friends.length > 0) {
+                    data.friends.forEach(friend => {
+                        const friendEl = document.createElement('div');
+                        friendEl.className = 'friend-item';
+                        friendEl.innerHTML = '<div>' + friend.username + '</div><div class="friend-actions"><button onclick="startDM(\\'' + friend.id + '\\')" style="background: #64ffda; color: #1a1a2e;">Message</button><button onclick="blockUser(\\'' + friend.id + '\\')" style="background: #ff6b6b; color: white;">Block</button></div>';
+                        friendsList.appendChild(friendEl);
+                    });
+                } else {
+                    friendsList.innerHTML = '<p>No friends yet. Add some friends!</p>';
+                }
+                
+                loadFriendRequests();
+            } catch (error) {
+                console.error('Error loading friends:', error);
+            }
         }
         
         async function loadFriendRequests() {
-            const response = await fetch('/api/friends/requests');
-            const data = await response.json();
-            
-            const requestsList = document.getElementById('friendRequestsList');
-            requestsList.innerHTML = '';
-            
-            data.requests.forEach(request => {
-                const requestEl = document.createElement('div');
-                requestEl.className = 'friend-item';
-                requestEl.innerHTML = '<div>' + request.fromUsername + '</div><div class="friend-actions"><button onclick="acceptFriendRequest(\\'' + request.id + '\\')" style="background: #64ffda; color: #1a1a2e;">Accept</button><button onclick="declineFriendRequest(\\'' + request.id + '\\')" style="background: #ff6b6b; color: white;">Decline</button></div>';
-                requestsList.appendChild(requestEl);
-            });
+            try {
+                const response = await fetch('/api/friends/requests');
+                const data = await response.json();
+                
+                const requestsList = document.getElementById('friendRequestsList');
+                requestsList.innerHTML = '';
+                
+                if (data.requests && data.requests.length > 0) {
+                    data.requests.forEach(request => {
+                        const requestEl = document.createElement('div');
+                        requestEl.className = 'friend-item';
+                        requestEl.innerHTML = '<div>' + request.fromUsername + '</div><div class="friend-actions"><button onclick="acceptFriendRequest(\\'' + request.id + '\\')" style="background: #64ffda; color: #1a1a2e;">Accept</button><button onclick="declineFriendRequest(\\'' + request.id + '\\')" style="background: #ff6b6b; color: white;">Decline</button></div>';
+                        requestsList.appendChild(requestEl);
+                    });
+                } else {
+                    requestsList.innerHTML = '<p>No friend requests</p>';
+                }
+            } catch (error) {
+                console.error('Error loading friend requests:', error);
+            }
         }
         
         async function sendFriendRequest() {
             const username = document.getElementById('friendUsername').value;
             if (!username) return;
             
-            const response = await fetch('/api/friends/request', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username })
-            });
-            
-            document.getElementById('friendUsername').value = '';
+            try {
+                const response = await fetch('/api/friends/request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username })
+                });
+                
+                document.getElementById('friendUsername').value = '';
+            } catch (error) {
+                console.error('Error sending friend request:', error);
+            }
         }
         
         async function acceptFriendRequest(requestId) {
-            await fetch('/api/friends/accept', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ requestId })
-            });
-            
-            loadFriends();
+            try {
+                await fetch('/api/friends/accept', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ requestId })
+                });
+                
+                loadFriends();
+            } catch (error) {
+                console.error('Error accepting friend request:', error);
+            }
         }
         
         async function declineFriendRequest(requestId) {
-            await fetch('/api/friends/decline', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ requestId })
-            });
-            
-            loadFriendRequests();
+            try {
+                await fetch('/api/friends/decline', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ requestId })
+                });
+                
+                loadFriendRequests();
+            } catch (error) {
+                console.error('Error declining friend request:', error);
+            }
         }
         
         async function loadDMs() {
-            const response = await fetch('/api/dms');
-            const data = await response.json();
-            
-            const dmsList = document.getElementById('dmsList');
-            dmsList.innerHTML = '';
-            
-            data.dms.forEach(dm => {
-                const dmEl = document.createElement('div');
-                dmEl.className = 'friend-item';
-                dmEl.innerHTML = '<div>' + dm.username + '</div><div class="friend-actions"><button onclick="startDM(\\'' + dm.userId + '\\')" style="background: #64ffda; color: #1a1a2e;">Open Chat</button></div>';
-                dmsList.appendChild(dmEl);
-            });
+            try {
+                const response = await fetch('/api/dms');
+                const data = await response.json();
+                
+                const dmsList = document.getElementById('dmsList');
+                dmsList.innerHTML = '';
+                
+                if (data.dms && data.dms.length > 0) {
+                    data.dms.forEach(dm => {
+                        const dmEl = document.createElement('div');
+                        dmEl.className = 'friend-item';
+                        dmEl.innerHTML = '<div>' + dm.username + '</div><div class="friend-actions"><button onclick="startDM(\\'' + dm.userId + '\\')" style="background: #64ffda; color: #1a1a2e;">Open Chat</button></div>';
+                        dmsList.appendChild(dmEl);
+                    });
+                } else {
+                    dmsList.innerHTML = '<p>No direct messages yet</p>';
+                }
+            } catch (error) {
+                console.error('Error loading DMs:', error);
+            }
         }
         
         function startDM(userId) {
@@ -508,15 +567,23 @@ const appHTML = `
         }
         
         async function loadDMMessages(userId) {
-            const response = await fetch('/api/dms/' + userId);
-            const data = await response.json();
-            
-            const container = document.getElementById('messagesContainer');
-            container.innerHTML = '';
-            
-            data.messages.forEach(message => {
-                addDMMessage(message);
-            });
+            try {
+                const response = await fetch('/api/dms/' + userId);
+                const data = await response.json();
+                
+                const container = document.getElementById('messagesContainer');
+                container.innerHTML = '';
+                
+                if (data.messages && data.messages.length > 0) {
+                    data.messages.forEach(message => {
+                        addDMMessage(message);
+                    });
+                } else {
+                    container.innerHTML = '<div class="message system"><div class="message-content">No messages yet. Start the conversation!</div></div>';
+                }
+            } catch (error) {
+                console.error('Error loading DM messages:', error);
+            }
         }
         
         function addMessage(message) {
@@ -565,13 +632,17 @@ const appHTML = `
         }
         
         async function blockUser(userId) {
-            await fetch('/api/block', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId })
-            });
-            
-            loadFriends();
+            try {
+                await fetch('/api/block', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId })
+                });
+                
+                loadFriends();
+            } catch (error) {
+                console.error('Error blocking user:', error);
+            }
         }
         
         function logout() {
@@ -583,6 +654,7 @@ const appHTML = `
             if (e.key === 'Enter') sendMessage();
         });
         
+        // Initialize the app
         init();
     </script>
 </body>
@@ -612,10 +684,11 @@ const inviteHTML = `
                 return;
             }
             
+            const serverId = window.location.pathname.split('/').pop();
             const response = await fetch('/api/servers/join', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ serverId: 'SERVER_ID_PLACEHOLDER' })
+                body: JSON.stringify({ serverId: serverId })
             });
             
             const data = await response.json();
@@ -630,6 +703,9 @@ const inviteHTML = `
 </html>
 `;
 
+// Add the /chat route for compatibility
+const chatHTML = appHTML; // Use the same as app for now
+
 // Middleware
 app.use(express.json());
 
@@ -642,12 +718,17 @@ app.get('/app', (req, res) => {
     res.send(appHTML);
 });
 
+// Add the missing /chat route
+app.get('/chat', (req, res) => {
+    res.send(chatHTML);
+});
+
 app.get('/invite/:serverId', (req, res) => {
-    const invitePage = inviteHTML.replace('SERVER_ID_PLACEHOLDER', req.params.serverId);
+    const invitePage = inviteHTML;
     res.send(invitePage);
 });
 
-// API Routes (same as before, but simplified for space)
+// API Routes
 app.post('/api/register', (req, res) => {
     const { username, password } = req.body;
     const ip = getClientIP(req);
@@ -674,7 +755,7 @@ app.post('/api/register', (req, res) => {
     const serverId = generateId();
     servers.set(serverId, {
         id: serverId,
-        name: 'General',
+        name: 'General Chat',
         owner: userId,
         members: [userId],
         createdAt: new Date()
@@ -701,8 +782,8 @@ app.post('/api/login', (req, res) => {
     }
     
     // IP Lock: Check if logging in from different IP
-    if (user.ip !== ip) {
-        return res.json({ success: false, error: 'Account is locked to another device/IP' });
+    if (user.ip && user.ip !== ip) {
+        return res.json({ success: false, error: 'Account is locked to another device/IP. Please use your original device.' });
     }
     
     console.log(`✅ User logged in: ${username} from IP: ${ip}`);
@@ -712,17 +793,24 @@ app.post('/api/login', (req, res) => {
 // Server routes
 app.get('/api/servers', (req, res) => {
     const serversArray = Array.from(servers.values()).map(server => ({
-        ...server,
-        memberCount: server.members.length
+        id: server.id,
+        name: server.name,
+        memberCount: server.members.length,
+        owner: server.owner
     }));
     res.json({ success: true, servers: serversArray });
 });
 
 app.post('/api/servers', (req, res) => {
     const { name } = req.body;
-    const userId = req.body.userId || 'default-user'; // Simplified for demo
+    
+    if (!name) {
+        return res.json({ success: false, error: 'Server name required' });
+    }
     
     const serverId = generateId();
+    const userId = 'demo-user'; // In real app, get from session
+    
     servers.set(serverId, {
         id: serverId,
         name: name,
@@ -739,7 +827,7 @@ app.post('/api/servers', (req, res) => {
 
 app.post('/api/servers/join', (req, res) => {
     const { serverId } = req.body;
-    const userId = req.body.userId || 'default-user'; // Simplified for demo
+    const userId = 'demo-user'; // In real app, get from session
     
     const server = servers.get(serverId);
     if (!server) {
@@ -751,7 +839,7 @@ app.post('/api/servers/join', (req, res) => {
     }
     
     io.emit('server-joined', { serverId, userId });
-    res.json({ success: true });
+    res.json({ success: true, message: 'Joined server successfully' });
 });
 
 app.get('/api/servers/:serverId/messages', (req, res) => {
@@ -766,7 +854,7 @@ app.get('/api/friends', (req, res) => {
 });
 
 app.post('/api/friends/request', (req, res) => {
-    res.json({ success: true });
+    res.json({ success: true, message: 'Friend request sent' });
 });
 
 app.get('/api/friends/requests', (req, res) => {
@@ -774,15 +862,15 @@ app.get('/api/friends/requests', (req, res) => {
 });
 
 app.post('/api/friends/accept', (req, res) => {
-    res.json({ success: true });
+    res.json({ success: true, message: 'Friend request accepted' });
 });
 
 app.post('/api/friends/decline', (req, res) => {
-    res.json({ success: true });
+    res.json({ success: true, message: 'Friend request declined' });
 });
 
 app.post('/api/block', (req, res) => {
-    res.json({ success: true });
+    res.json({ success: true, message: 'User blocked' });
 });
 
 app.get('/api/dms', (req, res) => {
@@ -865,7 +953,11 @@ app.get('/health', (req, res) => {
     });
 });
 
+// Start server
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Enhanced Chat server running on port ${PORT}`);
     console.log(`📧 Open your Render URL in browser`);
+    console.log(`🏠 Main page: /`);
+    console.log(`💬 Chat app: /app or /chat`);
+    console.log(`🔧 API health: /health`);
 });
