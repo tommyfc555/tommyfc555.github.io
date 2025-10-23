@@ -21,8 +21,10 @@ app.get('/', (req, res) => {
               margin: 0;
               padding: 0;
               box-sizing: border-box;
-              font-family: 'Arial', sans-serif;
+              font-family: 'Inter', 'Arial', sans-serif;
           }
+          
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
           
           body {
               background: #000;
@@ -41,6 +43,7 @@ app.get('/', (req, res) => {
               height: 100%;
               object-fit: cover;
               z-index: -1;
+              filter: brightness(0.7);
           }
           
           .container {
@@ -53,36 +56,63 @@ app.get('/', (req, res) => {
           }
           
           .profile-card {
-              background: rgba(0, 0, 0, 0.8);
-              backdrop-filter: blur(20px);
-              border: 1px solid rgba(255, 255, 255, 0.1);
-              border-radius: 20px;
-              padding: 40px;
+              background: rgba(0, 0, 0, 0.4);
+              backdrop-filter: blur(25px);
+              border: 1px solid rgba(255, 255, 255, 0.15);
+              border-radius: 24px;
+              padding: 50px 40px;
               text-align: center;
-              max-width: 400px;
+              max-width: 480px;
               width: 90%;
-              box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+              box-shadow: 
+                  0 25px 50px rgba(0, 0, 0, 0.5),
+                  0 0 0 1px rgba(255, 255, 255, 0.05);
               opacity: 0;
-              transform: scale(0.8);
-              transition: all 0.5s ease;
+              transform: scale(0.8) translateY(30px);
+              transition: all 0.8s cubic-bezier(0.23, 1, 0.32, 1);
           }
           
           .profile-card.show {
               opacity: 1;
-              transform: scale(1);
+              transform: scale(1) translateY(0);
           }
           
           .profile-pic {
-              width: 150px;
-              height: 150px;
+              width: 160px;
+              height: 160px;
               border-radius: 50%;
-              border: 3px solid #fff;
-              margin: 0 auto 20px;
-              background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+              border: 3px solid rgba(255, 255, 255, 0.3);
+              margin: 0 auto 25px;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
               display: flex;
               align-items: center;
               justify-content: center;
               overflow: hidden;
+              position: relative;
+              transition: all 0.4s ease;
+          }
+          
+          .profile-pic:hover {
+              border-color: rgba(255, 255, 255, 0.6);
+              transform: scale(1.05);
+          }
+          
+          .profile-pic::before {
+              content: '';
+              position: absolute;
+              top: -2px;
+              left: -2px;
+              right: -2px;
+              bottom: -2px;
+              background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4);
+              border-radius: 50%;
+              z-index: -1;
+              opacity: 0;
+              transition: opacity 0.4s ease;
+          }
+          
+          .profile-pic:hover::before {
+              opacity: 1;
           }
           
           .profile-pic img {
@@ -96,103 +126,134 @@ app.get('/', (req, res) => {
               display: flex;
               align-items: center;
               justify-content: center;
-              gap: 10px;
-              margin-bottom: 5px;
+              gap: 12px;
+              margin-bottom: 8px;
           }
           
           .name {
-              font-size: 2.5em;
-              font-weight: bold;
-              background: linear-gradient(45deg, #fff, #ccc);
+              font-size: 3em;
+              font-weight: 700;
+              background: linear-gradient(135deg, #fff 0%, #a8b2d1 100%);
               -webkit-background-clip: text;
               -webkit-text-fill-color: transparent;
+              letter-spacing: -0.5px;
           }
           
           .owner-badge {
-              background: linear-gradient(45deg, #ffd700, #ffed4e);
-              color: #000;
-              padding: 4px 8px;
-              border-radius: 12px;
-              font-size: 0.7em;
-              font-weight: bold;
+              font-size: 1.2em;
+              opacity: 0.9;
               position: relative;
               cursor: help;
+              animation: crownGlow 2s ease-in-out infinite alternate;
+              filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.3));
+          }
+          
+          .owner-badge:hover {
+              animation: crownSpin 0.6s ease-in-out;
           }
           
           .owner-badge:hover::after {
               content: 'Owner';
               position: absolute;
-              top: -30px;
+              top: -40px;
               left: 50%;
               transform: translateX(-50%);
-              background: #333;
-              color: white;
-              padding: 5px 10px;
-              border-radius: 5px;
+              background: rgba(0, 0, 0, 0.8);
+              color: #ffd700;
+              padding: 8px 16px;
+              border-radius: 8px;
               font-size: 0.8em;
+              font-weight: 500;
               white-space: nowrap;
+              backdrop-filter: blur(10px);
+              border: 1px solid rgba(255, 215, 0, 0.3);
           }
           
           .username {
-              color: #888;
-              font-size: 1.2em;
-              margin-bottom: 20px;
-              font-weight: 300;
+              color: #a8b2d1;
+              font-size: 1.3em;
+              margin-bottom: 25px;
+              font-weight: 400;
+              letter-spacing: 0.5px;
           }
           
           .description {
-              color: #bbb;
-              font-size: 1.1em;
-              line-height: 1.5;
-              margin-bottom: 30px;
+              color: #8892b0;
+              font-size: 1.2em;
+              line-height: 1.6;
+              margin-bottom: 35px;
+              font-weight: 300;
           }
           
           .social-links {
               display: flex;
               justify-content: center;
-              gap: 15px;
-              margin-top: 25px;
+              gap: 20px;
+              margin-top: 30px;
           }
           
           .social-link {
-              width: 40px;
-              height: 40px;
+              width: 50px;
+              height: 50px;
               border-radius: 50%;
-              background: rgba(255, 255, 255, 0.1);
+              background: rgba(255, 255, 255, 0.08);
               display: flex;
               align-items: center;
               justify-content: center;
-              color: white;
+              color: #a8b2d1;
               text-decoration: none;
-              transition: all 0.3s ease;
-              border: 1px solid rgba(255, 255, 255, 0.2);
+              transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+              border: 1px solid rgba(255, 255, 255, 0.1);
+              font-size: 1.2em;
           }
           
           .social-link:hover {
-              background: rgba(255, 255, 255, 0.2);
-              transform: translateY(-2px);
+              background: rgba(255, 255, 255, 0.15);
+              transform: translateY(-3px) scale(1.1);
+              color: #fff;
+              border-color: rgba(255, 255, 255, 0.3);
+              box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
           }
           
           .volume-control {
               position: fixed;
-              left: 20px;
-              top: 50%;
-              transform: translateY(-50%);
-              background: rgba(0, 0, 0, 0.7);
-              padding: 15px;
-              border-radius: 10px;
-              backdrop-filter: blur(10px);
+              top: 25px;
+              left: 25px;
+              background: rgba(0, 0, 0, 0.3);
+              padding: 20px;
+              border-radius: 16px;
+              backdrop-filter: blur(20px);
               border: 1px solid rgba(255, 255, 255, 0.1);
+              box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+              transition: all 0.3s ease;
+          }
+          
+          .volume-control:hover {
+              background: rgba(0, 0, 0, 0.4);
+              border-color: rgba(255, 255, 255, 0.2);
+          }
+          
+          .volume-slider-container {
+              display: flex;
+              align-items: center;
+              gap: 15px;
+              min-width: 200px;
+          }
+          
+          .volume-icon {
+              font-size: 1.3em;
+              color: #a8b2d1;
+              min-width: 30px;
+              text-align: center;
           }
           
           .volume-slider {
-              writing-mode: bt-lr;
-              -webkit-appearance: slider-vertical;
-              width: 10px;
-              height: 120px;
-              background: #333;
+              flex: 1;
+              height: 6px;
+              background: rgba(255, 255, 255, 0.1);
+              border-radius: 10px;
               outline: none;
-              border-radius: 5px;
+              -webkit-appearance: none;
           }
           
           .volume-slider::-webkit-slider-thumb {
@@ -203,12 +264,20 @@ app.get('/', (req, res) => {
               border-radius: 50%;
               background: #fff;
               cursor: pointer;
+              box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+              transition: all 0.2s ease;
           }
           
-          .volume-label {
-              color: white;
-              font-size: 0.8em;
-              margin-bottom: 10px;
+          .volume-slider::-webkit-slider-thumb:hover {
+              background: #ffd700;
+              transform: scale(1.1);
+          }
+          
+          .volume-percentage {
+              color: #a8b2d1;
+              font-size: 0.9em;
+              font-weight: 500;
+              min-width: 35px;
               text-align: center;
           }
           
@@ -218,15 +287,34 @@ app.get('/', (req, res) => {
               left: 0;
               width: 100%;
               height: 100%;
-              background: rgba(0, 0, 0, 0.9);
+              background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(26, 26, 46, 0.95) 100%);
               display: flex;
+              flex-direction: column;
               align-items: center;
               justify-content: center;
               z-index: 1000;
-              font-size: 2em;
               color: white;
               cursor: pointer;
-              transition: opacity 0.5s ease;
+              transition: all 0.8s cubic-bezier(0.23, 1, 0.32, 1);
+              gap: 20px;
+          }
+          
+          .click-title {
+              font-size: 3.5em;
+              font-weight: 700;
+              background: linear-gradient(135deg, #fff 0%, #a8b2d1 100%);
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+              text-align: center;
+              letter-spacing: 2px;
+              animation: titlePulse 2s ease-in-out infinite;
+          }
+          
+          .click-subtitle {
+              font-size: 1.2em;
+              color: #8892b0;
+              font-weight: 300;
+              letter-spacing: 1px;
           }
           
           .click-to-play.hide {
@@ -234,47 +322,94 @@ app.get('/', (req, res) => {
               pointer-events: none;
           }
           
-          .profile-card {
-              animation: float 6s ease-in-out infinite;
+          @keyframes crownGlow {
+              0% {
+                  transform: scale(1) rotate(0deg);
+                  filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.3));
+              }
+              100% {
+                  transform: scale(1.1) rotate(5deg);
+                  filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.6));
+              }
+          }
+          
+          @keyframes crownSpin {
+              0% { transform: rotate(0deg) scale(1.1); }
+              25% { transform: rotate(15deg) scale(1.2); }
+              50% { transform: rotate(0deg) scale(1.3); }
+              75% { transform: rotate(-15deg) scale(1.2); }
+              100% { transform: rotate(0deg) scale(1.1); }
+          }
+          
+          @keyframes titlePulse {
+              0%, 100% {
+                  transform: scale(1);
+                  opacity: 1;
+              }
+              50% {
+                  transform: scale(1.05);
+                  opacity: 0.8;
+              }
           }
           
           @keyframes float {
               0%, 100% {
-                  transform: translateY(0px);
+                  transform: translateY(0px) rotate(0deg);
               }
-              50% {
-                  transform: translateY(-10px);
+              33% {
+                  transform: translateY(-10px) rotate(1deg);
               }
+              66% {
+                  transform: translateY(-5px) rotate(-1deg);
+              }
+          }
+          
+          .profile-card {
+              animation: float 8s ease-in-out infinite;
           }
           
           @media (max-width: 768px) {
               .profile-card {
-                  padding: 30px 20px;
+                  padding: 40px 25px;
+                  max-width: 90%;
               }
               
               .profile-pic {
-                  width: 120px;
-                  height: 120px;
+                  width: 140px;
+                  height: 140px;
               }
               
               .name {
-                  font-size: 2em;
+                  font-size: 2.5em;
+              }
+              
+              .click-title {
+                  font-size: 2.5em;
               }
               
               .volume-control {
-                  left: 10px;
-                  padding: 10px;
+                  top: 15px;
+                  left: 15px;
+                  right: 15px;
+                  padding: 15px;
               }
               
-              .volume-slider {
-                  height: 100px;
+              .volume-slider-container {
+                  min-width: auto;
               }
+          }
+          
+          .particle {
+              position: fixed;
+              pointer-events: none;
+              z-index: 0;
           }
       </style>
   </head>
   <body>
       <div class="click-to-play" id="clickToPlay">
-          CLICK ANYWHERE TO PLAY
+          <div class="click-title">CLICK ANYWHERE TO PLAY</div>
+          <div class="click-subtitle">Experience the vibe</div>
       </div>
       
       <video class="background-video" autoplay muted loop playsinline id="backgroundVideo">
@@ -283,8 +418,11 @@ app.get('/', (req, res) => {
       </video>
       
       <div class="volume-control" id="volumeControl" style="display: none;">
-          <div class="volume-label">VOLUME</div>
-          <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="50" orient="vertical">
+          <div class="volume-slider-container">
+              <div class="volume-icon">🔊</div>
+              <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="50">
+              <div class="volume-percentage" id="volumePercentage">50%</div>
+          </div>
       </div>
       
       <div class="container">
@@ -319,6 +457,7 @@ app.get('/', (req, res) => {
           const profileCard = document.getElementById('profileCard');
           const volumeControl = document.getElementById('volumeControl');
           const volumeSlider = document.getElementById('volumeSlider');
+          const volumePercentage = document.getElementById('volumePercentage');
           const backgroundVideo = document.getElementById('backgroundVideo');
           
           let audio = null;
@@ -329,7 +468,7 @@ app.get('/', (req, res) => {
               
               audio = new Audio('https://cdn.discordapp.com/attachments/1415024144105603186/1431016663683305472/james_bandz_-_Swat_Me_Maybe_Lyrics.mp3?ex=68fbe19f&is=68fa901f&hm=7be358d8d9b012292cafb0c5d4e2bbb158a6c090f62a85c3b877e812da9d27cc&');
               audio.loop = true;
-              audio.volume = volumeSlider.value / 100;
+              updateVolume();
               
               audio.play().then(() => {
                   console.log('Audio started playing');
@@ -340,6 +479,13 @@ app.get('/', (req, res) => {
               hasInteracted = true;
           }
           
+          function updateVolume() {
+              if (audio) {
+                  audio.volume = volumeSlider.value / 100;
+              }
+              volumePercentage.textContent = volumeSlider.value + '%';
+          }
+          
           function showContent() {
               clickToPlay.classList.add('hide');
               volumeControl.style.display = 'block';
@@ -347,7 +493,7 @@ app.get('/', (req, res) => {
               
               setTimeout(() => {
                   initializeAudio();
-              }, 500);
+              }, 800);
           }
           
           clickToPlay.addEventListener('click', showContent);
@@ -358,52 +504,49 @@ app.get('/', (req, res) => {
               }
           });
           
-          volumeSlider.addEventListener('input', function() {
-              if (audio) {
-                  audio.volume = this.value / 100;
-              }
-          });
+          volumeSlider.addEventListener('input', updateVolume);
           
           document.addEventListener('mousemove', (e) => {
               if (hasInteracted) {
-                  const card = document.querySelector('.profile-card');
-                  const x = (window.innerWidth - e.pageX) / 50;
-                  const y = (window.innerHeight - e.pageY) / 50;
-                  card.style.transform = 'translateY(' + y + 'px) translateX(' + x + 'px)';
+                  createParticle(e.clientX, e.clientY);
               }
           });
           
-          function createParticle() {
-              if (!hasInteracted) return;
-              
+          function createParticle(x, y) {
               const particle = document.createElement('div');
-              particle.style.position = 'fixed';
-              particle.style.width = '4px';
-              particle.style.height = '4px';
-              particle.style.background = 'rgba(255, 255, 255, 0.5)';
-              particle.style.borderRadius = '50%';
-              particle.style.pointerEvents = 'none';
-              particle.style.zIndex = '0';
+              particle.className = 'particle';
+              particle.style.left = x + 'px';
+              particle.style.top = y + 'px';
               
-              particle.style.left = Math.random() * 100 + 'vw';
-              particle.style.top = '100vh';
+              const size = Math.random() * 6 + 2;
+              particle.style.width = size + 'px';
+              particle.style.height = size + 'px';
+              
+              const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffd700'];
+              const color = colors[Math.floor(Math.random() * colors.length)];
+              particle.style.background = color;
+              particle.style.borderRadius = '50%';
               
               document.body.appendChild(particle);
               
               const animation = particle.animate([
-                  { transform: 'translateY(0) scale(1)', opacity: 1 },
-                  { transform: 'translateY(-' + (Math.random() * 100 + 50) + 'vh) scale(0)', opacity: 0 }
+                  { 
+                      transform: 'translate(0, 0) scale(1)',
+                      opacity: 1
+                  },
+                  { 
+                      transform: 'translate(' + (Math.random() * 100 - 50) + 'px, ' + (Math.random() * 100 - 50) + 'px) scale(0)',
+                      opacity: 0
+                  }
               ], {
-                  duration: Math.random() * 3000 + 2000,
+                  duration: Math.random() * 2000 + 1000,
                   easing: 'cubic-bezier(0.2, 0, 0.8, 1)'
               });
               
-              animation.onfinish = function() { particle.remove(); };
+              animation.onfinish = () => particle.remove();
           }
           
-          setInterval(createParticle, 500);
-          
-          console.log('Welcome to Black profile!');
+          console.log('Welcome to Black premium profile!');
       </script>
   </body>
   </html>
@@ -411,6 +554,6 @@ app.get('/', (req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log('🚀 Profile page running on port ' + PORT);
+  console.log('🚀 Premium Profile page running on port ' + PORT);
   console.log('👉 Open: http://localhost:' + PORT);
 });
