@@ -1,6 +1,11 @@
 module.exports = (db, bcrypt, jwt, JWT_SECRET) => {
     const router = require('express').Router();
 
+    // Test route
+    router.get('/test', (req, res) => {
+        res.json({ message: 'Auth API is working!' });
+    });
+
     // Register
     router.post('/register', async (req, res) => {
         const { username, email, password, hwid } = req.body;
@@ -70,11 +75,6 @@ module.exports = (db, bcrypt, jwt, JWT_SECRET) => {
                 );
             }
         );
-    });
-
-    // Test route
-    router.get('/test', (req, res) => {
-        res.json({ message: 'Auth API is working!' });
     });
 
     return router;
