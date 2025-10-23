@@ -1,3 +1,5 @@
+const API_BASE = 'https://tommyfc555-github-io.onrender.com/api';
+
 // Check authentication
 const token = localStorage.getItem('token');
 if (!token) {
