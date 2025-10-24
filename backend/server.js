@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const crypto = require('crypto');
@@ -7,47 +8,31 @@ const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
 
-// 🔒 SECURITY WARNING: Never commit real tokens to code!
-// Store these in environment variables instead
+// ✅ SECURE: Only use environment variables
 const DISCORD_CONFIG = {
-    // ⚠️ WARNING: This token is exposed in source code!
-    // Move to environment variables for production
-    clientId: process.env.DISCORD_CLIENT_ID || '1429907130277691483',
-    clientSecret: process.env.DISCORD_CLIENT_SECRET || obfuscatedToken(),
-    redirectUri: process.env.REDIRECT_URI || `https://tommyfc555-github-io.onrender.com/auth/discord/callback`,
+    clientId: process.env.DISCORD_CLIENT_ID,
+    clientSecret: process.env.DISCORD_CLIENT_SECRET,
+    redirectUri: process.env.REDIRECT_URI,
     scope: 'identify'
 };
 
-// Basic token obfuscation (not secure, just makes it less obvious)
-function obfuscatedToken() {
-    // This is just a simple obfuscation - NOT SECURE FOR PRODUCTION
-    const parts = [
-        'MTQyOTkwNzEzMDI3NzY5',
-        'MTQ4Mw.GJGljR.mS09PYf',
-        'sqTonmQV6MfHE0-mbABjH',
-        'BfNaD998LI'
-    ];
-    return parts.join('');
+// Validate that required environment variables exist
+const requiredEnvVars = ['DISCORD_CLIENT_ID', 'DISCORD_CLIENT_SECRET', 'REDIRECT_URI'];
+const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingVars.length > 0) {
+    console.error('❌ Missing required environment variables:', missingVars);
+    console.error('💡 Set them in Render.com dashboard under Environment tab');
+    process.exit(1);
 }
 
-function deobfuscateToken(obfuscated) {
-    return obfuscated.replace(/\./g, '');
-}
+console.log('✅ Environment variables loaded successfully');
 
 // Session storage
 const sessions = new Map();
 
 app.use(express.static('.'));
 app.use(express.json());
-
-// Security middleware - Warn about exposed tokens
-app.use((req, res, next) => {
-    if (!process.env.DISCORD_CLIENT_SECRET) {
-        console.warn('⚠️  SECURITY WARNING: Discord token is hardcoded!');
-        console.warn('⚠️  Move to environment variables for production!');
-    }
-    next();
-});
 
 // Generate random state for OAuth security
 function generateState() {
@@ -63,20 +48,6 @@ setInterval(() => {
         }
     }
 }, 3600000);
-
-// Security info endpoint
-app.get('/security-info', (req, res) => {
-    res.json({
-        warning: 'SECURITY ALERT: Tokens are exposed in source code!',
-        recommendation: 'Move to environment variables immediately!',
-        steps: [
-            '1. Remove tokens from code',
-            '2. Use process.env.DISCORD_CLIENT_SECRET',
-            '3. Set environment variables in production',
-            '4. Regenerate compromised tokens'
-        ]
-    });
-});
 
 // Discord OAuth Routes
 app.get('/auth/discord', (req, res) => {
@@ -100,9 +71,6 @@ app.get('/auth/discord/callback', async (req, res) => {
     }
     
     try {
-        // Use the actual token (deobfuscate if needed)
-        const actualSecret = process.env.DISCORD_CLIENT_SECRET || deobfuscateToken(DISCORD_CONFIG.clientSecret);
-        
         const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
             method: 'POST',
             headers: {
@@ -110,7 +78,7 @@ app.get('/auth/discord/callback', async (req, res) => {
             },
             body: new URLSearchParams({
                 client_id: DISCORD_CONFIG.clientId,
-                client_secret: actualSecret,
+                client_secret: DISCORD_CONFIG.clientSecret,
                 grant_type: 'authorization_code',
                 code: code,
                 redirect_uri: DISCORD_CONFIG.redirectUri,
@@ -184,7 +152,6 @@ app.get('/', (req, res) => {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Black</title>
         <style>
-            /* Your existing CSS remains the same */
             * {
                 margin: 0;
                 padding: 0;
@@ -310,29 +277,6 @@ app.get('/', (req, res) => {
                 filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.3));
             }
             
-            .security-warning {
-                position: fixed;
-                top: 10px;
-                right: 10px;
-                background: rgba(255, 59, 59, 0.9);
-                color: white;
-                padding: 8px 12px;
-                border-radius: 6px;
-                font-size: 0.7em;
-                font-weight: 600;
-                backdrop-filter: blur(10px);
-                border: 1px solid rgba(255, 255, 255, 0.3);
-                z-index: 10000;
-                cursor: pointer;
-                animation: pulseWarning 2s infinite;
-            }
-            
-            @keyframes pulseWarning {
-                0%, 100% { opacity: 0.7; }
-                50% { opacity: 1; }
-            }
-            
-            /* Rest of your existing CSS remains the same */
             .username {
                 color: var(--text-secondary);
                 font-size: clamp(1em, 4vw, 1.3em);
@@ -537,11 +481,6 @@ app.get('/', (req, res) => {
         </style>
     </head>
     <body>
-        <!-- Security Warning -->
-        <div class="security-warning" id="securityWarning" onclick="showSecurityAlert()">
-            ⚠️ SECURITY WARNING
-        </div>
-        
         <div class="click-to-play" id="clickToPlay">
             <div class="click-title">CLICK ANYWHERE TO PLAY</div>
             <div class="click-subtitle">Experience the vibe</div>
@@ -591,28 +530,6 @@ app.get('/', (req, res) => {
         </div>
 
         <script>
-            // Security alert function
-            function showSecurityAlert() {
-                alert('🔒 SECURITY WARNING:\\n\\nYour Discord token is exposed in the source code!\\n\\n⚠️  This is a MAJOR security risk!\\n\\n🚨 IMMEDIATE ACTIONS REQUIRED:\\n1. Regenerate your Discord token NOW\\n2. Move token to environment variables\\n3. Never commit tokens to code again\\n\\nYour current token is COMPROMISED!');
-                
-                // Log warning to console
-                console.warn('🚨 SECURITY ALERT: Discord token exposed in source code!');
-                console.warn('🚨 Regenerate token immediately at: https://discord.com/developers/applications');
-                console.warn('🚨 Current token should be considered COMPROMISED');
-            }
-            
-            // Check if token is exposed
-            function checkTokenSecurity() {
-                fetch('/security-info')
-                    .then(response => response.json())
-                    .then(data => {
-                        console.warn('🔒 Security Check:');
-                        console.warn('⚠️ ', data.warning);
-                        console.warn('💡 ', data.recommendation);
-                        data.steps.forEach(step => console.warn('   ', step));
-                    });
-            }
-            
             // DOM Elements
             const clickToPlay = document.getElementById('clickToPlay');
             const profileCard = document.getElementById('profileCard');
@@ -624,17 +541,10 @@ app.get('/', (req, res) => {
             const displayName = document.getElementById('displayName');
             const displayUsername = document.getElementById('displayUsername');
             const userDescription = document.getElementById('userDescription');
-            const securityWarning = document.getElementById('securityWarning');
             
             let audio = null;
             let hasInteracted = false;
             let currentSession = null;
-            
-            // Auto-show security warning
-            setTimeout(() => {
-                securityWarning.style.display = 'block';
-                checkTokenSecurity();
-            }, 2000);
             
             // Check for existing session
             function checkExistingSession() {
@@ -745,9 +655,6 @@ app.get('/', (req, res) => {
             
             // Initialize
             checkExistingSession();
-            
-            console.warn('🔒 SECURITY: Token exposure detected!');
-            console.warn('🚨 Regenerate your Discord token immediately!');
         </script>
     </body>
     </html>
@@ -755,8 +662,6 @@ app.get('/', (req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-    console.log('🚨 SECURITY WARNING: Discord token is exposed in source code!');
-    console.log('🚨 Regenerate token at: https://discord.com/developers/applications');
-    console.log('🚨 Move to environment variables for production!');
-    console.log('🚀 Profile page running on port ' + PORT);
+    console.log('✅ Server running securely on port ' + PORT);
+    console.log('✅ Using environment variables for configuration');
 });
