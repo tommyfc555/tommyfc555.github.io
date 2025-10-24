@@ -6,7 +6,7 @@ const cookieParser = require('cookie-parser');
 const app = express();
 const server = http.createServer(app);
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // ✅ WORKING CONFIGURATION
 const DISCORD_CONFIG = {
@@ -2040,6 +2040,54 @@ app.get('/features', (req, res) => {
 // Serve about page
 app.get('/about', (req, res) => {
     res.redirect('/');
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error('❌ Server Error:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+});
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Page Not Found</title>
+            <style>
+                body { 
+                    background: #000; 
+                    color: white; 
+                    font-family: Arial; 
+                    display: flex; 
+                    justify-content: center; 
+                    align-items: center; 
+                    height: 100vh; 
+                    margin: 0; 
+                }
+                .message { 
+                    text-align: center; 
+                    background: rgba(255,255,255,0.1); 
+                    padding: 40px; 
+                    border-radius: 10px; 
+                    backdrop-filter: blur(10px);
+                }
+                a { 
+                    color: #5865F2; 
+                    text-decoration: none; 
+                }
+            </style>
+        </head>
+        <body>
+            <div class="message">
+                <h2>404 - Page Not Found</h2>
+                <p>The page you're looking for doesn't exist.</p>
+                <a href="/">← Back to Home</a>
+            </div>
+        </body>
+        </html>
+    `);
 });
 
 server.listen(PORT, '0.0.0.0', () => {
