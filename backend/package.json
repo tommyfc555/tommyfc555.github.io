@@ -1,7 +1,7 @@
 {
-  "name": "discord-profile",
-  "version": "1.0.0",
-  "description": "Discord Profile Page Generator",
+  "name": "discord-profile-system",
+  "version": "2.0.0",
+  "description": "Advanced Discord profile system with bot integration and anti-DDOS protection",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -9,12 +9,21 @@
   },
   "dependencies": {
     "express": "^4.18.2",
-    "cookie-parser": "^1.4.6"
+    "cookie-parser": "^1.4.6",
+    "discord.js": "^14.13.0",
+    "express-rate-limit": "^6.8.1",
+    "node-fetch": "^2.6.7"
   },
-  "keywords": ["discord", "profile", "oauth"],
-  "author": "",
-  "license": "MIT",
-  "engines": {
-    "node": ">=18.0.0"
-  }
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  },
+  "keywords": [
+    "discord",
+    "profile",
+    "oauth",
+    "bot",
+    "anti-ddos"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
 }
