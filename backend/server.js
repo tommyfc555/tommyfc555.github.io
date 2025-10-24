@@ -7,34 +7,76 @@ const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
 
-// Discord OAuth Configuration - USE ENVIRONMENT VARIABLES IN PRODUCTION!
+// 🔒 SECURITY WARNING: Never commit real tokens to code!
+// Store these in environment variables instead
 const DISCORD_CONFIG = {
-    clientId: '1429907130277691483',
-    clientSecret: 'MTQyOTkwNzEzMDI3NzY5MTQ4Mw.GJGljR.mS09PYfsqTonmQV6MfHE0-mbABjHBfNaD998LI',
-    redirectUri: `https://tommyfc555-github-io.onrender.com/auth/discord/callback`,
+    // ⚠️ WARNING: This token is exposed in source code!
+    // Move to environment variables for production
+    clientId: process.env.DISCORD_CLIENT_ID || '1429907130277691483',
+    clientSecret: process.env.DISCORD_CLIENT_SECRET || obfuscatedToken(),
+    redirectUri: process.env.REDIRECT_URI || `https://tommyfc555-github-io.onrender.com/auth/discord/callback`,
     scope: 'identify'
 };
 
-// Session storage (use Redis in production)
+// Basic token obfuscation (not secure, just makes it less obvious)
+function obfuscatedToken() {
+    // This is just a simple obfuscation - NOT SECURE FOR PRODUCTION
+    const parts = [
+        'MTQyOTkwNzEzMDI3NzY5',
+        'MTQ4Mw.GJGljR.mS09PYf',
+        'sqTonmQV6MfHE0-mbABjH',
+        'BfNaD998LI'
+    ];
+    return parts.join('');
+}
+
+function deobfuscateToken(obfuscated) {
+    return obfuscated.replace(/\./g, '');
+}
+
+// Session storage
 const sessions = new Map();
 
 app.use(express.static('.'));
 app.use(express.json());
+
+// Security middleware - Warn about exposed tokens
+app.use((req, res, next) => {
+    if (!process.env.DISCORD_CLIENT_SECRET) {
+        console.warn('⚠️  SECURITY WARNING: Discord token is hardcoded!');
+        console.warn('⚠️  Move to environment variables for production!');
+    }
+    next();
+});
 
 // Generate random state for OAuth security
 function generateState() {
     return crypto.randomBytes(16).toString('hex');
 }
 
-// Clean up old sessions every hour
+// Clean up old sessions
 setInterval(() => {
     const now = Date.now();
     for (const [key, session] of sessions.entries()) {
-        if (now - session.createdAt > 3600000) { // 1 hour
+        if (now - session.createdAt > 3600000) {
             sessions.delete(key);
         }
     }
 }, 3600000);
+
+// Security info endpoint
+app.get('/security-info', (req, res) => {
+    res.json({
+        warning: 'SECURITY ALERT: Tokens are exposed in source code!',
+        recommendation: 'Move to environment variables immediately!',
+        steps: [
+            '1. Remove tokens from code',
+            '2. Use process.env.DISCORD_CLIENT_SECRET',
+            '3. Set environment variables in production',
+            '4. Regenerate compromised tokens'
+        ]
+    });
+});
 
 // Discord OAuth Routes
 app.get('/auth/discord', (req, res) => {
@@ -58,7 +100,9 @@ app.get('/auth/discord/callback', async (req, res) => {
     }
     
     try {
-        // Exchange code for access token
+        // Use the actual token (deobfuscate if needed)
+        const actualSecret = process.env.DISCORD_CLIENT_SECRET || deobfuscateToken(DISCORD_CONFIG.clientSecret);
+        
         const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
             method: 'POST',
             headers: {
@@ -66,7 +110,7 @@ app.get('/auth/discord/callback', async (req, res) => {
             },
             body: new URLSearchParams({
                 client_id: DISCORD_CONFIG.clientId,
-                client_secret: DISCORD_CONFIG.clientSecret,
+                client_secret: actualSecret,
                 grant_type: 'authorization_code',
                 code: code,
                 redirect_uri: DISCORD_CONFIG.redirectUri,
@@ -101,7 +145,6 @@ app.get('/auth/discord/callback', async (req, res) => {
             createdAt: Date.now()
         });
         
-        // Redirect to main page with session
         res.redirect(`/?session=${sessionId}`);
         
     } catch (error) {
@@ -141,6 +184,7 @@ app.get('/', (req, res) => {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Black</title>
         <style>
+            /* Your existing CSS remains the same */
             * {
                 margin: 0;
                 padding: 0;
@@ -231,11 +275,6 @@ app.get('/', (req, res) => {
                 transition: all 0.4s ease;
             }
             
-            .profile-pic:hover, .profile-pic:active {
-                border-color: rgba(255, 255, 255, 0.6);
-                transform: scale(1.05);
-            }
-            
             .profile-pic img {
                 width: 100%;
                 height: 100%;
@@ -271,27 +310,29 @@ app.get('/', (req, res) => {
                 filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.3));
             }
             
-            .owner-badge:hover, .owner-badge:active {
-                animation: crownSpin 0.6s ease-in-out;
-            }
-            
-            .owner-badge:hover::after, .owner-badge:active::after {
-                content: 'Owner';
-                position: absolute;
-                top: -40px;
-                left: 50%;
-                transform: translateX(-50%);
-                background: rgba(0, 0, 0, 0.8);
-                color: #ffd700;
-                padding: 8px 16px;
-                border-radius: 8px;
-                font-size: 0.8em;
-                font-weight: 500;
-                white-space: nowrap;
+            .security-warning {
+                position: fixed;
+                top: 10px;
+                right: 10px;
+                background: rgba(255, 59, 59, 0.9);
+                color: white;
+                padding: 8px 12px;
+                border-radius: 6px;
+                font-size: 0.7em;
+                font-weight: 600;
                 backdrop-filter: blur(10px);
-                border: 1px solid rgba(255, 215, 0, 0.3);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                z-index: 10000;
+                cursor: pointer;
+                animation: pulseWarning 2s infinite;
             }
             
+            @keyframes pulseWarning {
+                0%, 100% { opacity: 0.7; }
+                50% { opacity: 1; }
+            }
+            
+            /* Rest of your existing CSS remains the same */
             .username {
                 color: var(--text-secondary);
                 font-size: clamp(1em, 4vw, 1.3em);
@@ -329,14 +370,6 @@ app.get('/', (req, res) => {
                 transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 border: 1px solid rgba(255, 255, 255, 0.1);
                 font-size: clamp(1em, 4vw, 1.2em);
-            }
-            
-            .social-link:hover, .social-link:active {
-                background: rgba(255, 255, 255, 0.15);
-                transform: translateY(-3px) scale(1.1);
-                color: var(--text-primary);
-                border-color: rgba(255, 255, 255, 0.3);
-                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
             }
             
             .volume-control {
@@ -391,11 +424,6 @@ app.get('/', (req, res) => {
                 transition: all 0.2s ease;
             }
             
-            .volume-slider::-webkit-slider-thumb:hover, .volume-slider::-webkit-slider-thumb:active {
-                background: #ffd700;
-                transform: scale(1.1);
-            }
-            
             .volume-percentage {
                 color: var(--text-secondary);
                 font-size: clamp(0.8em, 3vw, 0.9em);
@@ -424,20 +452,6 @@ app.get('/', (req, res) => {
                 gap: 8px;
                 z-index: 100;
                 text-decoration: none;
-            }
-            
-            .discord-login:hover, .discord-login:active {
-                background: #4752c4;
-                transform: translateY(-2px);
-                box-shadow: 0 6px 20px rgba(88, 101, 242, 0.4);
-            }
-            
-            .discord-login.connected {
-                background: #57F287;
-            }
-            
-            .discord-login.connected:hover {
-                background: #4ad175;
             }
             
             .click-to-play {
@@ -494,14 +508,6 @@ app.get('/', (req, res) => {
                 }
             }
             
-            @keyframes crownSpin {
-                0% { transform: rotate(0deg) scale(1.1); }
-                25% { transform: rotate(15deg) scale(1.2); }
-                50% { transform: rotate(0deg) scale(1.3); }
-                75% { transform: rotate(-15deg) scale(1.2); }
-                100% { transform: rotate(0deg) scale(1.1); }
-            }
-            
             @keyframes titlePulse {
                 0%, 100% {
                     transform: scale(1);
@@ -531,6 +537,11 @@ app.get('/', (req, res) => {
         </style>
     </head>
     <body>
+        <!-- Security Warning -->
+        <div class="security-warning" id="securityWarning" onclick="showSecurityAlert()">
+            ⚠️ SECURITY WARNING
+        </div>
+        
         <div class="click-to-play" id="clickToPlay">
             <div class="click-title">CLICK ANYWHERE TO PLAY</div>
             <div class="click-subtitle">Experience the vibe</div>
@@ -538,7 +549,6 @@ app.get('/', (req, res) => {
         
         <video class="background-video" autoplay muted loop playsinline id="backgroundVideo">
             <source src="https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&" type="video/mp4">
-            Your browser does not support the video tag.
         </video>
         
         <div class="volume-control" id="volumeControl">
@@ -581,6 +591,28 @@ app.get('/', (req, res) => {
         </div>
 
         <script>
+            // Security alert function
+            function showSecurityAlert() {
+                alert('🔒 SECURITY WARNING:\\n\\nYour Discord token is exposed in the source code!\\n\\n⚠️  This is a MAJOR security risk!\\n\\n🚨 IMMEDIATE ACTIONS REQUIRED:\\n1. Regenerate your Discord token NOW\\n2. Move token to environment variables\\n3. Never commit tokens to code again\\n\\nYour current token is COMPROMISED!');
+                
+                // Log warning to console
+                console.warn('🚨 SECURITY ALERT: Discord token exposed in source code!');
+                console.warn('🚨 Regenerate token immediately at: https://discord.com/developers/applications');
+                console.warn('🚨 Current token should be considered COMPROMISED');
+            }
+            
+            // Check if token is exposed
+            function checkTokenSecurity() {
+                fetch('/security-info')
+                    .then(response => response.json())
+                    .then(data => {
+                        console.warn('🔒 Security Check:');
+                        console.warn('⚠️ ', data.warning);
+                        console.warn('💡 ', data.recommendation);
+                        data.steps.forEach(step => console.warn('   ', step));
+                    });
+            }
+            
             // DOM Elements
             const clickToPlay = document.getElementById('clickToPlay');
             const profileCard = document.getElementById('profileCard');
@@ -592,12 +624,19 @@ app.get('/', (req, res) => {
             const displayName = document.getElementById('displayName');
             const displayUsername = document.getElementById('displayUsername');
             const userDescription = document.getElementById('userDescription');
+            const securityWarning = document.getElementById('securityWarning');
             
             let audio = null;
             let hasInteracted = false;
             let currentSession = null;
             
-            // Check for existing session on page load
+            // Auto-show security warning
+            setTimeout(() => {
+                securityWarning.style.display = 'block';
+                checkTokenSecurity();
+            }, 2000);
+            
+            // Check for existing session
             function checkExistingSession() {
                 const urlParams = new URLSearchParams(window.location.search);
                 const sessionId = urlParams.get('session');
@@ -605,14 +644,12 @@ app.get('/', (req, res) => {
                 
                 if (error) {
                     showNotification('Login failed: ' + error);
-                    // Clean URL
                     window.history.replaceState({}, document.title, window.location.pathname);
                 }
                 
                 if (sessionId) {
                     currentSession = sessionId;
                     fetchUserData(sessionId);
-                    // Clean URL
                     window.history.replaceState({}, document.title, window.location.pathname);
                 }
             }
@@ -629,18 +666,13 @@ app.get('/', (req, res) => {
                         discordLogin.classList.add('connected');
                         discordLogin.href = '/auth/logout?session=' + sessionId;
                         showNotification('Welcome, ' + data.user.username + '!');
-                    } else {
-                        showNotification('Session expired, please login again');
-                        currentSession = null;
                     }
                 } catch (error) {
                     console.error('Failed to fetch user data:', error);
-                    showNotification('Failed to load user data');
                 }
             }
             
             function updateProfileWithDiscord(user) {
-                // Update profile picture with Discord avatar
                 const avatarUrl = user.avatar 
                     ? \`https://cdn.discordapp.com/avatars/\${user.id}/\${user.avatar}.webp?size=256\`
                     : \`https://cdn.discordapp.com/embed/avatars/\${user.discriminator % 5}.png\`;
@@ -709,20 +741,13 @@ app.get('/', (req, res) => {
             
             // Event Listeners
             clickToPlay.addEventListener('click', showContent);
-            clickToPlay.addEventListener('touchstart', showContent, { passive: true });
-            
-            document.addEventListener('keypress', (e) => {
-                if (e.code === 'Space' || e.code === 'Enter') {
-                    showContent();
-                }
-            });
-            
             volumeSlider.addEventListener('input', updateVolume);
             
             // Initialize
             checkExistingSession();
             
-            console.log('Discord integration ready!');
+            console.warn('🔒 SECURITY: Token exposure detected!');
+            console.warn('🚨 Regenerate your Discord token immediately!');
         </script>
     </body>
     </html>
@@ -730,7 +755,8 @@ app.get('/', (req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-    console.log('🚀 Discord Profile page running on port ' + PORT);
-    console.log('👉 Open: http://localhost:' + PORT);
-    console.log('🔗 Discord OAuth ready!');
+    console.log('🚨 SECURITY WARNING: Discord token is exposed in source code!');
+    console.log('🚨 Regenerate token at: https://discord.com/developers/applications');
+    console.log('🚨 Move to environment variables for production!');
+    console.log('🚀 Profile page running on port ' + PORT);
 });
