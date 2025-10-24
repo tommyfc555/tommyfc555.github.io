@@ -16,27 +16,32 @@ const DISCORD_CONFIG = {
     scope: 'identify'
 };
 
-// Validate that required environment variables exist
-const requiredEnvVars = ['DISCORD_CLIENT_ID', 'DISCORD_CLIENT_SECRET'];
-const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
-
-if (missingVars.length > 0) {
-    console.error('❌ Missing required environment variables:', missingVars);
-    console.error('💡 Set them in Render.com dashboard under Environment tab');
-    // Don't exit in production, just warn
-    if (process.env.NODE_ENV === 'production') {
-        console.error('🚨 Running in production without proper environment variables!');
+// Validate environment variables
+function validateConfig() {
+    console.log('🔧 Checking Discord configuration...');
+    console.log('📋 Client ID:', process.env.DISCORD_CLIENT_ID ? '✅ Set' : '❌ Missing');
+    console.log('🔑 Client Secret:', process.env.DISCORD_CLIENT_SECRET ? '✅ Set' : '❌ Missing');
+    console.log('🌐 Redirect URI:', DISCORD_CONFIG.redirectUri);
+    
+    if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_CLIENT_SECRET) {
+        console.error('🚨 CRITICAL: Discord OAuth credentials missing!');
+        console.error('💡 Set these in Render.com environment variables:');
+        console.error('   - DISCORD_CLIENT_ID');
+        console.error('   - DISCORD_CLIENT_SECRET');
+        return false;
     }
+    
+    return true;
 }
 
 console.log('✅ Server starting...');
+validateConfig();
 
 // Session storage
 const sessions = new Map();
 
 // Security headers middleware
 app.use((req, res, next) => {
-    // Set proper Permissions-Policy headers to fix the errors
     res.setHeader('Permissions-Policy', [
         'browsing-topics=()',
         'run-ad-auction=()', 
@@ -51,7 +56,6 @@ app.use((req, res, next) => {
         'payment=()'
     ].join(', '));
     
-    // Additional security headers
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('X-XSS-Protection', '1; mode=block');
@@ -80,6 +84,10 @@ setInterval(() => {
 
 // Discord OAuth Routes
 app.get('/auth/discord', (req, res) => {
+    if (!validateConfig()) {
+        return res.redirect('/?error=config_error');
+    }
+    
     const state = generateState();
     sessions.set(state, { createdAt: Date.now() });
     
@@ -108,6 +116,13 @@ app.get('/auth/discord/callback', async (req, res) => {
         // Clean up the state session
         sessions.delete(state);
         
+        if (!process.env.DISCORD_CLIENT_SECRET) {
+            console.error('❌ Discord client secret not configured');
+            return res.redirect('/?error=config_error');
+        }
+        
+        console.log('🔑 Exchanging code for token...');
+        
         const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
             method: 'POST',
             headers: {
@@ -124,10 +139,22 @@ app.get('/auth/discord/callback', async (req, res) => {
         
         const tokenData = await tokenResponse.json();
         
-        console.log('🔑 Token response:', tokenData);
+        console.log('🔑 Token response status:', tokenResponse.status);
+        console.log('🔑 Token response data:', tokenData);
         
         if (!tokenData.access_token) {
-            console.error('❌ Token exchange failed:', tokenData);
+            console.error('❌ Token exchange failed');
+            console.error('❌ Error details:', tokenData);
+            
+            // Provide specific error messages
+            if (tokenData.error === 'invalid_client') {
+                console.error('🚨 INVALID CLIENT: Check your Client ID and Client Secret');
+                return res.redirect('/?error=invalid_credentials');
+            } else if (tokenData.error === 'invalid_grant') {
+                console.error('🚨 INVALID GRANT: Authorization code is invalid or expired');
+                return res.redirect('/?error=invalid_code');
+            }
+            
             return res.redirect('/?error=token_failed');
         }
         
@@ -182,6 +209,16 @@ app.get('/auth/logout', (req, res) => {
         sessions.delete(sessionId);
     }
     res.redirect('/');
+});
+
+// Debug endpoint to check configuration
+app.get('/debug/config', (req, res) => {
+    res.json({
+        clientId: process.env.DISCORD_CLIENT_ID ? '✅ Set' : '❌ Missing',
+        clientSecret: process.env.DISCORD_CLIENT_SECRET ? '✅ Set' : '❌ Missing',
+        redirectUri: DISCORD_CONFIG.redirectUri,
+        hasSessions: sessions.size
+    });
 });
 
 // Serve the main page
@@ -539,6 +576,23 @@ app.get('/', (req, res) => {
                 pointer-events: none;
             }
             
+            .error-message {
+                position: fixed;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(255, 59, 59, 0.9);
+                color: white;
+                padding: 12px 20px;
+                border-radius: 8px;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                z-index: 1000;
+                font-size: 0.9em;
+                font-weight: 500;
+                display: none;
+            }
+            
             @keyframes crownGlow {
                 0% {
                     transform: scale(1) rotate(0deg);
@@ -579,6 +633,8 @@ app.get('/', (req, res) => {
         </style>
     </head>
     <body>
+        <div class="error-message" id="errorMessage"></div>
+        
         <div class="click-to-play" id="clickToPlay">
             <div class="click-title">CLICK ANYWHERE TO PLAY</div>
             <div class="click-subtitle">Experience the vibe</div>
@@ -650,19 +706,33 @@ app.get('/', (req, res) => {
             const displayName = document.getElementById('displayName');
             const displayUsername = document.getElementById('displayUsername');
             const userDescription = document.getElementById('userDescription');
+            const errorMessage = document.getElementById('errorMessage');
             
             let audio = null;
             let hasInteracted = false;
             let currentSession = null;
             
-            // Check for existing session
+            // Error messages mapping
+            const errorMessages = {
+                'missing_params': 'Missing parameters from Discord',
+                'invalid_state': 'Invalid security state',
+                'config_error': 'Server configuration error',
+                'invalid_credentials': 'Invalid Discord credentials',
+                'invalid_code': 'Authorization code expired',
+                'token_failed': 'Failed to get access token',
+                'user_fetch_failed': 'Failed to fetch user data',
+                'auth_failed': 'Authentication failed'
+            };
+            
+            // Check for errors and existing session
             function checkExistingSession() {
                 const urlParams = new URLSearchParams(window.location.search);
                 const sessionId = urlParams.get('session');
                 const error = urlParams.get('error');
                 
                 if (error) {
-                    showNotification('Login failed: ' + error);
+                    const message = errorMessages[error] || 'An error occurred';
+                    showError(message);
                     window.history.replaceState({}, document.title, window.location.pathname);
                 }
                 
@@ -672,6 +742,15 @@ app.get('/', (req, res) => {
                     fetchUserData(sessionId);
                     window.history.replaceState({}, document.title, window.location.pathname);
                 }
+            }
+            
+            // Show error message
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.style.display = 'block';
+                setTimeout(() => {
+                    errorMessage.style.display = 'none';
+                }, 5000);
             }
             
             // Show profile view and hide login
@@ -780,7 +859,8 @@ app.get('/', (req, res) => {
 
 server.listen(PORT, '0.0.0.0', () => {
     console.log('✅ Server running on port ' + PORT);
-    console.log('🔑 Using Client ID:', process.env.DISCORD_CLIENT_ID);
-    console.log('🌐 Redirect URI:', process.env.REDIRECT_URI || 'https://tommyfc555-github-io.onrender.com/auth/discord/callback');
-    console.log('🔒 Security headers configured');
+    console.log('🔧 Configuration check:');
+    validateConfig();
+    console.log('🌐 Debug endpoint: /debug/config');
+    console.log('🚀 Ready for OAuth login!');
 });
