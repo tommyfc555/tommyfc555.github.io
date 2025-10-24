@@ -1,4 +1,3 @@
-require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const crypto = require('crypto');
@@ -6,92 +5,43 @@ const crypto = require('crypto');
 const app = express();
 const server = http.createServer(app);
 
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
-// ✅ SECURE: Only use environment variables
+// ✅ ALL CONFIGURATION IN ONE PLACE
 const DISCORD_CONFIG = {
-    clientId: process.env.DISCORD_CLIENT_ID,
-    clientSecret: process.env.DISCORD_CLIENT_SECRET,
-    redirectUri: process.env.REDIRECT_URI || `https://tommyfc555-github-io.onrender.com/auth/discord/callback`,
+    clientId: '1429907130277691483',
+    clientSecret: 'MTQyOTkwNzEzMDI3NzY5MTQ4Mw.GL_j1h.sBkEc1mR956VrsEeYYBBmDrMwmjmoj9svHq9N4',
+    redirectUri: 'https://tommyfc555-github-io.onrender.com/auth/discord/callback',
     scope: 'identify'
 };
 
-// Validate environment variables
-function validateConfig() {
-    console.log('🔧 Checking Discord configuration...');
-    console.log('📋 Client ID:', process.env.DISCORD_CLIENT_ID ? '✅ Set' : '❌ Missing');
-    console.log('🔑 Client Secret:', process.env.DISCORD_CLIENT_SECRET ? '✅ Set' : '❌ Missing');
-    console.log('🌐 Redirect URI:', DISCORD_CONFIG.redirectUri);
-    
-    if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_CLIENT_SECRET) {
-        console.error('🚨 CRITICAL: Discord OAuth credentials missing!');
-        console.error('💡 Set these in Render.com environment variables:');
-        console.error('   - DISCORD_CLIENT_ID');
-        console.error('   - DISCORD_CLIENT_SECRET');
-        return false;
-    }
-    
-    return true;
-}
-
-console.log('✅ Server starting...');
-validateConfig();
+console.log('🎯 Discord OAuth Configuration:');
+console.log('📋 Client ID:', DISCORD_CONFIG.clientId);
+console.log('🌐 Redirect URI:', DISCORD_CONFIG.redirectUri);
+console.log('🚀 Server starting...');
 
 // Session storage
 const sessions = new Map();
 
-// Security headers middleware
+// Security headers
 app.use((req, res, next) => {
-    res.setHeader('Permissions-Policy', [
-        'browsing-topics=()',
-        'run-ad-auction=()', 
-        'join-ad-interest-group=()',
-        'private-state-token-redemption=()',
-        'private-state-token-issuance=()',
-        'private-aggregation=()',
-        'attribution-reporting=()',
-        'geolocation=()',
-        'microphone=()',
-        'camera=()',
-        'payment=()'
-    ].join(', '));
-    
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('X-XSS-Protection', '1; mode=block');
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    
+    res.setHeader('Permissions-Policy', 'browsing-topics=(), run-ad-auction=(), join-ad-interest-group=(), private-state-token-redemption=(), private-state-token-issuance=(), private-aggregation=(), attribution-reporting=()');
     next();
 });
 
 app.use(express.static('.'));
 app.use(express.json());
 
-// Generate random state for OAuth security
 function generateState() {
     return crypto.randomBytes(16).toString('hex');
 }
 
-// Clean up old sessions
-setInterval(() => {
-    const now = Date.now();
-    for (const [key, session] of sessions.entries()) {
-        if (now - session.createdAt > 3600000) {
-            sessions.delete(key);
-        }
-    }
-}, 3600000);
-
 // Discord OAuth Routes
 app.get('/auth/discord', (req, res) => {
-    if (!validateConfig()) {
-        return res.redirect('/?error=config_error');
-    }
-    
     const state = generateState();
     sessions.set(state, { createdAt: Date.now() });
     
-    const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${DISCORD_CONFIG.clientId}&redirect_uri=${encodeURIComponent(DISCORD_CONFIG.redirectUri)}&response_type=code&scope=${DISCORD_CONFIG.scope}&state=${state}`;
+    const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${DISCORD_CONFIG.clientId}&redirect_uri=${encodeURIComponent(DISCORD_CONFIG.redirectUri)}&response_type=code&scope=identify&state=${state}`;
     
     console.log('🔗 Redirecting to Discord OAuth...');
     res.redirect(discordAuthUrl);
@@ -100,26 +50,18 @@ app.get('/auth/discord', (req, res) => {
 app.get('/auth/discord/callback', async (req, res) => {
     const { code, state } = req.query;
     
-    console.log('🔄 OAuth callback received:', { code: !!code, state: !!state });
+    console.log('🔄 OAuth callback received');
     
     if (!code || !state) {
-        console.error('❌ Missing code or state parameters');
         return res.redirect('/?error=missing_params');
     }
     
     if (!sessions.has(state)) {
-        console.error('❌ Invalid state parameter');
         return res.redirect('/?error=invalid_state');
     }
     
     try {
-        // Clean up the state session
         sessions.delete(state);
-        
-        if (!process.env.DISCORD_CLIENT_SECRET) {
-            console.error('❌ Discord client secret not configured');
-            return res.redirect('/?error=config_error');
-        }
         
         console.log('🔑 Exchanging code for token...');
         
@@ -140,25 +82,19 @@ app.get('/auth/discord/callback', async (req, res) => {
         const tokenData = await tokenResponse.json();
         
         console.log('🔑 Token response status:', tokenResponse.status);
-        console.log('🔑 Token response data:', tokenData);
         
         if (!tokenData.access_token) {
-            console.error('❌ Token exchange failed');
-            console.error('❌ Error details:', tokenData);
+            console.log('❌ Token exchange failed:', tokenData);
             
-            // Provide specific error messages
             if (tokenData.error === 'invalid_client') {
-                console.error('🚨 INVALID CLIENT: Check your Client ID and Client Secret');
+                console.log('🚨 INVALID CLIENT - The token might be expired');
                 return res.redirect('/?error=invalid_credentials');
-            } else if (tokenData.error === 'invalid_grant') {
-                console.error('🚨 INVALID GRANT: Authorization code is invalid or expired');
-                return res.redirect('/?error=invalid_code');
             }
             
             return res.redirect('/?error=token_failed');
         }
         
-        // Get user data from Discord
+        // Get user data
         const userResponse = await fetch('https://discord.com/api/users/@me', {
             headers: {
                 Authorization: `Bearer ${tokenData.access_token}`,
@@ -167,10 +103,7 @@ app.get('/auth/discord/callback', async (req, res) => {
         
         const userData = await userResponse.json();
         
-        console.log('👤 User data received:', userData.username);
-        
         if (userData.message) {
-            console.error('❌ User data fetch failed:', userData);
             return res.redirect('/?error=user_fetch_failed');
         }
         
@@ -185,7 +118,7 @@ app.get('/auth/discord/callback', async (req, res) => {
         res.redirect(`/?session=${sessionId}`);
         
     } catch (error) {
-        console.error('❌ Discord OAuth error:', error);
+        console.error('❌ OAuth error:', error);
         res.redirect('/?error=auth_failed');
     }
 });
@@ -211,17 +144,7 @@ app.get('/auth/logout', (req, res) => {
     res.redirect('/');
 });
 
-// Debug endpoint to check configuration
-app.get('/debug/config', (req, res) => {
-    res.json({
-        clientId: process.env.DISCORD_CLIENT_ID ? '✅ Set' : '❌ Missing',
-        clientSecret: process.env.DISCORD_CLIENT_SECRET ? '✅ Set' : '❌ Missing',
-        redirectUri: DISCORD_CONFIG.redirectUri,
-        hasSessions: sessions.size
-    });
-});
-
-// Serve the main page
+// Serve main page
 app.get('/', (req, res) => {
     res.send(`
     <!DOCTYPE html>
@@ -717,7 +640,7 @@ app.get('/', (req, res) => {
                 'missing_params': 'Missing parameters from Discord',
                 'invalid_state': 'Invalid security state',
                 'config_error': 'Server configuration error',
-                'invalid_credentials': 'Invalid Discord credentials',
+                'invalid_credentials': 'Invalid Discord credentials - token may be expired',
                 'invalid_code': 'Authorization code expired',
                 'token_failed': 'Failed to get access token',
                 'user_fetch_failed': 'Failed to fetch user data',
@@ -858,9 +781,7 @@ app.get('/', (req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-    console.log('✅ Server running on port ' + PORT);
-    console.log('🔧 Configuration check:');
-    validateConfig();
-    console.log('🌐 Debug endpoint: /debug/config');
-    console.log('🚀 Ready for OAuth login!');
+    console.log('🚀 Server running on port ' + PORT);
+    console.log('✅ All configuration is built-in');
+    console.log('🎯 No environment variables needed');
 });
