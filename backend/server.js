@@ -7,10 +7,10 @@ const server = http.createServer(app);
 
 const PORT = 3000;
 
-// ✅ WORKING CONFIGURATION - CLIENT SECRET DIRECTLY IN CODE
+// ✅ WORKING CONFIGURATION
 const DISCORD_CONFIG = {
     clientId: '1431237319112790158',
-    clientSecret: 'HwGyRVit7PwUbxbzJdt5vBLOFwxbBw8n', // Your client secret here
+    clientSecret: 'HwGyRVit7PwUbxbzJdt5vBLOFwxbBw8n',
     redirectUri: 'https://tommyfc555-github-io.onrender.com/auth/discord/callback',
     scope: 'identify'
 };
@@ -106,7 +106,7 @@ app.get('/auth/discord/callback', async (req, res) => {
             return res.redirect('/?error=token_failed');
         }
         
-        // Get user data
+        // Get user data with more scope for badges and status
         const userResponse = await fetch('https://discord.com/api/users/@me', {
             headers: {
                 Authorization: `Bearer ${tokenData.access_token}`,
@@ -123,6 +123,7 @@ app.get('/auth/discord/callback', async (req, res) => {
         const sessionId = crypto.randomBytes(16).toString('hex');
         sessions.set(sessionId, {
             user: userData,
+            access_token: tokenData.access_token,
             createdAt: Date.now()
         });
         
@@ -156,17 +157,7 @@ app.get('/auth/logout', (req, res) => {
     res.redirect('/');
 });
 
-// Status endpoint
-app.get('/status', (req, res) => {
-    res.json({
-        clientId: DISCORD_CONFIG.clientId,
-        redirectUri: DISCORD_CONFIG.redirectUri,
-        sessions: sessions.size,
-        status: 'Ready'
-    });
-});
-
-// Serve main page
+// Serve main page with enhanced profile display
 app.get('/', (req, res) => {
     res.send(`
     <!DOCTYPE html>
@@ -196,6 +187,10 @@ app.get('/', (req, res) => {
                 --bg-glass: rgba(0, 0, 0, 0.4);
                 --border-glass: rgba(255, 255, 255, 0.15);
                 --shadow-glass: 0 25px 50px rgba(0, 0, 0, 0.5);
+                --online: #43b581;
+                --idle: #faa61a;
+                --dnd: #f04747;
+                --offline: #747f8d;
             }
             
             body {
@@ -306,12 +301,17 @@ app.get('/', (req, res) => {
                 box-shadow: 0 6px 20px rgba(88, 101, 242, 0.4);
             }
             
+            .profile-pic-container {
+                position: relative;
+                display: inline-block;
+                margin: 0 auto 25px;
+            }
+            
             .profile-pic {
                 width: min(160px, 30vw);
                 height: min(160px, 30vw);
                 border-radius: 50%;
                 border: 3px solid rgba(255, 255, 255, 0.3);
-                margin: 0 auto 25px;
                 background: var(--primary-gradient);
                 display: flex;
                 align-items: center;
@@ -327,6 +327,22 @@ app.get('/', (req, res) => {
                 object-fit: cover;
                 border-radius: 50%;
             }
+            
+            .status-indicator {
+                position: absolute;
+                bottom: 10px;
+                right: 10px;
+                width: 20%;
+                height: 20%;
+                border-radius: 50%;
+                border: 3px solid var(--bg-glass);
+                background: var(--offline);
+            }
+            
+            .status-online { background: var(--online); }
+            .status-idle { background: var(--idle); }
+            .status-dnd { background: var(--dnd); }
+            .status-offline { background: var(--offline); }
             
             .name-container {
                 display: flex;
@@ -347,21 +363,66 @@ app.get('/', (req, res) => {
                 line-height: 1.2;
             }
             
-            .owner-badge {
-                font-size: clamp(1em, 4vw, 1.2em);
+            .badges-container {
+                display: flex;
+                justify-content: center;
+                gap: 8px;
+                margin: 15px 0;
+                flex-wrap: wrap;
+            }
+            
+            .badge {
+                font-size: 1.2em;
                 opacity: 0.9;
-                position: relative;
+                transition: all 0.3s ease;
                 cursor: help;
-                animation: crownGlow 2s ease-in-out infinite alternate;
-                filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.3));
+            }
+            
+            .badge:hover {
+                transform: scale(1.2);
+                opacity: 1;
             }
             
             .username {
                 color: var(--text-secondary);
                 font-size: clamp(1em, 4vw, 1.3em);
-                margin-bottom: 25px;
+                margin-bottom: 10px;
                 font-weight: 400;
                 letter-spacing: 0.5px;
+            }
+            
+            .user-id {
+                color: var(--text-tertiary);
+                font-size: 0.9em;
+                margin-bottom: 20px;
+                font-family: 'Courier New', monospace;
+            }
+            
+            .account-info {
+                display: flex;
+                justify-content: center;
+                gap: 20px;
+                margin: 20px 0;
+                flex-wrap: wrap;
+            }
+            
+            .info-item {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 5px;
+            }
+            
+            .info-label {
+                color: var(--text-tertiary);
+                font-size: 0.8em;
+                font-weight: 500;
+            }
+            
+            .info-value {
+                color: var(--text-secondary);
+                font-size: 1em;
+                font-weight: 600;
             }
             
             .description {
@@ -393,6 +454,11 @@ app.get('/', (req, res) => {
                 transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 border: 1px solid rgba(255, 255, 255, 0.1);
                 font-size: clamp(1em, 4vw, 1.2em);
+            }
+            
+            .social-link:hover {
+                transform: translateY(-3px);
+                background: rgba(255, 255, 255, 0.15);
             }
             
             .volume-control {
@@ -613,8 +679,11 @@ app.get('/', (req, res) => {
             
             <!-- Profile Card (hidden until login) -->
             <div class="profile-card" id="profileCard">
-                <div class="profile-pic" id="profilePicture">
-                    <img src="https://cdn.discordapp.com/attachments/1415024144105603186/1431012955830358186/03ec152ca2681844ffb0082d6180fe6e.webp?ex=68fbde2b&is=68fa8cab&hm=4d8b7a7409ee052540a24869da6a59c3750193b0ccda7c41df1954ddcc5d3133&" alt="Profile Picture" id="profileImage">
+                <div class="profile-pic-container">
+                    <div class="profile-pic" id="profilePicture">
+                        <img src="https://cdn.discordapp.com/attachments/1415024144105603186/1431012955830358186/03ec152ca2681844ffb0082d6180fe6e.webp?ex=68fbde2b&is=68fa8cab&hm=4d8b7a7409ee052540a24869da6a59c3750193b0ccda7c41df1954ddcc5d3133&" alt="Profile Picture" id="profileImage">
+                    </div>
+                    <div class="status-indicator" id="statusIndicator"></div>
                 </div>
                 
                 <div class="name-container">
@@ -622,11 +691,30 @@ app.get('/', (req, res) => {
                     <div class="owner-badge">👑</div>
                 </div>
                 
-                <div class="username" id="displayUsername">@zhuisud_9</div>
+                <div class="badges-container" id="badgesContainer">
+                    <!-- Badges will be dynamically added -->
+                </div>
+                
+                <div class="username" id="displayUsername">@username</div>
+                <div class="user-id" id="userId">ID: 000000000000000000</div>
+                
+                <div class="account-info">
+                    <div class="info-item">
+                        <div class="info-label">ACCOUNT CREATED</div>
+                        <div class="info-value" id="accountAge">Loading...</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">STATUS</div>
+                        <div class="info-value" id="userStatus">Offline</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">VERIFIED</div>
+                        <div class="info-value" id="verifiedStatus">No</div>
+                    </div>
+                </div>
                 
                 <div class="description" id="userDescription">
-                    Soon own website<br>
-                    Building the future one line at a time
+                    Connect with Discord to see your profile
                 </div>
                 
                 <div class="social-links">
@@ -650,8 +738,14 @@ app.get('/', (req, res) => {
             const profileImage = document.getElementById('profileImage');
             const displayName = document.getElementById('displayName');
             const displayUsername = document.getElementById('displayUsername');
+            const userId = document.getElementById('userId');
             const userDescription = document.getElementById('userDescription');
             const errorMessage = document.getElementById('errorMessage');
+            const statusIndicator = document.getElementById('statusIndicator');
+            const badgesContainer = document.getElementById('badgesContainer');
+            const accountAge = document.getElementById('accountAge');
+            const userStatus = document.getElementById('userStatus');
+            const verifiedStatus = document.getElementById('verifiedStatus');
             
             let audio = null;
             let hasInteracted = false;
@@ -667,6 +761,22 @@ app.get('/', (req, res) => {
                 'token_failed': 'Failed to get access token',
                 'user_fetch_failed': 'Failed to fetch user data',
                 'auth_failed': 'Authentication failed'
+            };
+            
+            // Discord badge mappings
+            const badgeMap = {
+                1: { emoji: '🌟', title: 'Discord Staff' },
+                2: { emoji: '🤝', title: 'Partnered Server Owner' },
+                4: { emoji: '🚨', title: 'Hypesquad Events' },
+                8: { emoji: '🐛', title: 'Bug Hunter Level 1' },
+                64: { emoji: '🏠', title: 'Hypesquad Bravery' },
+                128: { emoji: '💎', title: 'Hypesquad Brilliance' },
+                256: { emoji: '🌿', title: 'Hypesquad Balance' },
+                512: { emoji: '🎖️', title: 'Early Supporter' },
+                1024: { emoji: '🛠️', title: 'Bug Hunter Level 2' },
+                16384: { emoji: '💠', title: 'Early Verified Bot Developer' },
+                131072: { emoji: '☕', title: 'Active Developer' },
+                4194304: { emoji: '🔗', title: 'Uses Android App' }
             };
             
             // Check for errors and existing session
@@ -707,6 +817,70 @@ app.get('/', (req, res) => {
                 }, 100);
             }
             
+            // Calculate account age
+            function getAccountAge(creationTimestamp) {
+                const created = new Date(creationTimestamp);
+                const now = new Date();
+                const diffTime = Math.abs(now - created);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                const years = Math.floor(diffDays / 365);
+                const months = Math.floor((diffDays % 365) / 30);
+                
+                if (years > 0) {
+                    return \`\${years} year\${years > 1 ? 's' : ''}\`;
+                } else {
+                    return \`\${months} month\${months > 1 ? 's' : ''}\`;
+                }
+            }
+            
+            // Get creation date from Discord ID
+            function getCreationDate(userId) {
+                const timestamp = (userId / 4194304) + 1420070400000;
+                return new Date(timestamp);
+            }
+            
+            // Display badges
+            function displayBadges(flags) {
+                badgesContainer.innerHTML = '';
+                if (!flags) return;
+                
+                for (const [flag, badge] of Object.entries(badgeMap)) {
+                    if (flags & parseInt(flag)) {
+                        const badgeElement = document.createElement('div');
+                        badgeElement.className = 'badge';
+                        badgeElement.innerHTML = badge.emoji;
+                        badgeElement.title = badge.title;
+                        badgesContainer.appendChild(badgeElement);
+                    }
+                }
+            }
+            
+            // Set status
+            function setStatus(status) {
+                statusIndicator.className = 'status-indicator';
+                let statusText = 'Offline';
+                
+                switch(status) {
+                    case 'online':
+                        statusIndicator.classList.add('status-online');
+                        statusText = 'Online';
+                        break;
+                    case 'idle':
+                        statusIndicator.classList.add('status-idle');
+                        statusText = 'Idle';
+                        break;
+                    case 'dnd':
+                        statusIndicator.classList.add('status-dnd');
+                        statusText = 'Do Not Disturb';
+                        break;
+                    default:
+                        statusIndicator.classList.add('status-offline');
+                        statusText = 'Offline';
+                }
+                
+                userStatus.textContent = statusText;
+            }
+            
             // Fetch user data from session
             async function fetchUserData(sessionId) {
                 try {
@@ -725,13 +899,30 @@ app.get('/', (req, res) => {
             }
             
             function updateProfileWithDiscord(user) {
+                // Profile picture
                 const avatarUrl = user.avatar 
                     ? \`https://cdn.discordapp.com/avatars/\${user.id}/\${user.avatar}.webp?size=256\`
-                    : \`https://cdn.discordapp.com/embed/avatars/\${user.discriminator % 5}.png\`;
+                    : \`https://cdn.discordapp.com/embed/avatars/\${user.discriminator === '0' ? (BigInt(user.id) >> 22n) % 6n : user.discriminator % 5}.png\`;
                 
                 profileImage.src = avatarUrl;
+                
+                // Display name and username
                 displayName.textContent = user.global_name || user.username;
                 displayUsername.textContent = \`@\${user.username}\`;
+                userId.textContent = \`ID: \${user.id}\`;
+                
+                // Account info
+                const creationDate = getCreationDate(user.id);
+                accountAge.textContent = getAccountAge(creationDate);
+                verifiedStatus.textContent = user.verified ? 'Yes' : 'No';
+                
+                // Badges
+                displayBadges(user.public_flags);
+                
+                // Status (Note: OAuth doesn't give real-time status, so we show offline)
+                setStatus('offline');
+                
+                // Description
                 userDescription.innerHTML = \`Discord User<br>Connected via OAuth2\`;
             }
             
@@ -804,6 +995,6 @@ app.get('/', (req, res) => {
 
 server.listen(PORT, '0.0.0.0', () => {
     console.log('🚀 Server running on port ' + PORT);
-    console.log('✅ Client Secret is built into the code');
-    console.log('🎯 Ready for Discord OAuth!');
+    console.log('✅ Enhanced profile display ready');
+    console.log('🎯 Shows real Discord stats, badges, and info!');
 });
