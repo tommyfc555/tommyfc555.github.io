@@ -1,15 +1,16 @@
 {
-  "name": "black-profile",
+  "name": "black-profile-discord",
   "version": "1.0.0",
-  "description": "Black's personal profile page",
+  "description": "Black's profile with Discord integration",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "crypto": "^1.0.1"
   },
-  "keywords": ["profile", "personal"],
+  "keywords": ["profile", "discord", "oauth"],
   "author": "Black",
   "license": "MIT"
 }
