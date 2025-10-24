@@ -12,21 +12,24 @@ const PORT = process.env.PORT || 3000;
 const DISCORD_CONFIG = {
     clientId: process.env.DISCORD_CLIENT_ID,
     clientSecret: process.env.DISCORD_CLIENT_SECRET,
-    redirectUri: process.env.REDIRECT_URI,
+    redirectUri: process.env.REDIRECT_URI || `https://tommyfc555-github-io.onrender.com/auth/discord/callback`,
     scope: 'identify'
 };
 
 // Validate that required environment variables exist
-const requiredEnvVars = ['DISCORD_CLIENT_ID', 'DISCORD_CLIENT_SECRET', 'REDIRECT_URI'];
+const requiredEnvVars = ['DISCORD_CLIENT_ID', 'DISCORD_CLIENT_SECRET'];
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingVars.length > 0) {
     console.error('❌ Missing required environment variables:', missingVars);
     console.error('💡 Set them in Render.com dashboard under Environment tab');
-    process.exit(1);
+    // Don't exit in production, just warn
+    if (process.env.NODE_ENV === 'production') {
+        console.error('🚨 Running in production without proper environment variables!');
+    }
 }
 
-console.log('✅ Environment variables loaded successfully');
+console.log('✅ Server starting...');
 
 // Session storage
 const sessions = new Map();
@@ -56,21 +59,29 @@ app.get('/auth/discord', (req, res) => {
     
     const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${DISCORD_CONFIG.clientId}&redirect_uri=${encodeURIComponent(DISCORD_CONFIG.redirectUri)}&response_type=code&scope=${DISCORD_CONFIG.scope}&state=${state}`;
     
+    console.log('🔗 Redirecting to Discord OAuth...');
     res.redirect(discordAuthUrl);
 });
 
 app.get('/auth/discord/callback', async (req, res) => {
     const { code, state } = req.query;
     
+    console.log('🔄 OAuth callback received:', { code: !!code, state: !!state });
+    
     if (!code || !state) {
+        console.error('❌ Missing code or state parameters');
         return res.redirect('/?error=missing_params');
     }
     
     if (!sessions.has(state)) {
+        console.error('❌ Invalid state parameter');
         return res.redirect('/?error=invalid_state');
     }
     
     try {
+        // Clean up the state session
+        sessions.delete(state);
+        
         const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
             method: 'POST',
             headers: {
@@ -87,8 +98,10 @@ app.get('/auth/discord/callback', async (req, res) => {
         
         const tokenData = await tokenResponse.json();
         
+        console.log('🔑 Token response:', tokenData);
+        
         if (!tokenData.access_token) {
-            console.error('Token exchange failed:', tokenData);
+            console.error('❌ Token exchange failed:', tokenData);
             return res.redirect('/?error=token_failed');
         }
         
@@ -101,8 +114,10 @@ app.get('/auth/discord/callback', async (req, res) => {
         
         const userData = await userResponse.json();
         
+        console.log('👤 User data received:', userData.username);
+        
         if (userData.message) {
-            console.error('User data fetch failed:', userData);
+            console.error('❌ User data fetch failed:', userData);
             return res.redirect('/?error=user_fetch_failed');
         }
         
@@ -113,10 +128,11 @@ app.get('/auth/discord/callback', async (req, res) => {
             createdAt: Date.now()
         });
         
+        console.log('✅ Login successful for user:', userData.username);
         res.redirect(`/?session=${sessionId}`);
         
     } catch (error) {
-        console.error('Discord OAuth error:', error);
+        console.error('❌ Discord OAuth error:', error);
         res.redirect('/?error=auth_failed');
     }
 });
@@ -206,6 +222,19 @@ app.get('/', (req, res) => {
                 box-sizing: border-box;
             }
             
+            .login-container {
+                background: var(--bg-glass);
+                backdrop-filter: blur(25px);
+                -webkit-backdrop-filter: blur(25px);
+                border: 1px solid var(--border-glass);
+                border-radius: 24px;
+                padding: clamp(40px, 10vw, 60px) clamp(30px, 8vw, 50px);
+                text-align: center;
+                max-width: min(400px, 90vw);
+                width: 100%;
+                box-shadow: var(--shadow-glass);
+            }
+            
             .profile-card {
                 background: var(--bg-glass);
                 backdrop-filter: blur(25px);
@@ -220,11 +249,51 @@ app.get('/', (req, res) => {
                 opacity: 0;
                 transform: scale(0.8) translateY(30px);
                 transition: all 0.8s cubic-bezier(0.23, 1, 0.32, 1);
+                display: none;
             }
             
             .profile-card.show {
                 opacity: 1;
                 transform: scale(1) translateY(0);
+            }
+            
+            .login-title {
+                font-size: clamp(2em, 8vw, 2.5em);
+                font-weight: 700;
+                background: linear-gradient(135deg, #fff 0%, #a8b2d1 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                margin-bottom: 20px;
+            }
+            
+            .login-subtitle {
+                color: var(--text-secondary);
+                font-size: clamp(1em, 4vw, 1.2em);
+                margin-bottom: 40px;
+                font-weight: 300;
+            }
+            
+            .discord-login-btn {
+                background: #5865F2;
+                color: white;
+                border: none;
+                border-radius: 50px;
+                padding: 16px 32px;
+                font-size: 1.1em;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);
+                display: inline-flex;
+                align-items: center;
+                gap: 12px;
+                text-decoration: none;
+                margin: 10px 0;
+            }
+            
+            .discord-login-btn:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(88, 101, 242, 0.4);
             }
             
             .profile-pic {
@@ -376,7 +445,7 @@ app.get('/', (req, res) => {
                 text-align: center;
             }
             
-            .discord-login {
+            .discord-login-corner {
                 position: fixed;
                 bottom: 20px;
                 right: 20px;
@@ -396,6 +465,7 @@ app.get('/', (req, res) => {
                 gap: 8px;
                 z-index: 100;
                 text-decoration: none;
+                display: none;
             }
             
             .click-to-play {
@@ -498,11 +568,21 @@ app.get('/', (req, res) => {
             </div>
         </div>
         
-        <a href="/auth/discord" class="discord-login" id="discordLogin" style="display: none;">
+        <a href="/auth/discord" class="discord-login-corner" id="discordLoginCorner">
             <span>Login with Discord</span>
         </a>
         
         <div class="container">
+            <!-- Login Screen (shown by default) -->
+            <div class="login-container" id="loginContainer">
+                <div class="login-title">Welcome</div>
+                <div class="login-subtitle">Login with Discord to continue</div>
+                <a href="/auth/discord" class="discord-login-btn">
+                    <span>Login with Discord</span>
+                </a>
+            </div>
+            
+            <!-- Profile Card (hidden until login) -->
             <div class="profile-card" id="profileCard">
                 <div class="profile-pic" id="profilePicture">
                     <img src="https://cdn.discordapp.com/attachments/1415024144105603186/1431012955830358186/03ec152ca2681844ffb0082d6180fe6e.webp?ex=68fbde2b&is=68fa8cab&hm=4d8b7a7409ee052540a24869da6a59c3750193b0ccda7c41df1954ddcc5d3133&" alt="Profile Picture" id="profileImage">
@@ -532,11 +612,12 @@ app.get('/', (req, res) => {
         <script>
             // DOM Elements
             const clickToPlay = document.getElementById('clickToPlay');
+            const loginContainer = document.getElementById('loginContainer');
             const profileCard = document.getElementById('profileCard');
             const volumeControl = document.getElementById('volumeControl');
             const volumeSlider = document.getElementById('volumeSlider');
             const volumePercentage = document.getElementById('volumePercentage');
-            const discordLogin = document.getElementById('discordLogin');
+            const discordLoginCorner = document.getElementById('discordLoginCorner');
             const profileImage = document.getElementById('profileImage');
             const displayName = document.getElementById('displayName');
             const displayUsername = document.getElementById('displayUsername');
@@ -559,9 +640,19 @@ app.get('/', (req, res) => {
                 
                 if (sessionId) {
                     currentSession = sessionId;
+                    showProfileView();
                     fetchUserData(sessionId);
                     window.history.replaceState({}, document.title, window.location.pathname);
                 }
+            }
+            
+            // Show profile view and hide login
+            function showProfileView() {
+                loginContainer.style.display = 'none';
+                profileCard.style.display = 'block';
+                setTimeout(() => {
+                    profileCard.classList.add('show');
+                }, 100);
             }
             
             // Fetch user data from session
@@ -572,9 +663,8 @@ app.get('/', (req, res) => {
                     
                     if (data.success && data.user) {
                         updateProfileWithDiscord(data.user);
-                        discordLogin.innerHTML = '🔄 Connected to Discord';
-                        discordLogin.classList.add('connected');
-                        discordLogin.href = '/auth/logout?session=' + sessionId;
+                        discordLoginCorner.innerHTML = '🔄 Logout';
+                        discordLoginCorner.href = '/auth/logout?session=' + sessionId;
                         showNotification('Welcome, ' + data.user.username + '!');
                     }
                 } catch (error) {
@@ -617,8 +707,7 @@ app.get('/', (req, res) => {
             function showContent() {
                 clickToPlay.classList.add('hide');
                 volumeControl.style.display = 'block';
-                discordLogin.style.display = 'flex';
-                profileCard.classList.add('show');
+                discordLoginCorner.style.display = 'flex';
                 
                 setTimeout(() => {
                     initializeAudio();
@@ -662,6 +751,7 @@ app.get('/', (req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-    console.log('✅ Server running securely on port ' + PORT);
-    console.log('✅ Using environment variables for configuration');
+    console.log('✅ Server running on port ' + PORT);
+    console.log('🔑 Using Client ID:', process.env.DISCORD_CLIENT_ID);
+    console.log('🌐 Redirect URI:', process.env.REDIRECT_URI || 'https://tommyfc555-github-io.onrender.com/auth/discord/callback');
 });
