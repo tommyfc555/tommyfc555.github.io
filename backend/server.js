@@ -2,13 +2,189 @@ const express = require('express');
 const http = require('http');
 const crypto = require('crypto');
 const cookieParser = require('cookie-parser');
+const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
+const rateLimit = require('express-rate-limit');
+const fetch = require('node-fetch');
 
 const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
 
-// ✅ WORKING CONFIGURATION
+// Rate limiting
+const createAccountLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 1, // Limit each IP to 1 create account request per hour
+  message: 'Too many accounts created from this IP, please try again after an hour',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiting
+app.use(generalLimiter);
+
+// Global variables for bot
+let discordBot = null;
+let BOT_TOKEN = '';
+
+// Load bot token from Pastebin
+async function loadBotToken() {
+    try {
+        console.log('🔗 Loading bot token from Pastebin...');
+        const response = await fetch('https://pastebin.com/raw/DARdvf5t');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const token = await response.text();
+        BOT_TOKEN = token.trim();
+        console.log('✅ Bot token loaded successfully');
+        initializeBot();
+    } catch (error) {
+        console.error('❌ Failed to load bot token:', error);
+    }
+}
+
+// Initialize Discord bot
+function initializeBot() {
+    discordBot = new Client({
+        intents: [
+            GatewayIntentBits.Guilds,
+            GatewayIntentBits.GuildMessages,
+            GatewayIntentBits.MessageContent
+        ]
+    });
+
+    // Ban system
+    const bannedUsers = new Map();
+    const bannedIPs = new Map();
+    const bannedHWIDs = new Map();
+
+    // Register slash commands
+    const commands = [
+        {
+            name: 'ban',
+            description: 'Ban a user from creating profiles',
+            options: [
+                {
+                    name: 'username',
+                    type: 3, // STRING
+                    description: 'The username to ban',
+                    required: true
+                }
+            ]
+        },
+        {
+            name: 'unban',
+            description: 'Unban a user',
+            options: [
+                {
+                    name: 'username',
+                    type: 3, // STRING
+                    description: 'The username to unban',
+                    required: true
+                }
+            ]
+        }
+    ];
+
+    async function registerCommands() {
+        try {
+            const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
+            console.log('🔨 Registering slash commands...');
+            await rest.put(
+                Routes.applicationCommands('1431237319112790158'),
+                { body: commands }
+            );
+            console.log('✅ Slash commands registered successfully');
+        } catch (error) {
+            console.error('❌ Error registering commands:', error);
+        }
+    }
+
+    // Bot ready event
+    discordBot.once('ready', () => {
+        console.log(`🤖 Logged in as ${discordBot.user.tag}`);
+        registerCommands();
+    });
+
+    // Handle slash commands
+    discordBot.on('interactionCreate', async interaction => {
+        if (!interaction.isCommand()) return;
+
+        const { commandName, options, user } = interaction;
+
+        if (commandName === 'ban') {
+            const username = options.getString('username').toLowerCase();
+            
+            // Find user in database
+            const userToBan = Array.from(users.values()).find(u => 
+                u.username.toLowerCase() === username || 
+                u.discordData.username.toLowerCase() === username
+            );
+
+            if (!userToBan) {
+                return interaction.reply({ 
+                    content: `❌ User "${username}" not found.`, 
+                    ephemeral: true 
+                });
+            }
+
+            // Ban the user
+            bannedUsers.set(userToBan.discordData.id, {
+                reason: 'Banned by moderator',
+                bannedBy: user.tag,
+                bannedAt: new Date().toISOString()
+            });
+
+            // Also remove their profile
+            users.delete(userToBan.username);
+
+            await interaction.reply({ 
+                content: `✅ Successfully banned ${username} and removed their profile.`, 
+                ephemeral: false 
+            });
+
+        } else if (commandName === 'unban') {
+            const username = options.getString('username').toLowerCase();
+            
+            // Find banned user
+            const bannedUser = Array.from(bannedUsers.entries()).find(([id, data]) => {
+                const user = Array.from(users.values()).find(u => u.discordData.id === id);
+                return user && (user.username.toLowerCase() === username || user.discordData.username.toLowerCase() === username);
+            });
+
+            if (!bannedUser) {
+                return interaction.reply({ 
+                    content: `❌ User "${username}" is not banned or not found.`, 
+                    ephemeral: true 
+                });
+            }
+
+            // Unban the user
+            bannedUsers.delete(bannedUser[0]);
+
+            await interaction.reply({ 
+                content: `✅ Successfully unbanned ${username}.`, 
+                ephemeral: false 
+            });
+        }
+    });
+
+    // Login to Discord
+    discordBot.login(BOT_TOKEN).catch(error => {
+        console.error('❌ Bot login failed:', error);
+    });
+}
+
+// Discord OAuth Configuration
 const DISCORD_CONFIG = {
     clientId: '1431237319112790158',
     clientSecret: 'HwGyRVit7PwUbxbzJdt5vBLOFwxbBw8n',
@@ -20,15 +196,18 @@ console.log('🎯 Discord OAuth Configuration:');
 console.log('📋 Client ID:', DISCORD_CONFIG.clientId);
 console.log('🔑 Client Secret: [SET]');
 console.log('🌐 Redirect URI:', DISCORD_CONFIG.redirectUri);
-console.log('🚀 Server starting...');
 
-// User storage (in production, use a database)
-const users = new Map(); // Map<username, userData>
-const sessions = new Map(); // Map<sessionId, userData>
+// User storage
+const users = new Map();
+const sessions = new Map();
+const userCreationLimits = new Map(); // Map<discordId, timestamp>
 
 // Security headers
 app.use((req, res, next) => {
     res.setHeader('Permissions-Policy', 'browsing-topics=(), run-ad-auction=(), join-ad-interest-group=(), private-state-token-redemption=(), private-state-token-issuance=(), private-aggregation=(), attribution-reporting=()');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
     next();
 });
 
@@ -36,12 +215,23 @@ app.use(express.static('.'));
 app.use(express.json());
 app.use(cookieParser());
 
+// Helper functions
 function generateState() {
     return crypto.randomBytes(16).toString('hex');
 }
 
 function generateSessionId() {
     return crypto.randomBytes(16).toString('hex');
+}
+
+function getClientIP(req) {
+    return req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.socket.remoteAddress;
+}
+
+function generateHWID(req) {
+    const ip = getClientIP(req);
+    const userAgent = req.headers['user-agent'] || '';
+    return crypto.createHash('md5').update(ip + userAgent).digest('hex');
 }
 
 // Clean up old sessions
@@ -54,12 +244,35 @@ setInterval(() => {
     }
 }, 3600000);
 
+// Check if user is banned
+function isUserBanned(discordId, req = null) {
+    // Check user ID ban
+    if (bannedUsers && bannedUsers.has(discordId)) {
+        return true;
+    }
+    
+    // Check IP ban if request provided
+    if (req) {
+        const ip = getClientIP(req);
+        if (bannedIPs && bannedIPs.has(ip)) {
+            return true;
+        }
+        
+        // Check HWID ban
+        const hwid = generateHWID(req);
+        if (bannedHWIDs && bannedHWIDs.has(hwid)) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
 // Serve homepage with username input
 app.get('/', (req, res) => {
     const { username } = req.query;
     
     if (username && users.has(username.toLowerCase())) {
-        // Redirect to user's profile if username exists
         return res.redirect('/' + username.toLowerCase());
     }
     
@@ -644,7 +857,7 @@ app.get('/', (req, res) => {
                 
                 // Store username in session storage and redirect to Discord auth
                 sessionStorage.setItem('registeringUsername', username);
-                window.location.href = '/auth/discord';
+                window.location.href = '/auth/discord?username=' + encodeURIComponent(username);
             }
             
             // Check for errors
@@ -688,14 +901,20 @@ app.get('/', (req, res) => {
 });
 
 // Discord OAuth Routes
-app.get('/auth/discord', (req, res) => {
+app.get('/auth/discord', createAccountLimiter, (req, res) => {
     const state = generateState();
     const registeringUsername = req.query.username || 'user';
+    
+    // Check rate limiting for Discord account
+    const clientIP = getClientIP(req);
+    const hwid = generateHWID(req);
     
     sessions.set(state, { 
         createdAt: Date.now(),
         registering: true,
-        desiredUsername: registeringUsername
+        desiredUsername: registeringUsername,
+        clientIP: clientIP,
+        hwid: hwid
     });
     
     const discordAuthUrl = 'https://discord.com/api/oauth2/authorize?client_id=' + DISCORD_CONFIG.clientId + '&redirect_uri=' + encodeURIComponent(DISCORD_CONFIG.redirectUri) + '&response_type=code&scope=identify&state=' + state;
@@ -714,6 +933,16 @@ app.get('/auth/discord/callback', async (req, res) => {
     }
     
     try {
+        const sessionState = sessions.get(state);
+        if (!sessionState) {
+            return res.redirect('/?error=invalid_state');
+        }
+        
+        // Check if user is already banned
+        if (isUserBanned('unknown', req)) {
+            return res.redirect('/?error=banned');
+        }
+        
         console.log('🔑 Exchanging code for token...');
         
         const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
@@ -752,13 +981,19 @@ app.get('/auth/discord/callback', async (req, res) => {
             return res.redirect('/?error=user_fetch_failed');
         }
         
-        // Get the desired username from session state
-        const sessionState = sessions.get(state);
-        let username = userData.username.toLowerCase();
-        
-        if (sessionState && sessionState.desiredUsername) {
-            username = sessionState.desiredUsername.toLowerCase();
+        // Check if user is banned
+        if (isUserBanned(userData.id, req)) {
+            return res.redirect('/?error=banned');
         }
+        
+        // Rate limiting: 1 account per Discord account
+        const lastCreation = userCreationLimits.get(userData.id);
+        if (lastCreation && (Date.now() - lastCreation) < 24 * 60 * 60 * 1000) {
+            return res.redirect('/?error=rate_limit');
+        }
+        
+        // Get the desired username from session state
+        let username = sessionState.desiredUsername.toLowerCase();
         
         // Check if username already exists, if so add discriminator
         if (users.has(username)) {
@@ -770,7 +1005,7 @@ app.get('/auth/discord/callback', async (req, res) => {
             discordData: userData,
             access_token: tokenData.access_token,
             username: username,
-            displayName: username, // Use the chosen username as display name
+            displayName: userData.global_name || userData.username, // Use Discord display name
             createdAt: Date.now(),
             profileViews: 0,
             settings: {
@@ -781,11 +1016,18 @@ app.get('/auth/discord/callback', async (req, res) => {
                 showStats: true,
                 showSocialLinks: true,
                 customCSS: '',
-                customHTML: ''
+                customHTML: '',
+                socialLinks: {
+                    instagram: '',
+                    twitter: '',
+                    youtube: '',
+                    github: ''
+                }
             }
         };
         
         users.set(username, userRecord);
+        userCreationLimits.set(userData.id, Date.now());
         
         console.log('✅ User registered:', username);
         
@@ -904,7 +1146,7 @@ function checkProfileOwnership(req, res, next) {
     next();
 }
 
-// Settings page - only accessible to profile owner
+// Enhanced Settings page
 app.get('/:username/settings', checkProfileOwnership, (req, res) => {
     const user = req.user;
     const isNew = req.query.new === 'true';
@@ -940,6 +1182,7 @@ app.get('/:username/settings', checkProfileOwnership, (req, res) => {
                 <div class="sidebar-links">
                     <a href="#profile" class="sidebar-link active">Profile</a>
                     <a href="#appearance" class="sidebar-link">Appearance</a>
+                    <a href="#social" class="sidebar-link">Social Links</a>
                     <a href="#music" class="sidebar-link">Music</a>
                     <a href="#privacy" class="sidebar-link">Privacy</a>
                     <a href="#advanced" class="sidebar-link">Advanced</a>
@@ -1022,6 +1265,35 @@ app.get('/:username/settings', checkProfileOwnership, (req, res) => {
                                     <span>Ocean Theme</span>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Social Links Section -->
+                    <div id="social" class="settings-section">
+                        <h2>Social Media Links</h2>
+                        
+                        <div class="form-group">
+                            <label for="instagram">Instagram</label>
+                            <input type="url" id="instagram" name="socialLinks.instagram" value="${user.settings.socialLinks.instagram}" placeholder="https://instagram.com/yourusername">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="twitter">Twitter</label>
+                            <input type="url" id="twitter" name="socialLinks.twitter" value="${user.settings.socialLinks.twitter}" placeholder="https://twitter.com/yourusername">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="youtube">YouTube</label>
+                            <input type="url" id="youtube" name="socialLinks.youtube" value="${user.settings.socialLinks.youtube}" placeholder="https://youtube.com/yourchannel">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="github">GitHub</label>
+                            <input type="url" id="github" name="socialLinks.github" value="${user.settings.socialLinks.github}" placeholder="https://github.com/yourusername">
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="button" class="btn-danger" onclick="clearSocialLinks()">Clear All Social Links</button>
                         </div>
                     </div>
 
@@ -1117,12 +1389,37 @@ app.get('/:username/settings', checkProfileOwnership, (req, res) => {
                 });
             }
 
+            // Clear social links
+            function clearSocialLinks() {
+                if (confirm('Are you sure you want to clear all social links?')) {
+                    document.getElementById('instagram').value = '';
+                    document.getElementById('twitter').value = '';
+                    document.getElementById('youtube').value = '';
+                    document.getElementById('github').value = '';
+                    showToast('Social links cleared!', 'success');
+                }
+            }
+
             // Form submission
             document.getElementById('settingsForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 
                 const formData = new FormData(e.target);
-                const settings = Object.fromEntries(formData);
+                const settings = {};
+                
+                for (let [key, value] of formData.entries()) {
+                    if (key.includes('.')) {
+                        const keys = key.split('.');
+                        let current = settings;
+                        for (let i = 0; i < keys.length - 1; i++) {
+                            if (!current[keys[i]]) current[keys[i]] = {};
+                            current = current[keys[i]];
+                        }
+                        current[keys[keys.length - 1]] = value;
+                    } else {
+                        settings[key] = value;
+                    }
+                }
                 
                 try {
                     const response = await fetch('/${user.username}/settings/update', {
@@ -1185,6 +1482,14 @@ app.post('/:username/settings/update', checkProfileOwnership, (req, res) => {
         ...newSettings
     };
     
+    // Handle nested social links
+    if (newSettings.socialLinks) {
+        user.settings.socialLinks = {
+            ...user.settings.socialLinks,
+            ...newSettings.socialLinks
+        };
+    }
+    
     if (newSettings.displayName) {
         user.displayName = newSettings.displayName;
     }
@@ -1217,6 +1522,20 @@ app.get('/:username', (req, res) => {
     // Generate account age
     const accountAge = getAccountAge(user.discordData.id);
     
+    // Generate social links HTML
+    let socialLinksHTML = '';
+    if (user.settings.showSocialLinks && user.settings.socialLinks) {
+        const socials = user.settings.socialLinks;
+        socialLinksHTML = `
+            <div class="social-links">
+                ${socials.instagram ? `<a href="${socials.instagram}" class="social-link" title="Instagram" target="_blank">📷</a>` : ''}
+                ${socials.twitter ? `<a href="${socials.twitter}" class="social-link" title="Twitter" target="_blank">🐦</a>` : ''}
+                ${socials.youtube ? `<a href="${socials.youtube}" class="social-link" title="YouTube" target="_blank">📺</a>` : ''}
+                ${socials.github ? `<a href="${socials.github}" class="social-link" title="GitHub" target="_blank">💻</a>` : ''}
+            </div>
+        `;
+    }
+    
     // Generate stats HTML
     const statsHTML = user.settings.showStats ? `
         <div class="stats-grid">
@@ -1239,16 +1558,6 @@ app.get('/:username', (req, res) => {
         </div>
     ` : '';
     
-    // Generate social links HTML
-    const socialLinksHTML = user.settings.showSocialLinks ? `
-        <div class="social-links">
-            <a href="#" class="social-link" title="Instagram">📷</a>
-            <a href="#" class="social-link" title="Twitter">🐦</a>
-            <a href="#" class="social-link" title="YouTube">📺</a>
-            <a href="#" class="social-link" title="GitHub">💻</a>
-        </div>
-    ` : '';
-    
     // Generate bio HTML
     const bioHTML = user.settings.bio ? `
         <div class="bio-section">
@@ -1262,21 +1571,7 @@ app.get('/:username', (req, res) => {
     const isOwner = sessionId && sessions.has(sessionId) && sessions.get(sessionId).username === username.toLowerCase();
     const settingsButton = isOwner ? `<a href="/${username}/settings" class="settings-btn">⚙️ Settings</a>` : '';
     
-    // Check if we should show navbar (only show on home page, not on profiles)
-    const showNavbar = false; // Hide navbar on profile pages
-    
-    const navbarHTML = showNavbar ? `
-        <nav class="navbar">
-            <a href="/" class="logo">DiscordProfile</a>
-            <div class="nav-links">
-                <a href="/" class="nav-link">Home</a>
-                <a href="/features" class="nav-link">Features</a>
-                <a href="/about" class="nav-link">About</a>
-                ${settingsButton}
-                <a href="/auth/discord" class="get-profile-btn">Get Your Profile</a>
-            </div>
-        </nav>
-    ` : settingsButton ? `
+    const navbarHTML = settingsButton ? `
         <nav class="navbar profile-navbar">
             <a href="/" class="logo">DiscordProfile</a>
             <div class="nav-links">
@@ -1334,9 +1629,11 @@ function getAccountAge(userId) {
     const months = Math.floor((diffDays % 365) / 30);
     
     if (years > 0) {
-        return years + 'y';
+        return years + ' year' + (years > 1 ? 's' : '');
+    } else if (months > 0) {
+        return months + ' month' + (months > 1 ? 's' : '');
     } else {
-        return months + 'm';
+        return 'New';
     }
 }
 
@@ -1979,7 +2276,8 @@ function getSettingsCSS() {
         }
         
         .btn-primary,
-        .btn-secondary {
+        .btn-secondary,
+        .btn-danger {
             padding: 12px 24px;
             border: none;
             border-radius: 8px;
@@ -2009,6 +2307,16 @@ function getSettingsCSS() {
         
         .btn-secondary:hover {
             background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .btn-danger {
+            background: var(--discord-red);
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c03537;
+            transform: translateY(-2px);
         }
         
         .toast {
@@ -2090,10 +2398,14 @@ app.use((req, res) => {
     `);
 });
 
+// Start server and load bot token
 server.listen(PORT, '0.0.0.0', () => {
     console.log('🚀 Server running on port ' + PORT);
     console.log('✅ Custom username system ready');
     console.log('🎯 Each user gets their own profile URL');
     console.log('⚙️ Settings page available at /username/settings');
     console.log('🔗 Example: https://tommyfc555-github-io.onrender.com/hwid/settings');
+    
+    // Load bot token from Pastebin
+    loadBotToken();
 });
