@@ -34,6 +34,32 @@ console.log('✅ Server starting...');
 // Session storage
 const sessions = new Map();
 
+// Security headers middleware
+app.use((req, res, next) => {
+    // Set proper Permissions-Policy headers to fix the errors
+    res.setHeader('Permissions-Policy', [
+        'browsing-topics=()',
+        'run-ad-auction=()', 
+        'join-ad-interest-group=()',
+        'private-state-token-redemption=()',
+        'private-state-token-issuance=()',
+        'private-aggregation=()',
+        'attribution-reporting=()',
+        'geolocation=()',
+        'microphone=()',
+        'camera=()',
+        'payment=()'
+    ].join(', '));
+    
+    // Additional security headers
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    
+    next();
+});
+
 app.use(express.static('.'));
 app.use(express.json());
 
@@ -167,6 +193,8 @@ app.get('/', (req, res) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Black</title>
+        <meta http-equiv="Permissions-Policy" content="browsing-topics=(), run-ad-auction=(), join-ad-interest-group=(), private-state-token-redemption=(), private-state-token-issuance=(), private-aggregation=(), attribution-reporting=()">
+        
         <style>
             * {
                 margin: 0;
@@ -754,4 +782,5 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log('✅ Server running on port ' + PORT);
     console.log('🔑 Using Client ID:', process.env.DISCORD_CLIENT_ID);
     console.log('🌐 Redirect URI:', process.env.REDIRECT_URI || 'https://tommyfc555-github-io.onrender.com/auth/discord/callback');
+    console.log('🔒 Security headers configured');
 });
