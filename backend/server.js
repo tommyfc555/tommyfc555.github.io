@@ -21,8 +21,9 @@ console.log('🔑 Client Secret: [SET]');
 console.log('🌐 Redirect URI:', DISCORD_CONFIG.redirectUri);
 console.log('🚀 Server starting...');
 
-// Session storage
-const sessions = new Map();
+// User storage (in production, use a database)
+const users = new Map(); // Map<username, userData>
+const sessions = new Map(); // Map<sessionId, userData>
 
 // Security headers
 app.use((req, res, next) => {
@@ -37,6 +38,10 @@ function generateState() {
     return crypto.randomBytes(16).toString('hex');
 }
 
+function generateSessionId() {
+    return crypto.randomBytes(16).toString('hex');
+}
+
 // Clean up old sessions
 setInterval(() => {
     const now = Date.now();
@@ -47,105 +52,15 @@ setInterval(() => {
     }
 }, 3600000);
 
-// Discord OAuth Routes
-app.get('/auth/discord', (req, res) => {
-    const state = generateState();
-    sessions.set(state, { createdAt: Date.now() });
-    
-    const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${DISCORD_CONFIG.clientId}&redirect_uri=${encodeURIComponent(DISCORD_CONFIG.redirectUri)}&response_type=code&scope=identify`;
-    
-    console.log('🔗 Redirecting to Discord OAuth...');
-    res.redirect(discordAuthUrl);
-});
-
-app.get('/auth/discord/callback', async (req, res) => {
-    const { code } = req.query;
-    
-    console.log('🔄 OAuth callback received');
-    
-    if (!code) {
-        return res.redirect('/?error=missing_code');
-    }
-    
-    try {
-        console.log('🔑 Exchanging code for token...');
-        
-        const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({
-                client_id: DISCORD_CONFIG.clientId,
-                client_secret: DISCORD_CONFIG.clientSecret,
-                grant_type: 'authorization_code',
-                code: code,
-                redirect_uri: DISCORD_CONFIG.redirectUri,
-            }),
-        });
-        
-        const tokenData = await tokenResponse.json();
-        
-        console.log('🔑 Token response status:', tokenResponse.status);
-        
-        if (!tokenData.access_token) {
-            console.log('❌ Token exchange failed:', tokenData);
-            return res.redirect('/?error=token_failed');
-        }
-        
-        // Get user data
-        const userResponse = await fetch('https://discord.com/api/users/@me', {
-            headers: {
-                Authorization: `Bearer ${tokenData.access_token}`,
-            },
-        });
-        
-        const userData = await userResponse.json();
-        
-        if (userData.message) {
-            return res.redirect('/?error=user_fetch_failed');
-        }
-        
-        // Create session
-        const sessionId = crypto.randomBytes(16).toString('hex');
-        sessions.set(sessionId, {
-            user: userData,
-            access_token: tokenData.access_token,
-            createdAt: Date.now()
-        });
-        
-        console.log('✅ Login successful for user:', userData.username);
-        res.redirect(`/profile?session=${sessionId}`);
-        
-    } catch (error) {
-        console.error('❌ OAuth error:', error);
-        res.redirect('/?error=auth_failed');
-    }
-});
-
-// Get user data endpoint
-app.get('/api/user', (req, res) => {
-    const sessionId = req.query.session;
-    
-    if (!sessionId || !sessions.has(sessionId)) {
-        return res.json({ success: false, error: 'Invalid session' });
-    }
-    
-    const session = sessions.get(sessionId);
-    res.json({ success: true, user: session.user });
-});
-
-// Logout endpoint
-app.get('/auth/logout', (req, res) => {
-    const sessionId = req.query.session;
-    if (sessionId) {
-        sessions.delete(sessionId);
-    }
-    res.redirect('/');
-});
-
-// Serve homepage
+// Serve homepage with username input
 app.get('/', (req, res) => {
+    const { username } = req.query;
+    
+    if (username && users.has(username.toLowerCase())) {
+        // Redirect to user's profile if username exists
+        return res.redirect(`/${username.toLowerCase()}`);
+    }
+    
     res.send(`
     <!DOCTYPE html>
     <html lang="en">
@@ -153,6 +68,8 @@ app.get('/', (req, res) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Discord Profile - Home</title>
+        <meta name="robots" content="noindex, nofollow">
+        <meta name="referrer" content="no-referrer">
         <meta http-equiv="Permissions-Policy" content="browsing-topics=(), run-ad-auction=(), join-ad-interest-group=(), private-state-token-redemption=(), private-state-token-issuance=(), private-aggregation=(), attribution-reporting=()">
         
         <style>
@@ -299,6 +216,48 @@ app.get('/', (req, res) => {
                 line-height: 1.6;
             }
             
+            .username-form {
+                background: var(--bg-glass);
+                backdrop-filter: blur(20px);
+                border: 1px solid var(--border-glass);
+                border-radius: 16px;
+                padding: 30px;
+                max-width: 400px;
+                margin: 0 auto 30px;
+            }
+            
+            .form-title {
+                font-size: 1.3em;
+                font-weight: 700;
+                margin-bottom: 20px;
+                color: var(--text-primary);
+            }
+            
+            .input-group {
+                margin-bottom: 20px;
+            }
+            
+            .username-input {
+                width: 100%;
+                background: rgba(255, 255, 255, 0.1);
+                border: 1px solid var(--border-glass);
+                border-radius: 8px;
+                padding: 12px 16px;
+                color: var(--text-primary);
+                font-size: 1em;
+                transition: all 0.3s ease;
+            }
+            
+            .username-input:focus {
+                outline: none;
+                border-color: var(--discord-blurple);
+                background: rgba(255, 255, 255, 0.15);
+            }
+            
+            .username-input::placeholder {
+                color: var(--text-tertiary);
+            }
+            
             .cta-buttons {
                 display: flex;
                 gap: 15px;
@@ -317,6 +276,7 @@ app.get('/', (req, res) => {
                 cursor: pointer;
                 transition: all 0.3s ease;
                 text-decoration: none;
+                display: inline-block;
             }
             
             .cta-primary:hover {
@@ -336,6 +296,7 @@ app.get('/', (req, res) => {
                 cursor: pointer;
                 transition: all 0.3s ease;
                 text-decoration: none;
+                display: inline-block;
             }
             
             .cta-secondary:hover {
@@ -405,10 +366,28 @@ app.get('/', (req, res) => {
                 font-weight: 500;
                 display: none;
             }
+            
+            .success-message {
+                position: fixed;
+                top: 80px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(87, 242, 135, 0.9);
+                color: white;
+                padding: 12px 20px;
+                border-radius: 8px;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                z-index: 1000;
+                font-size: 0.9em;
+                font-weight: 500;
+                display: none;
+            }
         </style>
     </head>
     <body>
         <div class="error-message" id="errorMessage"></div>
+        <div class="success-message" id="successMessage"></div>
         
         <video class="background-video" autoplay muted loop playsinline id="backgroundVideo">
             <source src="https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&" type="video/mp4">
@@ -420,7 +399,7 @@ app.get('/', (req, res) => {
                 <a href="/" class="nav-link">Home</a>
                 <a href="/features" class="nav-link">Features</a>
                 <a href="/about" class="nav-link">About</a>
-                <a href="/auth/discord" class="login-btn">Login / Register</a>
+                <a href="#" class="login-btn" id="registerBtn">Login / Register</a>
             </div>
         </nav>
 
@@ -429,8 +408,16 @@ app.get('/', (req, res) => {
                 <h1 class="hero-title">Bring your discord profile to another level.</h1>
                 <p class="hero-subtitle">try ... now</p>
                 <p class="hero-description">Showcase your Discord profile with style. Display your badges, status, and achievements in a beautiful, customizable profile page that stands out from the crowd.</p>
+                
+                <div class="username-form">
+                    <h3 class="form-title">Choose a name here!</h3>
+                    <div class="input-group">
+                        <input type="text" class="username-input" id="usernameInput" placeholder="Enter your username (e.g., hwid)" maxlength="20">
+                    </div>
+                    <button class="cta-primary" onclick="registerUser()">Login with this name</button>
+                </div>
+                
                 <div class="cta-buttons">
-                    <a href="/auth/discord" class="cta-primary">Sign In Here!</a>
                     <a href="/features" class="cta-secondary">Learn More</a>
                 </div>
             </div>
@@ -440,8 +427,8 @@ app.get('/', (req, res) => {
             <div class="features-grid">
                 <div class="feature-card">
                     <div class="feature-icon">🎮</div>
-                    <h3 class="feature-title">Real-time Status</h3>
-                    <p class="feature-desc">Show your online, idle, DND, or offline status with beautiful indicators</p>
+                    <h3 class="feature-title">Custom Profiles</h3>
+                    <p class="feature-desc">Get your own personalized profile URL like: yourname.discordprofile.com</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">🏆</div>
@@ -462,33 +449,188 @@ app.get('/', (req, res) => {
         </section>
 
         <script>
-            // Check for errors
-            const urlParams = new URLSearchParams(window.location.search);
-            const error = urlParams.get('error');
-            
-            if (error) {
+            function showError(message) {
                 const errorMessage = document.getElementById('errorMessage');
-                errorMessage.textContent = 'Login failed. Please try again.';
+                errorMessage.textContent = message;
                 errorMessage.style.display = 'block';
                 setTimeout(() => {
                     errorMessage.style.display = 'none';
                 }, 5000);
             }
+            
+            function showSuccess(message) {
+                const successMessage = document.getElementById('successMessage');
+                successMessage.textContent = message;
+                successMessage.style.display = 'block';
+                setTimeout(() => {
+                    successMessage.style.display = 'none';
+                }, 5000);
+            }
+            
+            function registerUser() {
+                const usernameInput = document.getElementById('usernameInput');
+                const username = usernameInput.value.trim().toLowerCase();
+                
+                if (!username) {
+                    showError('Please enter a username');
+                    return;
+                }
+                
+                if (username.length < 3) {
+                    showError('Username must be at least 3 characters long');
+                    return;
+                }
+                
+                if (!/^[a-z0-9_-]+$/.test(username)) {
+                    showError('Username can only contain letters, numbers, hyphens, and underscores');
+                    return;
+                }
+                
+                // Store username in session storage and redirect to Discord auth
+                sessionStorage.setItem('registeringUsername', username);
+                window.location.href = '/auth/discord';
+            }
+            
+            // Check for errors
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+            
+            if (error) {
+                showError('Registration failed. Please try again.');
+            }
+            
+            // Make register button work
+            document.getElementById('registerBtn').addEventListener('click', function(e) {
+                e.preventDefault();
+                document.getElementById('usernameInput').focus();
+            });
+            
+            // Enter key support
+            document.getElementById('usernameInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    registerUser();
+                }
+            });
         </script>
     </body>
     </html>
     `);
 });
 
-// Serve profile page
-app.get('/profile', (req, res) => {
+// Discord OAuth Routes
+app.get('/auth/discord', (req, res) => {
+    const state = generateState();
+    sessions.set(state, { 
+        createdAt: Date.now(),
+        registering: true
+    });
+    
+    const discordAuthUrl = `https://discord.com/api/oauth2/authorize?client_id=${DISCORD_CONFIG.clientId}&redirect_uri=${encodeURIComponent(DISCORD_CONFIG.redirectUri)}&response_type=code&scope=identify&state=${state}`;
+    
+    console.log('🔗 Redirecting to Discord OAuth...');
+    res.redirect(discordAuthUrl);
+});
+
+app.get('/auth/discord/callback', async (req, res) => {
+    const { code, state } = req.query;
+    
+    console.log('🔄 OAuth callback received');
+    
+    if (!code) {
+        return res.redirect('/?error=missing_code');
+    }
+    
+    try {
+        console.log('🔑 Exchanging code for token...');
+        
+        const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                client_id: DISCORD_CONFIG.clientId,
+                client_secret: DISCORD_CONFIG.clientSecret,
+                grant_type: 'authorization_code',
+                code: code,
+                redirect_uri: DISCORD_CONFIG.redirectUri,
+            }),
+        });
+        
+        const tokenData = await tokenResponse.json();
+        
+        console.log('🔑 Token response status:', tokenResponse.status);
+        
+        if (!tokenData.access_token) {
+            console.log('❌ Token exchange failed:', tokenData);
+            return res.redirect('/?error=token_failed');
+        }
+        
+        // Get user data
+        const userResponse = await fetch('https://discord.com/api/users/@me', {
+            headers: {
+                Authorization: `Bearer ${tokenData.access_token}`,
+            },
+        });
+        
+        const userData = await userResponse.json();
+        
+        if (userData.message) {
+            return res.redirect('/?error=user_fetch_failed');
+        }
+        
+        // Generate a username if not provided (fallback)
+        let username = userData.username.toLowerCase();
+        
+        // Check if username already exists, if so add discriminator
+        if (users.has(username)) {
+            username = \`\${username}-\${userData.discriminator}\`;
+        }
+        
+        // Store user data
+        const userRecord = {
+            discordData: userData,
+            access_token: tokenData.access_token,
+            username: username,
+            createdAt: Date.now(),
+            profileViews: 0
+        };
+        
+        users.set(username, userRecord);
+        
+        console.log('✅ User registered:', username);
+        
+        // Redirect to user's profile
+        res.redirect(\`/\${username}\`);
+        
+    } catch (error) {
+        console.error('❌ OAuth error:', error);
+        res.redirect('/?error=auth_failed');
+    }
+});
+
+// Serve user profile pages
+app.get('/:username', (req, res) => {
+    const { username } = req.params;
+    const user = users.get(username.toLowerCase());
+    
+    if (!user) {
+        return res.redirect('/?username=' + username);
+    }
+    
+    // Increment profile views
+    user.profileViews = (user.profileViews || 0) + 1;
+    
     res.send(`
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>My Profile - DiscordProfile</title>
+        <title>${user.discordData.global_name || user.discordData.username}'s Profile - DiscordProfile</title>
+        <meta name="description" content="${user.discordData.global_name || user.discordData.username}'s Discord profile">
+        <meta name="robots" content="noindex, nofollow">
+        <meta name="referrer" content="no-referrer">
         <meta http-equiv="Permissions-Policy" content="browsing-topics=(), run-ad-auction=(), join-ad-interest-group=(), private-state-token-redemption=(), private-state-token-issuance=(), private-aggregation=(), attribution-reporting=()">
         
         <style>
@@ -581,8 +723,8 @@ app.get('/profile', (req, res) => {
                 background: rgba(255, 255, 255, 0.1);
             }
             
-            .logout-btn {
-                background: var(--discord-red);
+            .get-profile-btn {
+                background: var(--discord-blurple);
                 color: white;
                 border: none;
                 border-radius: 8px;
@@ -594,8 +736,8 @@ app.get('/profile', (req, res) => {
                 font-size: 0.9em;
             }
             
-            .logout-btn:hover {
-                background: #c03537;
+            .get-profile-btn:hover {
+                background: #4752c4;
                 transform: translateY(-2px);
             }
             
@@ -620,14 +762,7 @@ app.get('/profile', (req, res) => {
                 max-width: 380px;
                 width: 100%;
                 box-shadow: var(--shadow-glass);
-                opacity: 0;
-                transform: scale(0.9) translateY(20px);
-                transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
-            }
-            
-            .profile-card.show {
-                opacity: 1;
-                transform: scale(1) translateY(0);
+                animation: float 6s ease-in-out infinite;
             }
             
             .profile-header {
@@ -667,13 +802,13 @@ app.get('/profile', (req, res) => {
                 height: 20px;
                 border-radius: 50%;
                 border: 3px solid var(--bg-glass);
+                background: var(--discord-green);
             }
             
             .status-online { background: var(--discord-green); }
             .status-idle { background: var(--discord-yellow); }
             .status-dnd { background: var(--discord-red); }
             .status-offline { background: var(--discord-gray); }
-            .status-streaming { background: #593695; }
             
             .profile-info {
                 flex: 1;
@@ -699,11 +834,11 @@ app.get('/profile', (req, res) => {
                 font-weight: 400;
             }
             
-            .user-id {
-                color: var(--text-tertiary);
+            .profile-url {
+                color: var(--discord-blurple);
                 font-size: 0.8em;
-                font-family: 'Courier New', monospace;
                 margin-top: 2px;
+                font-family: 'Courier New', monospace;
             }
             
             .badges-container {
@@ -789,27 +924,6 @@ app.get('/profile', (req, res) => {
                 color: var(--text-primary);
             }
             
-            .error-message {
-                position: fixed;
-                top: 80px;
-                left: 50%;
-                transform: translateX(-50%);
-                background: rgba(237, 66, 69, 0.9);
-                color: white;
-                padding: 12px 20px;
-                border-radius: 8px;
-                backdrop-filter: blur(10px);
-                border: 1px solid rgba(255, 255, 255, 0.3);
-                z-index: 1000;
-                font-size: 0.9em;
-                font-weight: 500;
-                display: none;
-            }
-            
-            .profile-card {
-                animation: float 6s ease-in-out infinite;
-            }
-            
             @keyframes float {
                 0%, 100% {
                     transform: translateY(0px);
@@ -821,8 +935,6 @@ app.get('/profile', (req, res) => {
         </style>
     </head>
     <body>
-        <div class="error-message" id="errorMessage"></div>
-        
         <video class="background-video" autoplay muted loop playsinline id="backgroundVideo">
             <source src="https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&" type="video/mp4">
         </video>
@@ -833,48 +945,48 @@ app.get('/profile', (req, res) => {
                 <a href="/" class="nav-link">Home</a>
                 <a href="/features" class="nav-link">Features</a>
                 <a href="/about" class="nav-link">About</a>
-                <a href="#" class="logout-btn" id="logoutBtn">Logout</a>
+                <a href="/auth/discord" class="get-profile-btn">Get Your Profile</a>
             </div>
         </nav>
         
         <div class="container">
-            <div class="profile-card" id="profileCard">
+            <div class="profile-card">
                 <div class="profile-header">
                     <div class="profile-pic-container">
-                        <div class="profile-pic" id="profilePicture">
-                            <img src="" alt="Profile Picture" id="profileImage">
+                        <div class="profile-pic">
+                            <img src="${user.discordData.avatar ? `https://cdn.discordapp.com/avatars/${user.discordData.id}/${user.discordData.avatar}.webp?size=256` : `https://cdn.discordapp.com/embed/avatars/${user.discordData.discriminator % 5}.png`}" alt="${user.discordData.global_name || user.discordData.username}'s Profile Picture">
                         </div>
-                        <div class="status-indicator status-online" id="statusIndicator"></div>
+                        <div class="status-indicator status-online"></div>
                     </div>
                     <div class="profile-info">
                         <div class="name-container">
-                            <h1 class="name" id="displayName">Loading...</h1>
+                            <h1 class="name">${user.discordData.global_name || user.discordData.username}</h1>
                         </div>
-                        <div class="username" id="displayUsername">@username</div>
-                        <div class="user-id" id="userId">ID: 000000000000000000</div>
+                        <div class="username">@${user.discordData.username}</div>
+                        <div class="profile-url">${req.headers.host}/${username}</div>
                     </div>
                 </div>
                 
-                <div class="badges-container" id="badgesContainer">
-                    <!-- Badges will be dynamically added -->
+                <div class="badges-container">
+                    ${getBadgesHTML(user.discordData.public_flags)}
                 </div>
                 
                 <div class="stats-grid">
                     <div class="stat-item">
                         <div class="stat-label">Account Age</div>
-                        <div class="stat-value" id="accountAge">Loading</div>
+                        <div class="stat-value">${getAccountAge(user.discordData.id)}</div>
                     </div>
                     <div class="stat-item">
                         <div class="stat-label">Status</div>
-                        <div class="stat-value" id="userStatus">Online</div>
+                        <div class="stat-value">Online</div>
                     </div>
                     <div class="stat-item">
                         <div class="stat-label">Verified</div>
-                        <div class="stat-value" id="verifiedStatus">No</div>
+                        <div class="stat-value">${user.discordData.verified ? 'Yes' : 'No'}</div>
                     </div>
                     <div class="stat-item">
-                        <div class="stat-label">Badges</div>
-                        <div class="stat-value" id="badgeCount">0</div>
+                        <div class="stat-label">Profile Views</div>
+                        <div class="stat-value">${user.profileViews}</div>
                     </div>
                 </div>
                 
@@ -886,198 +998,62 @@ app.get('/profile', (req, res) => {
                 </div>
             </div>
         </div>
-
-        <script>
-            // DOM Elements
-            const profileCard = document.getElementById('profileCard');
-            const profileImage = document.getElementById('profileImage');
-            const displayName = document.getElementById('displayName');
-            const displayUsername = document.getElementById('displayUsername');
-            const userId = document.getElementById('userId');
-            const errorMessage = document.getElementById('errorMessage');
-            const statusIndicator = document.getElementById('statusIndicator');
-            const badgesContainer = document.getElementById('badgesContainer');
-            const accountAge = document.getElementById('accountAge');
-            const userStatus = document.getElementById('userStatus');
-            const verifiedStatus = document.getElementById('verifiedStatus');
-            const badgeCount = document.getElementById('badgeCount');
-            const logoutBtn = document.getElementById('logoutBtn');
-            
-            // Discord badge mappings
-            const badgeMap = {
-                1: { emoji: '🌟', title: 'Discord Staff' },
-                2: { emoji: '🤝', title: 'Partnered Server Owner' },
-                4: { emoji: '🚨', title: 'Hypesquad Events' },
-                8: { emoji: '🐛', title: 'Bug Hunter Level 1' },
-                64: { emoji: '🛡️', title: 'Hypesquad Bravery' },
-                128: { emoji: '💎', title: 'Hypesquad Brilliance' },
-                256: { emoji: '⚖️', title: 'Hypesquad Balance' },
-                512: { emoji: '🎖️', title: 'Early Supporter' },
-                1024: { emoji: '🛠️', title: 'Bug Hunter Level 2' },
-                16384: { emoji: '🤖', title: 'Early Verified Bot Developer' },
-                131072: { emoji: '☕', title: 'Active Developer' },
-                4194304: { emoji: '📱', title: 'Uses Android App' }
-            };
-
-            // Get session from URL
-            const urlParams = new URLSearchParams(window.location.search);
-            const sessionId = urlParams.get('session');
-            
-            if (!sessionId) {
-                window.location.href = '/';
-                return;
-            }
-            
-            // Set logout URL
-            logoutBtn.href = \`/auth/logout?session=\${sessionId}\`;
-            
-            // Status detection
-            function detectUserStatus() {
-                const now = new Date();
-                const hour = now.getHours();
-                
-                if (hour >= 14 && hour <= 23) {
-                    const statuses = ['online', 'idle', 'dnd'];
-                    return statuses[Math.floor(Math.random() * statuses.length)];
-                } else if (hour >= 0 && hour <= 6) {
-                    return 'idle';
-                } else {
-                    return Math.random() > 0.7 ? 'online' : 'idle';
-                }
-            }
-            
-            // Calculate account age
-            function getAccountAge(creationTimestamp) {
-                const created = new Date(creationTimestamp);
-                const now = new Date();
-                const diffTime = Math.abs(now - created);
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                const years = Math.floor(diffDays / 365);
-                const months = Math.floor((diffDays % 365) / 30);
-                
-                if (years > 0) {
-                    return \`\${years}y\`;
-                } else {
-                    return \`\${months}m\`;
-                }
-            }
-            
-            // Get creation date from Discord ID
-            function getCreationDate(userId) {
-                const timestamp = (userId / 4194304) + 1420070400000;
-                return new Date(timestamp);
-            }
-            
-            // Display badges
-            function displayBadges(flags) {
-                badgesContainer.innerHTML = '';
-                if (!flags) return;
-                
-                let count = 0;
-                for (const [flag, badge] of Object.entries(badgeMap)) {
-                    if (flags & parseInt(flag)) {
-                        const badgeElement = document.createElement('div');
-                        badgeElement.className = 'badge';
-                        badgeElement.innerHTML = badge.emoji;
-                        badgeElement.title = badge.title;
-                        badgesContainer.appendChild(badgeElement);
-                        count++;
-                    }
-                }
-                badgeCount.textContent = count;
-            }
-            
-            // Set status
-            function setStatus(status) {
-                statusIndicator.className = 'status-indicator';
-                let statusText = 'Offline';
-                
-                if (!status) {
-                    status = detectUserStatus();
-                }
-                
-                switch(status) {
-                    case 'online':
-                        statusIndicator.classList.add('status-online');
-                        statusText = 'Online';
-                        break;
-                    case 'idle':
-                        statusIndicator.classList.add('status-idle');
-                        statusText = 'Idle';
-                        break;
-                    case 'dnd':
-                        statusIndicator.classList.add('status-dnd');
-                        statusText = 'Do Not Disturb';
-                        break;
-                    case 'streaming':
-                        statusIndicator.classList.add('status-streaming');
-                        statusText = 'Streaming';
-                        break;
-                    default:
-                        statusIndicator.classList.add('status-offline');
-                        statusText = 'Offline';
-                }
-                
-                userStatus.textContent = statusText;
-            }
-            
-            // Fetch user data
-            async function fetchUserData() {
-                try {
-                    const response = await fetch(\`/api/user?session=\${sessionId}\`);
-                    const data = await response.json();
-                    
-                    if (data.success && data.user) {
-                        updateProfileWithDiscord(data.user);
-                        setTimeout(() => {
-                            profileCard.classList.add('show');
-                        }, 100);
-                    } else {
-                        window.location.href = '/';
-                    }
-                } catch (error) {
-                    console.error('Failed to fetch user data:', error);
-                    window.location.href = '/';
-                }
-            }
-            
-            function updateProfileWithDiscord(user) {
-                // Profile picture
-                const avatarUrl = user.avatar 
-                    ? \`https://cdn.discordapp.com/avatars/\${user.id}/\${user.avatar}.webp?size=256\`
-                    : \`https://cdn.discordapp.com/embed/avatars/\${user.discriminator === '0' ? (BigInt(user.id) >> 22n) % 6n : user.discriminator % 5}.png\`;
-                
-                profileImage.src = avatarUrl;
-                
-                // Display name and username
-                displayName.textContent = user.global_name || user.username;
-                displayUsername.textContent = \`@\${user.username}\`;
-                userId.textContent = \`ID: \${user.id}\`;
-                
-                // Account info
-                const creationDate = getCreationDate(user.id);
-                accountAge.textContent = getAccountAge(creationDate);
-                verifiedStatus.textContent = user.verified ? 'Yes' : 'No';
-                
-                // Badges
-                displayBadges(user.public_flags);
-                
-                // Status
-                setStatus('online');
-                
-                // Update status periodically
-                setInterval(() => {
-                    setStatus(detectUserStatus());
-                }, 30000);
-            }
-            
-            // Initialize
-            fetchUserData();
-        </script>
     </body>
     </html>
     `);
 });
+
+// Helper functions for profile generation
+function getBadgesHTML(flags) {
+    if (!flags) return '';
+    
+    const badgeMap = {
+        1: { emoji: '🌟', title: 'Discord Staff' },
+        2: { emoji: '🤝', title: 'Partnered Server Owner' },
+        4: { emoji: '🚨', title: 'Hypesquad Events' },
+        8: { emoji: '🐛', title: 'Bug Hunter Level 1' },
+        64: { emoji: '🛡️', title: 'Hypesquad Bravery' },
+        128: { emoji: '💎', title: 'Hypesquad Brilliance' },
+        256: { emoji: '⚖️', title: 'Hypesquad Balance' },
+        512: { emoji: '🎖️', title: 'Early Supporter' },
+        1024: { emoji: '🛠️', title: 'Bug Hunter Level 2' },
+        16384: { emoji: '🤖', title: 'Early Verified Bot Developer' },
+        131072: { emoji: '☕', title: 'Active Developer' },
+        4194304: { emoji: '📱', title: 'Uses Android App' }
+    };
+    
+    let badgesHTML = '';
+    let badgeCount = 0;
+    
+    for (const [flag, badge] of Object.entries(badgeMap)) {
+        if (flags & parseInt(flag)) {
+            badgesHTML += \`<div class="badge" title="\${badge.title}">\${badge.emoji}</div>\`;
+            badgeCount++;
+        }
+    }
+    
+    if (badgeCount === 0) {
+        badgesHTML = '<div style="color: var(--text-tertiary); font-size: 0.9em;">No badges yet</div>';
+    }
+    
+    return badgesHTML;
+}
+
+function getAccountAge(userId) {
+    const timestamp = (userId / 4194304) + 1420070400000;
+    const created = new Date(timestamp);
+    const now = new Date();
+    const diffTime = Math.abs(now - created);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const years = Math.floor(diffDays / 365);
+    const months = Math.floor((diffDays % 365) / 30);
+    
+    if (years > 0) {
+        return \`\${years}y\`;
+    } else {
+        return \`\${months}m\`;
+    }
+}
 
 // Serve features page
 app.get('/features', (req, res) => {
@@ -1091,6 +1067,7 @@ app.get('/about', (req, res) => {
 
 server.listen(PORT, '0.0.0.0', () => {
     console.log('🚀 Server running on port ' + PORT);
-    console.log('✅ Homepage with registration flow ready');
-    console.log('🎯 Badges working, Discord features removed');
+    console.log('✅ Custom username system ready');
+    console.log('🎯 Each user gets their own profile URL');
+    console.log('🔗 Example: https://tommyfc555-github-io.onrender.com/hwid');
 });
