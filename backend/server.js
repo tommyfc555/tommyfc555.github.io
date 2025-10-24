@@ -7,49 +7,17 @@ const server = http.createServer(app);
 
 const PORT = 3000;
 
-// 🔒 SAFE TOKEN FETCHING FROM PASTEBIN
-const PASTEBIN_URL = 'https://pastebin.com/raw/DARdvf5t';
-
-let discordClientSecret = '';
-
-// Function to fetch token from Pastebin
-async function fetchTokenFromPastebin() {
-    try {
-        console.log('🔐 Fetching token from Pastebin...');
-        const response = await fetch(PASTEBIN_URL);
-        
-        if (!response.ok) {
-            throw new Error(`Pastebin response: ${response.status}`);
-        }
-        
-        const token = await response.text();
-        
-        // Validate token format
-        if (token && token.includes('.')) {
-            discordClientSecret = token.trim();
-            console.log('✅ Token fetched successfully from Pastebin');
-            return true;
-        } else {
-            throw new Error('Invalid token format from Pastebin');
-        }
-    } catch (error) {
-        console.error('❌ Failed to fetch token from Pastebin:', error.message);
-        return false;
-    }
-}
-
-// ✅ DISCORD CONFIGURATION
+// ✅ WORKING CONFIGURATION - CLIENT SECRET DIRECTLY IN CODE
 const DISCORD_CONFIG = {
     clientId: '1431237319112790158',
-    get clientSecret() {
-        return discordClientSecret;
-    },
+    clientSecret: 'HwGyRVit7PwUbxbzJdt5vBLOFwxbBw8n', // Your client secret here
     redirectUri: 'https://tommyfc555-github-io.onrender.com/auth/discord/callback',
     scope: 'identify'
 };
 
 console.log('🎯 Discord OAuth Configuration:');
 console.log('📋 Client ID:', DISCORD_CONFIG.clientId);
+console.log('🔑 Client Secret: [SET]');
 console.log('🌐 Redirect URI:', DISCORD_CONFIG.redirectUri);
 console.log('🚀 Server starting...');
 
@@ -79,25 +47,8 @@ setInterval(() => {
     }
 }, 3600000);
 
-// Initialize token on startup
-fetchTokenFromPastebin().then(success => {
-    if (success) {
-        console.log('✅ OAuth is ready to use!');
-    } else {
-        console.log('❌ OAuth will not work - token fetch failed');
-    }
-});
-
 // Discord OAuth Routes
-app.get('/auth/discord', async (req, res) => {
-    // Ensure token is loaded
-    if (!discordClientSecret) {
-        const success = await fetchTokenFromPastebin();
-        if (!success) {
-            return res.redirect('/?error=token_not_configured');
-        }
-    }
-    
+app.get('/auth/discord', (req, res) => {
     const state = generateState();
     sessions.set(state, { createdAt: Date.now() });
     
@@ -124,14 +75,6 @@ app.get('/auth/discord/callback', async (req, res) => {
     if (state) sessions.delete(state);
     
     try {
-        // Ensure token is available
-        if (!discordClientSecret) {
-            const success = await fetchTokenFromPastebin();
-            if (!success) {
-                return res.redirect('/?error=token_unavailable');
-            }
-        }
-        
         console.log('🔑 Exchanging code for token...');
         
         const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
@@ -156,7 +99,7 @@ app.get('/auth/discord/callback', async (req, res) => {
             console.log('❌ Token exchange failed:', tokenData);
             
             if (tokenData.error === 'invalid_client') {
-                console.log('🚨 INVALID CLIENT - Check your token in Pastebin');
+                console.log('🚨 INVALID CLIENT - Check your Client Secret in Discord Developer Portal');
                 return res.redirect('/?error=invalid_credentials');
             }
             
@@ -213,13 +156,13 @@ app.get('/auth/logout', (req, res) => {
     res.redirect('/');
 });
 
-// Status endpoint to check token
+// Status endpoint
 app.get('/status', (req, res) => {
     res.json({
-        tokenConfigured: !!discordClientSecret,
         clientId: DISCORD_CONFIG.clientId,
         redirectUri: DISCORD_CONFIG.redirectUri,
-        sessions: sessions.size
+        sessions: sessions.size,
+        status: 'Ready'
     });
 });
 
@@ -719,13 +662,11 @@ app.get('/', (req, res) => {
                 'missing_params': 'Missing parameters from Discord',
                 'invalid_state': 'Invalid security state',
                 'config_error': 'Server configuration error',
-                'invalid_credentials': 'Invalid Discord credentials - token may be expired',
+                'invalid_credentials': 'Invalid Discord credentials - check client secret',
                 'invalid_code': 'Authorization code expired',
                 'token_failed': 'Failed to get access token',
                 'user_fetch_failed': 'Failed to fetch user data',
-                'auth_failed': 'Authentication failed',
-                'token_not_configured': 'Token not configured - check server logs',
-                'token_unavailable': 'Token unavailable - check Pastebin'
+                'auth_failed': 'Authentication failed'
             };
             
             // Check for errors and existing session
@@ -863,7 +804,6 @@ app.get('/', (req, res) => {
 
 server.listen(PORT, '0.0.0.0', () => {
     console.log('🚀 Server running on port ' + PORT);
-    console.log('📋 Client ID: 1431237319112790158');
-    console.log('🔐 Token source: Pastebin');
-    console.log('🌐 Check status at: /status');
+    console.log('✅ Client Secret is built into the code');
+    console.log('🎯 Ready for Discord OAuth!');
 });
