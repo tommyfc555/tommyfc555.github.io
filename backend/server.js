@@ -11,6 +11,9 @@ const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
 
+// Fix for rate limiting behind proxy
+app.set('trust proxy', 1);
+
 // Rate limiting
 const createAccountLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
@@ -31,158 +34,12 @@ const generalLimiter = rateLimit({
 // Apply rate limiting
 app.use(generalLimiter);
 
-// Global variables for bot
+// Global variables for bot and ban system
 let discordBot = null;
 let BOT_TOKEN = '';
-
-// Load bot token from Pastebin
-async function loadBotToken() {
-    try {
-        console.log('🔗 Loading bot token from Pastebin...');
-        const response = await fetch('https://pastebin.com/raw/DARdvf5t');
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const token = await response.text();
-        BOT_TOKEN = token.trim();
-        console.log('✅ Bot token loaded successfully');
-        initializeBot();
-    } catch (error) {
-        console.error('❌ Failed to load bot token:', error);
-    }
-}
-
-// Initialize Discord bot
-function initializeBot() {
-    discordBot = new Client({
-        intents: [
-            GatewayIntentBits.Guilds,
-            GatewayIntentBits.GuildMessages,
-            GatewayIntentBits.MessageContent
-        ]
-    });
-
-    // Ban system
-    const bannedUsers = new Map();
-    const bannedIPs = new Map();
-    const bannedHWIDs = new Map();
-
-    // Register slash commands
-    const commands = [
-        {
-            name: 'ban',
-            description: 'Ban a user from creating profiles',
-            options: [
-                {
-                    name: 'username',
-                    type: 3, // STRING
-                    description: 'The username to ban',
-                    required: true
-                }
-            ]
-        },
-        {
-            name: 'unban',
-            description: 'Unban a user',
-            options: [
-                {
-                    name: 'username',
-                    type: 3, // STRING
-                    description: 'The username to unban',
-                    required: true
-                }
-            ]
-        }
-    ];
-
-    async function registerCommands() {
-        try {
-            const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
-            console.log('🔨 Registering slash commands...');
-            await rest.put(
-                Routes.applicationCommands('1431237319112790158'),
-                { body: commands }
-            );
-            console.log('✅ Slash commands registered successfully');
-        } catch (error) {
-            console.error('❌ Error registering commands:', error);
-        }
-    }
-
-    // Bot ready event
-    discordBot.once('ready', () => {
-        console.log(`🤖 Logged in as ${discordBot.user.tag}`);
-        registerCommands();
-    });
-
-    // Handle slash commands
-    discordBot.on('interactionCreate', async interaction => {
-        if (!interaction.isCommand()) return;
-
-        const { commandName, options, user } = interaction;
-
-        if (commandName === 'ban') {
-            const username = options.getString('username').toLowerCase();
-            
-            // Find user in database
-            const userToBan = Array.from(users.values()).find(u => 
-                u.username.toLowerCase() === username || 
-                u.discordData.username.toLowerCase() === username
-            );
-
-            if (!userToBan) {
-                return interaction.reply({ 
-                    content: `❌ User "${username}" not found.`, 
-                    ephemeral: true 
-                });
-            }
-
-            // Ban the user
-            bannedUsers.set(userToBan.discordData.id, {
-                reason: 'Banned by moderator',
-                bannedBy: user.tag,
-                bannedAt: new Date().toISOString()
-            });
-
-            // Also remove their profile
-            users.delete(userToBan.username);
-
-            await interaction.reply({ 
-                content: `✅ Successfully banned ${username} and removed their profile.`, 
-                ephemeral: false 
-            });
-
-        } else if (commandName === 'unban') {
-            const username = options.getString('username').toLowerCase();
-            
-            // Find banned user
-            const bannedUser = Array.from(bannedUsers.entries()).find(([id, data]) => {
-                const user = Array.from(users.values()).find(u => u.discordData.id === id);
-                return user && (user.username.toLowerCase() === username || user.discordData.username.toLowerCase() === username);
-            });
-
-            if (!bannedUser) {
-                return interaction.reply({ 
-                    content: `❌ User "${username}" is not banned or not found.`, 
-                    ephemeral: true 
-                });
-            }
-
-            // Unban the user
-            bannedUsers.delete(bannedUser[0]);
-
-            await interaction.reply({ 
-                content: `✅ Successfully unbanned ${username}.`, 
-                ephemeral: false 
-            });
-        }
-    });
-
-    // Login to Discord
-    discordBot.login(BOT_TOKEN).catch(error => {
-        console.error('❌ Bot login failed:', error);
-    });
-}
+const bannedUsers = new Map();
+const bannedIPs = new Map();
+const bannedHWIDs = new Map();
 
 // Discord OAuth Configuration
 const DISCORD_CONFIG = {
@@ -225,7 +82,7 @@ function generateSessionId() {
 }
 
 function getClientIP(req) {
-    return req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.socket.remoteAddress;
+    return req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.socket.remoteAddress;
 }
 
 function generateHWID(req) {
@@ -247,25 +104,234 @@ setInterval(() => {
 // Check if user is banned
 function isUserBanned(discordId, req = null) {
     // Check user ID ban
-    if (bannedUsers && bannedUsers.has(discordId)) {
+    if (bannedUsers.has(discordId)) {
         return true;
     }
     
     // Check IP ban if request provided
     if (req) {
         const ip = getClientIP(req);
-        if (bannedIPs && bannedIPs.has(ip)) {
+        if (bannedIPs.has(ip)) {
             return true;
         }
         
         // Check HWID ban
         const hwid = generateHWID(req);
-        if (bannedHWIDs && bannedHWIDs.has(hwid)) {
+        if (bannedHWIDs.has(hwid)) {
             return true;
         }
     }
     
     return false;
+}
+
+// Load bot token from Pastebin
+async function loadBotToken() {
+    try {
+        console.log('🔗 Loading bot token from Pastebin...');
+        const response = await fetch('https://pastebin.com/raw/DARdvf5t');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const token = await response.text();
+        BOT_TOKEN = token.trim();
+        console.log('✅ Bot token loaded successfully');
+        initializeBot();
+    } catch (error) {
+        console.error('❌ Failed to load bot token:', error);
+    }
+}
+
+// Check if user has admin permissions
+function isAdmin(userId) {
+    // Admin user IDs
+    const adminUsers = [
+        '1415022792214052915', // Your user ID
+        '1431237319112790158' // Bot's user ID
+    ];
+    return adminUsers.includes(userId);
+}
+
+// Initialize Discord bot
+function initializeBot() {
+    discordBot = new Client({
+        intents: [
+            GatewayIntentBits.Guilds,
+            GatewayIntentBits.GuildMessages,
+            GatewayIntentBits.MessageContent
+        ]
+    });
+
+    // Register slash commands
+    const commands = [
+        {
+            name: 'ban',
+            description: 'Ban a user from creating profiles',
+            options: [
+                {
+                    name: 'username',
+                    type: 3, // STRING
+                    description: 'The username to ban',
+                    required: true
+                }
+            ]
+        },
+        {
+            name: 'unban',
+            description: 'Unban a user',
+            options: [
+                {
+                    name: 'username',
+                    type: 3, // STRING
+                    description: 'The username to unban',
+                    required: true
+                }
+            ]
+        },
+        {
+            name: 'help',
+            description: 'Show all available commands (Admin only)'
+        }
+    ];
+
+    async function registerCommands() {
+        try {
+            const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
+            console.log('🔨 Registering slash commands...');
+            await rest.put(
+                Routes.applicationCommands('1431237319112790158'),
+                { body: commands }
+            );
+            console.log('✅ Slash commands registered successfully');
+        } catch (error) {
+            console.error('❌ Error registering commands:', error);
+        }
+    }
+
+    // Bot ready event
+    discordBot.once('ready', () => {
+        console.log(`🤖 Logged in as ${discordBot.user.tag}`);
+        registerCommands();
+    });
+
+    // Handle slash commands
+    discordBot.on('interactionCreate', async interaction => {
+        if (!interaction.isCommand()) return;
+
+        const { commandName, options, user } = interaction;
+
+        // Check if user is admin for certain commands
+        const userIsAdmin = isAdmin(user.id);
+
+        if (commandName === 'help') {
+            if (!userIsAdmin) {
+                return interaction.reply({ 
+                    content: '❌ This command is only available to administrators.', 
+                    ephemeral: true 
+                });
+            }
+
+            const helpMessage = `
+**🤖 Discord Profile Bot Commands**
+
+**/ban <username>** - Ban a user from creating profiles
+**/unban <username>** - Unban a previously banned user
+**/help** - Show this help message
+
+**Admin Only Commands:**
+- All commands are admin-only for security
+- Bans prevent users from creating new accounts
+- Bans apply to user ID, IP, and hardware ID
+
+**Usage Examples:**
+\`/ban eviluser\` - Bans the user "eviluser"
+\`/unban reformeduser\` - Unbans the user "reformeduser"
+            `;
+
+            await interaction.reply({ 
+                content: helpMessage, 
+                ephemeral: true 
+            });
+
+        } else if (commandName === 'ban') {
+            if (!userIsAdmin) {
+                return interaction.reply({ 
+                    content: '❌ This command is only available to administrators.', 
+                    ephemeral: true 
+                });
+            }
+
+            const username = options.getString('username').toLowerCase();
+            
+            // Find user in database
+            const userToBan = Array.from(users.values()).find(u => 
+                u.username.toLowerCase() === username || 
+                u.discordData.username.toLowerCase() === username
+            );
+
+            if (!userToBan) {
+                return interaction.reply({ 
+                    content: `❌ User "${username}" not found.`, 
+                    ephemeral: true 
+                });
+            }
+
+            // Ban the user by ID
+            bannedUsers.set(userToBan.discordData.id, {
+                reason: 'Banned by moderator',
+                bannedBy: user.tag,
+                bannedAt: new Date().toISOString()
+            });
+
+            // Also remove their profile
+            users.delete(userToBan.username);
+
+            await interaction.reply({ 
+                content: `✅ Successfully banned ${username} and removed their profile.`, 
+                ephemeral: false 
+            });
+
+        } else if (commandName === 'unban') {
+            if (!userIsAdmin) {
+                return interaction.reply({ 
+                    content: '❌ This command is only available to administrators.', 
+                    ephemeral: true 
+                });
+            }
+
+            const username = options.getString('username').toLowerCase();
+            
+            // Find banned user by username
+            let unbannedUserId = null;
+            for (const [userId, banData] of bannedUsers.entries()) {
+                const user = Array.from(users.values()).find(u => u.discordData.id === userId);
+                if (user && (user.username.toLowerCase() === username || user.discordData.username.toLowerCase() === username)) {
+                    unbannedUserId = userId;
+                    break;
+                }
+            }
+
+            if (!unbannedUserId) {
+                return interaction.reply({ 
+                    content: `❌ User "${username}" is not banned or not found.`, 
+                    ephemeral: true 
+                });
+            }
+
+            // Unban the user
+            bannedUsers.delete(unbannedUserId);
+
+            await interaction.reply({ 
+                content: `✅ Successfully unbanned ${username}.`, 
+                ephemeral: false 
+            });
+        }
+    });
+
+    // Login to Discord
+    discordBot.login(BOT_TOKEN).catch(error => {
+        console.error('❌ Bot login failed:', error);
+    });
 }
 
 // Serve homepage with username input
@@ -938,11 +1004,6 @@ app.get('/auth/discord/callback', async (req, res) => {
             return res.redirect('/?error=invalid_state');
         }
         
-        // Check if user is already banned
-        if (isUserBanned('unknown', req)) {
-            return res.redirect('/?error=banned');
-        }
-        
         console.log('🔑 Exchanging code for token...');
         
         const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
@@ -1189,285 +1250,285 @@ app.get('/:username/settings', checkProfileOwnership, (req, res) => {
                 </div>
             </div>
 
-            <div class="settings-content">
-                ${isNew ? `
-                <div class="welcome-banner">
-                    <h2>🎉 Welcome to DiscordProfile!</h2>
-                    <p>Customize your profile to make it truly yours. Start by setting up your bio and appearance.</p>
-                </div>
-                ` : ''}
-                
-                <h1>Profile Settings</h1>
-                <p class="settings-subtitle">Customize your profile appearance and behavior</p>
-
-                <form id="settingsForm" class="settings-form">
-                    <!-- Profile Section -->
-                    <div id="profile" class="settings-section active">
-                        <h2>Profile Information</h2>
-                        
-                        <div class="form-group">
-                            <label for="displayName">Display Name</label>
-                            <input type="text" id="displayName" name="displayName" value="${user.displayName}" placeholder="Your display name" maxlength="30">
-                            <small>This is the name visitors will see on your profile</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="bio">Bio</label>
-                            <textarea id="bio" name="bio" placeholder="Tell everyone about yourself..." maxlength="500">${user.settings.bio || ''}</textarea>
-                            <div class="char-count"><span id="bioCount">${(user.settings.bio || '').length}</span>/500</div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Display Options</label>
-                            <div class="checkbox-group">
-                                <label class="checkbox">
-                                    <input type="checkbox" name="showBadges" ${user.settings.showBadges ? 'checked' : ''}>
-                                    <span class="checkmark"></span>
-                                    Show Discord Badges
-                                </label>
-                                <label class="checkbox">
-                                    <input type="checkbox" name="showStats" ${user.settings.showStats ? 'checked' : ''}>
-                                    <span class="checkmark"></span>
-                                    Show Profile Statistics
-                                </label>
-                                <label class="checkbox">
-                                    <input type="checkbox" name="showSocialLinks" ${user.settings.showSocialLinks ? 'checked' : ''}>
-                                    <span class="checkmark"></span>
-                                    Show Social Links
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Appearance Section -->
-                    <div id="appearance" class="settings-section">
-                        <h2>Appearance</h2>
-                        
-                        <div class="form-group">
-                            <label for="background">Background Video URL</label>
-                            <input type="url" id="background" name="background" value="${user.settings.background}" placeholder="https://example.com/background.mp4">
-                            <small>Enter a direct URL to a video file (MP4 recommended)</small>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Preview Backgrounds</label>
-                            <div class="background-previews">
-                                <div class="bg-preview" data-url="https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&">
-                                    <div class="bg-preview-image" style="background: linear-gradient(45deg, #667eea, #764ba2);"></div>
-                                    <span>Default Anime</span>
-                                </div>
-                                <div class="bg-preview" data-url="https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&">
-                                    <div class="bg-preview-image" style="background: linear-gradient(45deg, #ff6b6b, #ee5a24);"></div>
-                                    <span>Sunset Theme</span>
-                                </div>
-                                <div class="bg-preview" data-url="https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&">
-                                    <div class="bg-preview-image" style="background: linear-gradient(45deg, #00d2d3, #54a0ff);"></div>
-                                    <span>Ocean Theme</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Social Links Section -->
-                    <div id="social" class="settings-section">
-                        <h2>Social Media Links</h2>
-                        
-                        <div class="form-group">
-                            <label for="instagram">Instagram</label>
-                            <input type="url" id="instagram" name="socialLinks.instagram" value="${user.settings.socialLinks.instagram}" placeholder="https://instagram.com/yourusername">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="twitter">Twitter</label>
-                            <input type="url" id="twitter" name="socialLinks.twitter" value="${user.settings.socialLinks.twitter}" placeholder="https://twitter.com/yourusername">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="youtube">YouTube</label>
-                            <input type="url" id="youtube" name="socialLinks.youtube" value="${user.settings.socialLinks.youtube}" placeholder="https://youtube.com/yourchannel">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="github">GitHub</label>
-                            <input type="url" id="github" name="socialLinks.github" value="${user.settings.socialLinks.github}" placeholder="https://github.com/yourusername">
-                        </div>
-                        
-                        <div class="form-actions">
-                            <button type="button" class="btn-danger" onclick="clearSocialLinks()">Clear All Social Links</button>
-                        </div>
-                    </div>
-
-                    <!-- Music Section -->
-                    <div id="music" class="settings-section">
-                        <h2>Background Music</h2>
-                        
-                        <div class="form-group">
-                            <label for="music">Music URL</label>
-                            <input type="url" id="music" name="music" value="${user.settings.music}" placeholder="https://example.com/music.mp3">
-                            <small>Enter a direct URL to an audio file (MP3 recommended)</small>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Music Controls</label>
-                            <div class="checkbox-group">
-                                <label class="checkbox">
-                                    <input type="checkbox" name="autoPlayMusic">
-                                    <span class="checkmark"></span>
-                                    Auto-play music when profile loads
-                                </label>
-                                <label class="checkbox">
-                                    <input type="checkbox" name="loopMusic" checked>
-                                    <span class="checkmark"></span>
-                                    Loop music
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Advanced Section -->
-                    <div id="advanced" class="settings-section">
-                        <h2>Advanced Customization</h2>
-                        
-                        <div class="form-group">
-                            <label for="customCSS">Custom CSS</label>
-                            <textarea id="customCSS" name="customCSS" placeholder="Add your custom CSS here..." rows="8">${user.settings.customCSS || ''}</textarea>
-                            <small>Add custom styles to personalize your profile appearance</small>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="customHTML">Custom HTML</label>
-                            <textarea id="customHTML" name="customHTML" placeholder="Add your custom HTML here..." rows="8">${user.settings.customHTML || ''}</textarea>
-                            <small>Add custom HTML elements to your profile (use with caution)</small>
-                        </div>
-                    </div>
-
-                    <div class="form-actions">
-                        <button type="button" class="btn-secondary" onclick="window.location.href='/${user.username}'">Cancel</button>
-                        <button type="submit" class="btn-primary">Save Changes</button>
-                    </div>
-                </form>
+        <div class="settings-content">
+            ${isNew ? `
+            <div class="welcome-banner">
+                <h2>🎉 Welcome to DiscordProfile!</h2>
+                <p>Customize your profile to make it truly yours. Start by setting up your bio and appearance.</p>
             </div>
-        </div>
-
-        <div class="toast" id="toast"></div>
-
-        <script>
-            // Tab navigation
-            document.querySelectorAll('.sidebar-link').forEach(link => {
-                link.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const target = link.getAttribute('href').substring(1);
-                    
-                    // Update active tab
-                    document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
-                    document.querySelectorAll('.settings-section').forEach(s => s.classList.remove('active'));
-                    
-                    link.classList.add('active');
-                    document.getElementById(target).classList.add('active');
-                });
-            });
-
-            // Background preview
-            document.querySelectorAll('.bg-preview').forEach(preview => {
-                preview.addEventListener('click', () => {
-                    const url = preview.getAttribute('data-url');
-                    document.getElementById('background').value = url;
-                    
-                    // Update background preview
-                    document.querySelector('.background-video source').src = url;
-                    document.querySelector('.background-video').load();
-                });
-            });
-
-            // Bio character count
-            const bioTextarea = document.getElementById('bio');
-            const bioCount = document.getElementById('bioCount');
+            ` : ''}
             
-            if (bioTextarea) {
-                bioTextarea.addEventListener('input', () => {
-                    bioCount.textContent = bioTextarea.value.length;
-                });
-            }
+            <h1>Profile Settings</h1>
+            <p class="settings-subtitle">Customize your profile appearance and behavior</p>
 
-            // Clear social links
-            function clearSocialLinks() {
-                if (confirm('Are you sure you want to clear all social links?')) {
-                    document.getElementById('instagram').value = '';
-                    document.getElementById('twitter').value = '';
-                    document.getElementById('youtube').value = '';
-                    document.getElementById('github').value = '';
-                    showToast('Social links cleared!', 'success');
-                }
-            }
-
-            // Form submission
-            document.getElementById('settingsForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                
-                const formData = new FormData(e.target);
-                const settings = {};
-                
-                for (let [key, value] of formData.entries()) {
-                    if (key.includes('.')) {
-                        const keys = key.split('.');
-                        let current = settings;
-                        for (let i = 0; i < keys.length - 1; i++) {
-                            if (!current[keys[i]]) current[keys[i]] = {};
-                            current = current[keys[i]];
-                        }
-                        current[keys[keys.length - 1]] = value;
-                    } else {
-                        settings[key] = value;
-                    }
-                }
-                
-                try {
-                    const response = await fetch('/${user.username}/settings/update', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(settings)
-                    });
+            <form id="settingsForm" class="settings-form">
+                <!-- Profile Section -->
+                <div id="profile" class="settings-section active">
+                    <h2>Profile Information</h2>
                     
-                    if (response.ok) {
-                        showToast('Settings saved successfully!');
-                        // Update display name if changed
-                        if (settings.displayName) {
-                            document.querySelector('.nav-user').textContent = 'Welcome, ' + settings.displayName;
-                        }
-                    } else {
-                        showToast('Error saving settings', 'error');
+                    <div class="form-group">
+                        <label for="displayName">Display Name</label>
+                        <input type="text" id="displayName" name="displayName" value="${user.displayName}" placeholder="Your display name" maxlength="30">
+                        <small>This is the name visitors will see on your profile</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="bio">Bio</label>
+                        <textarea id="bio" name="bio" placeholder="Tell everyone about yourself..." maxlength="500">${user.settings.bio || ''}</textarea>
+                        <div class="char-count"><span id="bioCount">${(user.settings.bio || '').length}</span>/500</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Display Options</label>
+                        <div class="checkbox-group">
+                            <label class="checkbox">
+                                <input type="checkbox" name="showBadges" ${user.settings.showBadges ? 'checked' : ''}>
+                                <span class="checkmark"></span>
+                                Show Discord Badges
+                            </label>
+                            <label class="checkbox">
+                                <input type="checkbox" name="showStats" ${user.settings.showStats ? 'checked' : ''}>
+                                <span class="checkmark"></span>
+                                Show Profile Statistics
+                            </label>
+                            <label class="checkbox">
+                                <input type="checkbox" name="showSocialLinks" ${user.settings.showSocialLinks ? 'checked' : ''}>
+                                <span class="checkmark"></span>
+                                Show Social Links
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Appearance Section -->
+                <div id="appearance" class="settings-section">
+                    <h2>Appearance</h2>
+                    
+                    <div class="form-group">
+                        <label for="background">Background Video URL</label>
+                        <input type="url" id="background" name="background" value="${user.settings.background}" placeholder="https://example.com/background.mp4">
+                        <small>Enter a direct URL to a video file (MP4 recommended)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Preview Backgrounds</label>
+                        <div class="background-previews">
+                            <div class="bg-preview" data-url="https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&">
+                                <div class="bg-preview-image" style="background: linear-gradient(45deg, #667eea, #764ba2);"></div>
+                                <span>Default Anime</span>
+                            </div>
+                            <div class="bg-preview" data-url="https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&">
+                                <div class="bg-preview-image" style="background: linear-gradient(45deg, #ff6b6b, #ee5a24);"></div>
+                                <span>Sunset Theme</span>
+                            </div>
+                            <div class="bg-preview" data-url="https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&">
+                                <div class="bg-preview-image" style="background: linear-gradient(45deg, #00d2d3, #54a0ff);"></div>
+                                <span>Ocean Theme</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Social Links Section -->
+                <div id="social" class="settings-section">
+                    <h2>Social Media Links</h2>
+                    
+                    <div class="form-group">
+                        <label for="instagram">Instagram</label>
+                        <input type="url" id="instagram" name="socialLinks.instagram" value="${user.settings.socialLinks.instagram}" placeholder="https://instagram.com/yourusername">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="twitter">Twitter</label>
+                        <input type="url" id="twitter" name="socialLinks.twitter" value="${user.settings.socialLinks.twitter}" placeholder="https://twitter.com/yourusername">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="youtube">YouTube</label>
+                        <input type="url" id="youtube" name="socialLinks.youtube" value="${user.settings.socialLinks.youtube}" placeholder="https://youtube.com/yourchannel">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="github">GitHub</label>
+                        <input type="url" id="github" name="socialLinks.github" value="${user.settings.socialLinks.github}" placeholder="https://github.com/yourusername">
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn-danger" onclick="clearSocialLinks()">Clear All Social Links</button>
+                    </div>
+                </div>
+
+                <!-- Music Section -->
+                <div id="music" class="settings-section">
+                    <h2>Background Music</h2>
+                    
+                    <div class="form-group">
+                        <label for="music">Music URL</label>
+                        <input type="url" id="music" name="music" value="${user.settings.music}" placeholder="https://example.com/music.mp3">
+                        <small>Enter a direct URL to an audio file (MP3 recommended)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Music Controls</label>
+                        <div class="checkbox-group">
+                            <label class="checkbox">
+                                <input type="checkbox" name="autoPlayMusic">
+                                <span class="checkmark"></span>
+                                Auto-play music when profile loads
+                            </label>
+                            <label class="checkbox">
+                                <input type="checkbox" name="loopMusic" checked>
+                                <span class="checkmark"></span>
+                                Loop music
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Advanced Section -->
+                <div id="advanced" class="settings-section">
+                    <h2>Advanced Customization</h2>
+                    
+                    <div class="form-group">
+                        <label for="customCSS">Custom CSS</label>
+                        <textarea id="customCSS" name="customCSS" placeholder="Add your custom CSS here..." rows="8">${user.settings.customCSS || ''}</textarea>
+                        <small>Add custom styles to personalize your profile appearance</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="customHTML">Custom HTML</label>
+                        <textarea id="customHTML" name="customHTML" placeholder="Add your custom HTML here..." rows="8">${user.settings.customHTML || ''}</textarea>
+                        <small>Add custom HTML elements to your profile (use with caution)</small>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="window.location.href='/${user.username}'">Cancel</button>
+                    <button type="submit" class="btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // Tab navigation
+        document.querySelectorAll('.sidebar-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const target = link.getAttribute('href').substring(1);
+                
+                // Update active tab
+                document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+                document.querySelectorAll('.settings-section').forEach(s => s.classList.remove('active'));
+                
+                link.classList.add('active');
+                document.getElementById(target).classList.add('active');
+            });
+        });
+
+        // Background preview
+        document.querySelectorAll('.bg-preview').forEach(preview => {
+            preview.addEventListener('click', () => {
+                const url = preview.getAttribute('data-url');
+                document.getElementById('background').value = url;
+                
+                // Update background preview
+                document.querySelector('.background-video source').src = url;
+                document.querySelector('.background-video').load();
+            });
+        });
+
+        // Bio character count
+        const bioTextarea = document.getElementById('bio');
+        const bioCount = document.getElementById('bioCount');
+        
+        if (bioTextarea) {
+            bioTextarea.addEventListener('input', () => {
+                bioCount.textContent = bioTextarea.value.length;
+            });
+        }
+
+        // Clear social links
+        function clearSocialLinks() {
+            if (confirm('Are you sure you want to clear all social links?')) {
+                document.getElementById('instagram').value = '';
+                document.getElementById('twitter').value = '';
+                document.getElementById('youtube').value = '';
+                document.getElementById('github').value = '';
+                showToast('Social links cleared!', 'success');
+            }
+        }
+
+        // Form submission
+        document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const settings = {};
+            
+            for (let [key, value] of formData.entries()) {
+                if (key.includes('.')) {
+                    const keys = key.split('.');
+                    let current = settings;
+                    for (let i = 0; i < keys.length - 1; i++) {
+                        if (!current[keys[i]]) current[keys[i]] = {};
+                        current = current[keys[i]];
                     }
-                } catch (error) {
+                    current[keys[keys.length - 1]] = value;
+                } else {
+                    settings[key] = value;
+                }
+            }
+            
+            try {
+                const response = await fetch('/${user.username}/settings/update', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(settings)
+                });
+                
+                if (response.ok) {
+                    showToast('Settings saved successfully!');
+                    // Update display name if changed
+                    if (settings.displayName) {
+                        document.querySelector('.nav-user').textContent = 'Welcome, ' + settings.displayName;
+                    }
+                } else {
                     showToast('Error saving settings', 'error');
                 }
-            });
-
-            function showToast(message, type = 'success') {
-                const toast = document.getElementById('toast');
-                toast.textContent = message;
-                toast.className = 'toast ' + type;
-                toast.style.display = 'block';
-                
-                setTimeout(() => {
-                    toast.style.display = 'none';
-                }, 3000);
+            } catch (error) {
+                showToast('Error saving settings', 'error');
             }
+        });
 
-            // Remove welcome banner after 5 seconds if new user
-            ${isNew ? `
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast ' + type;
+            toast.style.display = 'block';
+            
             setTimeout(() => {
-                const banner = document.querySelector('.welcome-banner');
-                if (banner) {
-                    banner.style.opacity = '0';
-                    setTimeout(() => banner.remove(), 300);
-                }
-            }, 5000);
-            ` : ''}
-        </script>
-    </body>
-    </html>
+                toast.style.display = 'none';
+            }, 3000);
+        }
+
+        // Remove welcome banner after 5 seconds if new user
+        ${isNew ? `
+        setTimeout(() => {
+            const banner = document.querySelector('.welcome-banner');
+            if (banner) {
+                banner.style.opacity = '0';
+                setTimeout(() => banner.remove(), 300);
+            }
+        }, 5000);
+        ` : ''}
+    </script>
+</body>
+</html>
     `);
 });
 
