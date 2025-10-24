@@ -1,6 +1,7 @@
 const express = require('express');
 const http = require('http');
 const crypto = require('crypto');
+const cookieParser = require('cookie-parser');
 
 const app = express();
 const server = http.createServer(app);
@@ -33,6 +34,7 @@ app.use((req, res, next) => {
 
 app.use(express.static('.'));
 app.use(express.json());
+app.use(cookieParser());
 
 function generateState() {
     return crypto.randomBytes(16).toString('hex');
@@ -189,28 +191,38 @@ app.get('/', (req, res) => {
             }
             
             .hero-content {
-                max-width: 600px;
+                max-width: 800px;
             }
             
             .hero-title {
-                font-size: 3.5em;
+                font-size: 4em;
                 font-weight: 800;
-                background: linear-gradient(135deg, #fff, var(--discord-blurple));
+                background: linear-gradient(135deg, #fff, var(--discord-blurple), #ff6b6b);
                 -webkit-background-clip: text;
                 -webkit-text-fill-color: transparent;
                 margin-bottom: 20px;
                 line-height: 1.1;
+                animation: glow 2s ease-in-out infinite alternate;
+            }
+            
+            @keyframes glow {
+                from {
+                    text-shadow: 0 0 20px rgba(88, 101, 242, 0.5);
+                }
+                to {
+                    text-shadow: 0 0 30px rgba(88, 101, 242, 0.8), 0 0 40px rgba(88, 101, 242, 0.6);
+                }
             }
             
             .hero-subtitle {
-                font-size: 1.3em;
+                font-size: 1.5em;
                 color: var(--text-secondary);
                 margin-bottom: 10px;
                 font-weight: 400;
             }
             
             .hero-description {
-                font-size: 1.1em;
+                font-size: 1.2em;
                 color: var(--text-tertiary);
                 margin-bottom: 40px;
                 line-height: 1.6;
@@ -220,31 +232,32 @@ app.get('/', (req, res) => {
                 background: var(--bg-glass);
                 backdrop-filter: blur(20px);
                 border: 1px solid var(--border-glass);
-                border-radius: 16px;
-                padding: 30px;
-                max-width: 400px;
-                margin: 0 auto 30px;
+                border-radius: 20px;
+                padding: 40px;
+                max-width: 500px;
+                margin: 0 auto 40px;
+                box-shadow: var(--shadow-glass);
             }
             
             .form-title {
-                font-size: 1.3em;
+                font-size: 1.5em;
                 font-weight: 700;
-                margin-bottom: 20px;
+                margin-bottom: 25px;
                 color: var(--text-primary);
             }
             
             .input-group {
-                margin-bottom: 20px;
+                margin-bottom: 25px;
             }
             
             .username-input {
                 width: 100%;
                 background: rgba(255, 255, 255, 0.1);
                 border: 1px solid var(--border-glass);
-                border-radius: 8px;
-                padding: 12px 16px;
+                border-radius: 12px;
+                padding: 16px 20px;
                 color: var(--text-primary);
-                font-size: 1em;
+                font-size: 1.1em;
                 transition: all 0.3s ease;
             }
             
@@ -252,6 +265,8 @@ app.get('/', (req, res) => {
                 outline: none;
                 border-color: var(--discord-blurple);
                 background: rgba(255, 255, 255, 0.15);
+                transform: translateY(-2px);
+                box-shadow: 0 10px 25px rgba(88, 101, 242, 0.2);
             }
             
             .username-input::placeholder {
@@ -260,7 +275,7 @@ app.get('/', (req, res) => {
             
             .cta-buttons {
                 display: flex;
-                gap: 15px;
+                gap: 20px;
                 justify-content: center;
                 flex-wrap: wrap;
             }
@@ -269,9 +284,9 @@ app.get('/', (req, res) => {
                 background: var(--discord-blurple);
                 color: white;
                 border: none;
-                border-radius: 12px;
-                padding: 16px 32px;
-                font-size: 1.1em;
+                border-radius: 15px;
+                padding: 18px 40px;
+                font-size: 1.2em;
                 font-weight: 600;
                 cursor: pointer;
                 transition: all 0.3s ease;
@@ -281,17 +296,17 @@ app.get('/', (req, res) => {
             
             .cta-primary:hover {
                 background: #4752c4;
-                transform: translateY(-3px);
-                box-shadow: 0 10px 25px rgba(88, 101, 242, 0.3);
+                transform: translateY(-5px);
+                box-shadow: 0 15px 35px rgba(88, 101, 242, 0.4);
             }
             
             .cta-secondary {
                 background: rgba(255, 255, 255, 0.1);
                 color: var(--text-primary);
                 border: 1px solid var(--border-glass);
-                border-radius: 12px;
-                padding: 16px 32px;
-                font-size: 1.1em;
+                border-radius: 15px;
+                padding: 18px 40px;
+                font-size: 1.2em;
                 font-weight: 600;
                 cursor: pointer;
                 transition: all 0.3s ease;
@@ -301,18 +316,29 @@ app.get('/', (req, res) => {
             
             .cta-secondary:hover {
                 background: rgba(255, 255, 255, 0.2);
-                transform: translateY(-3px);
+                transform: translateY(-5px);
+                box-shadow: 0 15px 35px rgba(255, 255, 255, 0.1);
             }
             
             .features-section {
-                padding: 80px 30px;
+                padding: 100px 30px;
                 background: rgba(0, 0, 0, 0.3);
+            }
+            
+            .section-title {
+                text-align: center;
+                font-size: 3em;
+                font-weight: 800;
+                margin-bottom: 60px;
+                background: linear-gradient(135deg, #fff, var(--discord-blurple));
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
             }
             
             .features-grid {
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-                gap: 30px;
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                gap: 40px;
                 max-width: 1200px;
                 margin: 0 auto;
             }
@@ -321,33 +347,67 @@ app.get('/', (req, res) => {
                 background: var(--bg-glass);
                 backdrop-filter: blur(20px);
                 border: 1px solid var(--border-glass);
-                border-radius: 16px;
-                padding: 30px;
+                border-radius: 20px;
+                padding: 40px 30px;
                 text-align: center;
                 transition: all 0.3s ease;
             }
             
             .feature-card:hover {
-                transform: translateY(-5px);
+                transform: translateY(-10px);
                 box-shadow: var(--shadow-glass);
+                border-color: var(--discord-blurple);
             }
             
             .feature-icon {
-                font-size: 2.5em;
-                margin-bottom: 15px;
+                font-size: 3em;
+                margin-bottom: 20px;
             }
             
             .feature-title {
-                font-size: 1.3em;
+                font-size: 1.4em;
                 font-weight: 700;
-                margin-bottom: 10px;
+                margin-bottom: 15px;
                 color: var(--text-primary);
             }
             
             .feature-desc {
                 color: var(--text-secondary);
-                font-size: 0.95em;
-                line-height: 1.5;
+                font-size: 1em;
+                line-height: 1.6;
+            }
+            
+            .stats-section {
+                padding: 80px 30px;
+                text-align: center;
+            }
+            
+            .stats-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 30px;
+                max-width: 1000px;
+                margin: 0 auto;
+            }
+            
+            .stat-card {
+                background: var(--bg-glass);
+                backdrop-filter: blur(20px);
+                border: 1px solid var(--border-glass);
+                border-radius: 15px;
+                padding: 30px;
+            }
+            
+            .stat-number {
+                font-size: 2.5em;
+                font-weight: 800;
+                color: var(--discord-blurple);
+                margin-bottom: 10px;
+            }
+            
+            .stat-label {
+                color: var(--text-secondary);
+                font-size: 1.1em;
             }
             
             .error-message {
@@ -383,6 +443,58 @@ app.get('/', (req, res) => {
                 font-weight: 500;
                 display: none;
             }
+
+            .floating-shapes {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                pointer-events: none;
+                z-index: -1;
+            }
+            
+            .shape {
+                position: absolute;
+                opacity: 0.1;
+                animation: float 6s ease-in-out infinite;
+            }
+            
+            .shape:nth-child(1) {
+                top: 20%;
+                left: 10%;
+                animation-delay: 0s;
+            }
+            
+            .shape:nth-child(2) {
+                top: 60%;
+                right: 10%;
+                animation-delay: 2s;
+            }
+            
+            .shape:nth-child(3) {
+                bottom: 20%;
+                left: 20%;
+                animation-delay: 4s;
+            }
+            
+            @keyframes float {
+                0%, 100% {
+                    transform: translateY(0px) rotate(0deg);
+                }
+                50% {
+                    transform: translateY(-20px) rotate(180deg);
+                }
+            }
+
+            .footer {
+                background: var(--bg-glass);
+                backdrop-filter: blur(20px);
+                border-top: 1px solid var(--border-glass);
+                padding: 40px 30px;
+                text-align: center;
+                color: var(--text-secondary);
+            }
         </style>
     </head>
     <body>
@@ -393,60 +505,104 @@ app.get('/', (req, res) => {
             <source src="https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&" type="video/mp4">
         </video>
 
+        <div class="floating-shapes">
+            <div class="shape" style="font-size: 100px;">🎮</div>
+            <div class="shape" style="font-size: 80px;">🌟</div>
+            <div class="shape" style="font-size: 120px;">⚡</div>
+        </div>
+
         <nav class="navbar">
             <div class="logo">DiscordProfile</div>
             <div class="nav-links">
                 <a href="/" class="nav-link">Home</a>
-                <a href="/features" class="nav-link">Features</a>
-                <a href="/about" class="nav-link">About</a>
-                <a href="#" class="login-btn" id="registerBtn">Login / Register</a>
+                <a href="#features" class="nav-link">Features</a>
+                <a href="#stats" class="nav-link">Stats</a>
+                <a href="#" class="login-btn" id="registerBtn">Get Started</a>
             </div>
         </nav>
 
         <section class="hero-section">
             <div class="hero-content">
-                <h1 class="hero-title">Bring your discord profile to another level.</h1>
-                <p class="hero-subtitle">try ... now</p>
-                <p class="hero-description">Showcase your Discord profile with style. Display your badges, status, and achievements in a beautiful, customizable profile page that stands out from the crowd.</p>
+                <h1 class="hero-title">Elevate Your Discord Presence</h1>
+                <p class="hero-subtitle">Create stunning profile pages that stand out</p>
+                <p class="hero-description">Transform your Discord identity into a beautiful, customizable profile page. Showcase your badges, stats, and personality with stunning visuals and animations.</p>
                 
                 <div class="username-form">
-                    <h3 class="form-title">Choose a name here!</h3>
+                    <h3 class="form-title">Claim Your Unique Profile</h3>
                     <div class="input-group">
-                        <input type="text" class="username-input" id="usernameInput" placeholder="Enter your username (e.g., hwid)" maxlength="20">
+                        <input type="text" class="username-input" id="usernameInput" placeholder="Enter your desired username (e.g., hwid)" maxlength="20">
                     </div>
-                    <button class="cta-primary" onclick="registerUser()">Login with this name</button>
+                    <button class="cta-primary" onclick="registerUser()">Create My Profile →</button>
                 </div>
                 
                 <div class="cta-buttons">
-                    <a href="/features" class="cta-secondary">Learn More</a>
+                    <a href="#features" class="cta-secondary">Explore Features</a>
+                    <a href="#stats" class="cta-secondary">View Examples</a>
                 </div>
             </div>
         </section>
 
-        <section class="features-section">
+        <section id="features" class="features-section">
+            <h2 class="section-title">Amazing Features</h2>
             <div class="features-grid">
                 <div class="feature-card">
-                    <div class="feature-icon">🎮</div>
+                    <div class="feature-icon">🎨</div>
                     <h3 class="feature-title">Custom Profiles</h3>
-                    <p class="feature-desc">Get your own personalized profile URL like: yourname.discordprofile.com</p>
+                    <p class="feature-desc">Get your own personalized profile URL with custom backgrounds, colors, and layouts that reflect your style.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">🏆</div>
-                    <h3 class="feature-title">Badge Display</h3>
-                    <p class="feature-desc">Show off all your Discord badges and achievements in one place</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🎨</div>
-                    <h3 class="feature-title">Customizable</h3>
-                    <p class="feature-desc">Personalize your profile with different themes and layouts</p>
+                    <h3 class="feature-title">Badge Showcase</h3>
+                    <p class="feature-desc">Display all your Discord badges and achievements in an elegant, organized way that impresses visitors.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">⚡</div>
-                    <h3 class="feature-title">Fast & Secure</h3>
-                    <p class="feature-desc">Lightning fast loading with secure Discord OAuth integration</p>
+                    <h3 class="feature-title">Lightning Fast</h3>
+                    <p class="feature-desc">Optimized for speed with instant loading times and smooth animations for the best user experience.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔒</div>
+                    <h3 class="feature-title">Secure & Private</h3>
+                    <p class="feature-desc">Built with security in mind. Your data is protected with secure Discord OAuth integration.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎵</div>
+                    <h3 class="feature-title">Background Music</h3>
+                    <p class="feature-desc">Add custom background music to your profile to create an immersive experience for your visitors.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📱</div>
+                    <h3 class="feature-title">Mobile Friendly</h3>
+                    <p class="feature-desc">Perfectly responsive design that looks amazing on all devices, from desktop to mobile.</p>
                 </div>
             </div>
         </section>
+
+        <section id="stats" class="stats-section">
+            <h2 class="section-title">Why Choose Us</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">∞</div>
+                    <div class="stat-label">Customization Options</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">100%</div>
+                    <div class="stat-label">Free Forever</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">⚡</div>
+                    <div class="stat-label">Instant Setup</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">24/7</div>
+                    <div class="stat-label">Active Support</div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="footer">
+            <p>&copy; 2024 DiscordProfile. All rights reserved. | Made with ❤️ for the Discord community</p>
+        </footer>
 
         <script>
             function showError(message) {
@@ -511,6 +667,20 @@ app.get('/', (req, res) => {
                     registerUser();
                 }
             });
+
+            // Smooth scrolling for anchor links
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                });
+            });
         </script>
     </body>
     </html>
@@ -520,9 +690,12 @@ app.get('/', (req, res) => {
 // Discord OAuth Routes
 app.get('/auth/discord', (req, res) => {
     const state = generateState();
+    const registeringUsername = req.query.username || 'user';
+    
     sessions.set(state, { 
         createdAt: Date.now(),
-        registering: true
+        registering: true,
+        desiredUsername: registeringUsername
     });
     
     const discordAuthUrl = 'https://discord.com/api/oauth2/authorize?client_id=' + DISCORD_CONFIG.clientId + '&redirect_uri=' + encodeURIComponent(DISCORD_CONFIG.redirectUri) + '&response_type=code&scope=identify&state=' + state;
@@ -579,8 +752,13 @@ app.get('/auth/discord/callback', async (req, res) => {
             return res.redirect('/?error=user_fetch_failed');
         }
         
-        // Generate a username if not provided (fallback)
+        // Get the desired username from session state
+        const sessionState = sessions.get(state);
         let username = userData.username.toLowerCase();
+        
+        if (sessionState && sessionState.desiredUsername) {
+            username = sessionState.desiredUsername.toLowerCase();
+        }
         
         // Check if username already exists, if so add discriminator
         if (users.has(username)) {
@@ -592,6 +770,7 @@ app.get('/auth/discord/callback', async (req, res) => {
             discordData: userData,
             access_token: tokenData.access_token,
             username: username,
+            displayName: username, // Use the chosen username as display name
             createdAt: Date.now(),
             profileViews: 0,
             settings: {
@@ -621,8 +800,8 @@ app.get('/auth/discord/callback', async (req, res) => {
         // Set session cookie
         res.cookie('session', sessionId, { httpOnly: true, maxAge: 3600000 });
         
-        // Redirect to user's profile
-        res.redirect('/' + username);
+        // Redirect to settings page for new users
+        res.redirect('/' + username + '/settings?new=true');
         
     } catch (error) {
         console.error('❌ OAuth error:', error);
@@ -636,23 +815,99 @@ function checkProfileOwnership(req, res, next) {
     const sessionId = req.cookies?.session;
     
     if (!sessionId || !sessions.has(sessionId)) {
-        return res.status(403).send('Access denied. Please log in.');
+        return res.status(403).send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Access Denied</title>
+                <style>
+                    body { 
+                        background: #000; 
+                        color: white; 
+                        font-family: Arial; 
+                        display: flex; 
+                        justify-content: center; 
+                        align-items: center; 
+                        height: 100vh; 
+                        margin: 0; 
+                    }
+                    .message { 
+                        text-align: center; 
+                        background: rgba(255,255,255,0.1); 
+                        padding: 40px; 
+                        border-radius: 10px; 
+                        backdrop-filter: blur(10px);
+                    }
+                    a { 
+                        color: #5865F2; 
+                        text-decoration: none; 
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="message">
+                    <h2>Access Denied</h2>
+                    <p>Please log in to access settings.</p>
+                    <a href="/">← Back to Home</a>
+                </div>
+            </body>
+            </html>
+        `);
     }
     
     const session = sessions.get(sessionId);
     const user = users.get(session.username);
     
     if (!user || user.username !== username.toLowerCase()) {
-        return res.status(403).send('Access denied. You can only edit your own profile.');
+        return res.status(403).send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Access Denied</title>
+                <style>
+                    body { 
+                        background: #000; 
+                        color: white; 
+                        font-family: Arial; 
+                        display: flex; 
+                        justify-content: center; 
+                        align-items: center; 
+                        height: 100vh; 
+                        margin: 0; 
+                    }
+                    .message { 
+                        text-align: center; 
+                        background: rgba(255,255,255,0.1); 
+                        padding: 40px; 
+                        border-radius: 10px; 
+                        backdrop-filter: blur(10px);
+                    }
+                    a { 
+                        color: #5865F2; 
+                        text-decoration: none; 
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="message">
+                    <h2>Access Denied</h2>
+                    <p>You can only edit your own profile settings.</p>
+                    <a href="/${username}">← Back to Profile</a>
+                </div>
+            </body>
+            </html>
+        `);
     }
     
     req.user = user;
+    req.sessionId = sessionId;
     next();
 }
 
 // Settings page - only accessible to profile owner
 app.get('/:username/settings', checkProfileOwnership, (req, res) => {
     const user = req.user;
+    const isNew = req.query.new === 'true';
     
     res.send(`
     <!DOCTYPE html>
@@ -660,7 +915,7 @@ app.get('/:username/settings', checkProfileOwnership, (req, res) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Settings - ${user.discordData.global_name || user.discordData.username}</title>
+        <title>Settings - ${user.displayName}</title>
         <meta name="robots" content="noindex, nofollow">
         <meta name="referrer" content="no-referrer">
         <style>
@@ -675,7 +930,7 @@ app.get('/:username/settings', checkProfileOwnership, (req, res) => {
         <nav class="navbar">
             <a href="/${user.username}" class="logo">← Back to Profile</a>
             <div class="nav-links">
-                <span class="nav-user">Welcome, ${user.discordData.global_name || user.discordData.username}</span>
+                <span class="nav-user">Welcome, ${user.displayName}</span>
             </div>
         </nav>
 
@@ -692,6 +947,13 @@ app.get('/:username/settings', checkProfileOwnership, (req, res) => {
             </div>
 
             <div class="settings-content">
+                ${isNew ? `
+                <div class="welcome-banner">
+                    <h2>🎉 Welcome to DiscordProfile!</h2>
+                    <p>Customize your profile to make it truly yours. Start by setting up your bio and appearance.</p>
+                </div>
+                ` : ''}
+                
                 <h1>Profile Settings</h1>
                 <p class="settings-subtitle">Customize your profile appearance and behavior</p>
 
@@ -699,6 +961,12 @@ app.get('/:username/settings', checkProfileOwnership, (req, res) => {
                     <!-- Profile Section -->
                     <div id="profile" class="settings-section active">
                         <h2>Profile Information</h2>
+                        
+                        <div class="form-group">
+                            <label for="displayName">Display Name</label>
+                            <input type="text" id="displayName" name="displayName" value="${user.displayName}" placeholder="Your display name" maxlength="30">
+                            <small>This is the name visitors will see on your profile</small>
+                        </div>
                         
                         <div class="form-group">
                             <label for="bio">Bio</label>
@@ -742,16 +1010,16 @@ app.get('/:username/settings', checkProfileOwnership, (req, res) => {
                             <label>Preview Backgrounds</label>
                             <div class="background-previews">
                                 <div class="bg-preview" data-url="https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&">
-                                    <div class="bg-preview-image"></div>
+                                    <div class="bg-preview-image" style="background: linear-gradient(45deg, #667eea, #764ba2);"></div>
                                     <span>Default Anime</span>
                                 </div>
                                 <div class="bg-preview" data-url="https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&">
-                                    <div class="bg-preview-image"></div>
-                                    <span>Space Theme</span>
+                                    <div class="bg-preview-image" style="background: linear-gradient(45deg, #ff6b6b, #ee5a24);"></div>
+                                    <span>Sunset Theme</span>
                                 </div>
                                 <div class="bg-preview" data-url="https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&">
-                                    <div class="bg-preview-image"></div>
-                                    <span>Cyberpunk</span>
+                                    <div class="bg-preview-image" style="background: linear-gradient(45deg, #00d2d3, #54a0ff);"></div>
+                                    <span>Ocean Theme</span>
                                 </div>
                             </div>
                         </div>
@@ -843,9 +1111,11 @@ app.get('/:username/settings', checkProfileOwnership, (req, res) => {
             const bioTextarea = document.getElementById('bio');
             const bioCount = document.getElementById('bioCount');
             
-            bioTextarea.addEventListener('input', () => {
-                bioCount.textContent = bioTextarea.value.length;
-            });
+            if (bioTextarea) {
+                bioTextarea.addEventListener('input', () => {
+                    bioCount.textContent = bioTextarea.value.length;
+                });
+            }
 
             // Form submission
             document.getElementById('settingsForm').addEventListener('submit', async (e) => {
@@ -865,6 +1135,10 @@ app.get('/:username/settings', checkProfileOwnership, (req, res) => {
                     
                     if (response.ok) {
                         showToast('Settings saved successfully!');
+                        // Update display name if changed
+                        if (settings.displayName) {
+                            document.querySelector('.nav-user').textContent = 'Welcome, ' + settings.displayName;
+                        }
                     } else {
                         showToast('Error saving settings', 'error');
                     }
@@ -883,6 +1157,17 @@ app.get('/:username/settings', checkProfileOwnership, (req, res) => {
                     toast.style.display = 'none';
                 }, 3000);
             }
+
+            // Remove welcome banner after 5 seconds if new user
+            ${isNew ? `
+            setTimeout(() => {
+                const banner = document.querySelector('.welcome-banner');
+                if (banner) {
+                    banner.style.opacity = '0';
+                    setTimeout(() => banner.remove(), 300);
+                }
+            }, 5000);
+            ` : ''}
         </script>
     </body>
     </html>
@@ -894,11 +1179,15 @@ app.post('/:username/settings/update', checkProfileOwnership, (req, res) => {
     const user = req.user;
     const newSettings = req.body;
     
-    // Update user settings
+    // Update user settings and display name
     user.settings = {
         ...user.settings,
         ...newSettings
     };
+    
+    if (newSettings.displayName) {
+        user.displayName = newSettings.displayName;
+    }
     
     users.set(user.username, user);
     
@@ -973,7 +1262,30 @@ app.get('/:username', (req, res) => {
     const isOwner = sessionId && sessions.has(sessionId) && sessions.get(sessionId).username === username.toLowerCase();
     const settingsButton = isOwner ? `<a href="/${username}/settings" class="settings-btn">⚙️ Settings</a>` : '';
     
-    res.send('<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>' + (user.discordData.global_name || user.discordData.username) + '\'s Profile - DiscordProfile</title><meta name="description" content="' + (user.discordData.global_name || user.discordData.username) + '\'s Discord profile"><meta name="robots" content="noindex, nofollow"><meta name="referrer" content="no-referrer"><meta http-equiv="Permissions-Policy" content="browsing-topics=(), run-ad-auction=(), join-ad-interest-group=(), private-state-token-redemption=(), private-state-token-issuance=(), private-aggregation=(), attribution-reporting=()"><style>' + getProfileCSS() + (user.settings.customCSS || '') + '</style></head><body><video class="background-video" autoplay muted loop playsinline id="backgroundVideo"><source src="' + user.settings.background + '" type="video/mp4"></video>' + (user.settings.music ? '<audio id="backgroundMusic" loop><source src="' + user.settings.music + '" type="audio/mp3"></audio>' : '') + '<nav class="navbar"><a href="/" class="logo">DiscordProfile</a><div class="nav-links"><a href="/" class="nav-link">Home</a><a href="/features" class="nav-link">Features</a><a href="/about" class="nav-link">About</a>' + settingsButton + '<a href="/auth/discord" class="get-profile-btn">Get Your Profile</a></div></nav><div class="container"><div class="profile-card"><div class="profile-header"><div class="profile-pic-container"><div class="profile-pic"><img src="' + avatarUrl + '" alt="' + (user.discordData.global_name || user.discordData.username) + '\'s Profile Picture"></div><div class="status-indicator status-online"></div></div><div class="profile-info"><div class="name-container"><h1 class="name">' + (user.discordData.global_name || user.discordData.username) + '</h1></div><div class="username">@' + user.discordData.username + '</div><div class="profile-url">' + req.headers.host + '/' + username + '</div></div></div>' + bioHTML + '<div class="badges-container">' + badgesHTML + '</div>' + statsHTML + socialLinksHTML + (user.settings.customHTML || '') + '</div></div>' + (user.settings.music ? '<script>document.getElementById(\'backgroundMusic\').play().catch(e => console.log(\'Autoplay blocked\'));</script>' : '') + '</body></html>');
+    // Check if we should show navbar (only show on home page, not on profiles)
+    const showNavbar = false; // Hide navbar on profile pages
+    
+    const navbarHTML = showNavbar ? `
+        <nav class="navbar">
+            <a href="/" class="logo">DiscordProfile</a>
+            <div class="nav-links">
+                <a href="/" class="nav-link">Home</a>
+                <a href="/features" class="nav-link">Features</a>
+                <a href="/about" class="nav-link">About</a>
+                ${settingsButton}
+                <a href="/auth/discord" class="get-profile-btn">Get Your Profile</a>
+            </div>
+        </nav>
+    ` : settingsButton ? `
+        <nav class="navbar profile-navbar">
+            <a href="/" class="logo">DiscordProfile</a>
+            <div class="nav-links">
+                ${settingsButton}
+            </div>
+        </nav>
+    ` : '';
+    
+    res.send('<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>' + user.displayName + '\'s Profile - DiscordProfile</title><meta name="description" content="' + user.displayName + '\'s Discord profile"><meta name="robots" content="noindex, nofollow"><meta name="referrer" content="no-referrer"><meta http-equiv="Permissions-Policy" content="browsing-topics=(), run-ad-auction=(), join-ad-interest-group=(), private-state-token-redemption=(), private-state-token-issuance=(), private-aggregation=(), attribution-reporting=()"><style>' + getProfileCSS() + (user.settings.customCSS || '') + '</style></head><body><video class="background-video" autoplay muted loop playsinline id="backgroundVideo"><source src="' + user.settings.background + '" type="video/mp4"></video>' + (user.settings.music ? '<audio id="backgroundMusic" loop><source src="' + user.settings.music + '" type="audio/mp3"></audio>' : '') + navbarHTML + '<div class="container"><div class="profile-card"><div class="profile-header"><div class="profile-pic-container"><div class="profile-pic"><img src="' + avatarUrl + '" alt="' + user.displayName + '\'s Profile Picture"></div><div class="status-indicator status-online"></div></div><div class="profile-info"><div class="name-container"><h1 class="name">' + user.displayName + '</h1></div><div class="username">@' + user.username + '</div><div class="profile-url">' + req.headers.host + '/' + username + '</div></div></div>' + bioHTML + '<div class="badges-container">' + badgesHTML + '</div>' + statsHTML + socialLinksHTML + (user.settings.customHTML || '') + '</div></div>' + (user.settings.music ? '<script>document.getElementById(\'backgroundMusic\').play().catch(e => console.log(\'Autoplay blocked\'));</script>' : '') + '</body></html>');
 });
 
 // Helper functions
@@ -1089,6 +1401,11 @@ function getProfileCSS() {
             z-index: 1000;
         }
         
+        .profile-navbar {
+            background: transparent;
+            border: none;
+        }
+        
         .logo {
             font-size: 1.4em;
             font-weight: 800;
@@ -1161,7 +1478,7 @@ function getProfileCSS() {
             justify-content: center;
             position: relative;
             z-index: 1;
-            padding: 100px 20px 50px;
+            padding: 20px;
         }
         
         .profile-card {
@@ -1504,6 +1821,30 @@ function getSettingsCSS() {
             padding-bottom: 10px;
         }
         
+        .welcome-banner {
+            background: linear-gradient(135deg, var(--discord-blurple), #764ba2);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        .welcome-banner h2 {
+            margin-bottom: 10px;
+            border: none;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
         .form-group {
             margin-bottom: 25px;
         }
@@ -1612,7 +1953,6 @@ function getSettingsCSS() {
         .bg-preview-image {
             width: 100%;
             height: 80px;
-            background: linear-gradient(45deg, #667eea, #764ba2);
             border-radius: 8px;
             margin-bottom: 8px;
             border: 2px solid transparent;
@@ -1694,7 +2034,7 @@ function getSettingsCSS() {
 
 // Serve features page
 app.get('/features', (req, res) => {
-    res.redirect('/');
+    res.redirect('/#features');
 });
 
 // Serve about page
