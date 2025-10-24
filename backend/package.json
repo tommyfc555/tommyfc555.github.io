@@ -1,32 +1,15 @@
 {
-  "name": "discord-oauth-profile",
+  "name": "discord-profile",
   "version": "1.0.0",
-  "description": "A secure Discord OAuth2 profile page with music and video background",
+  "description": "Discord OAuth Profile Page",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js"
   },
-  "keywords": [
-    "discord",
-    "oauth",
-    "profile",
-    "express",
-    "music",
-    "background-video"
-  ],
-  "author": "Black",
-  "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
-    "dotenv": "^16.3.1"
+    "express": "^4.18.2"
   },
   "engines": {
     "node": ">=18.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "your-repository-url-here"
   }
 }
