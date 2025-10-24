@@ -115,7 +115,7 @@ app.get('/auth/discord/callback', async (req, res) => {
         });
         
         console.log('✅ Login successful for user:', userData.username);
-        res.redirect(`/?session=${sessionId}`);
+        res.redirect(`/profile?session=${sessionId}`);
         
     } catch (error) {
         console.error('❌ OAuth error:', error);
@@ -144,7 +144,7 @@ app.get('/auth/logout', (req, res) => {
     res.redirect('/');
 });
 
-// Serve main page with enhanced Discord profile
+// Serve homepage
 app.get('/', (req, res) => {
     res.send(`
     <!DOCTYPE html>
@@ -152,7 +152,343 @@ app.get('/', (req, res) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Black - Discord Profile</title>
+        <title>Discord Profile - Home</title>
+        <meta http-equiv="Permissions-Policy" content="browsing-topics=(), run-ad-auction=(), join-ad-interest-group=(), private-state-token-redemption=(), private-state-token-issuance=(), private-aggregation=(), attribution-reporting=()">
+        
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                -webkit-tap-highlight-color: transparent;
+            }
+            
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+            
+            :root {
+                --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                --discord-blurple: #5865F2;
+                --discord-green: #57F287;
+                --discord-yellow: #FEE75C;
+                --discord-red: #ED4245;
+                --discord-gray: #747f8d;
+                --text-primary: #ffffff;
+                --text-secondary: #b9bbbe;
+                --text-tertiary: #72767d;
+                --bg-glass: rgba(0, 0, 0, 0.5);
+                --border-glass: rgba(255, 255, 255, 0.1);
+                --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.3);
+            }
+            
+            body {
+                background: #000;
+                color: var(--text-primary);
+                min-height: 100vh;
+                overflow: auto;
+                position: relative;
+            }
+            
+            .background-video {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                z-index: -1;
+                filter: brightness(0.6);
+            }
+            
+            .navbar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                background: var(--bg-glass);
+                backdrop-filter: blur(20px);
+                border-bottom: 1px solid var(--border-glass);
+                padding: 15px 30px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                z-index: 1000;
+            }
+            
+            .logo {
+                font-size: 1.4em;
+                font-weight: 800;
+                background: linear-gradient(135deg, #fff, var(--discord-blurple));
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+            }
+            
+            .nav-links {
+                display: flex;
+                gap: 20px;
+                align-items: center;
+            }
+            
+            .nav-link {
+                color: var(--text-secondary);
+                text-decoration: none;
+                font-weight: 500;
+                font-size: 0.9em;
+                transition: color 0.3s ease;
+                padding: 8px 16px;
+                border-radius: 8px;
+            }
+            
+            .nav-link:hover {
+                color: var(--text-primary);
+                background: rgba(255, 255, 255, 0.1);
+            }
+            
+            .login-btn {
+                background: var(--discord-blurple);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 10px 20px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                text-decoration: none;
+                font-size: 0.9em;
+            }
+            
+            .login-btn:hover {
+                background: #4752c4;
+                transform: translateY(-2px);
+            }
+            
+            .hero-section {
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                padding: 100px 30px 50px;
+            }
+            
+            .hero-content {
+                max-width: 600px;
+            }
+            
+            .hero-title {
+                font-size: 3.5em;
+                font-weight: 800;
+                background: linear-gradient(135deg, #fff, var(--discord-blurple));
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                margin-bottom: 20px;
+                line-height: 1.1;
+            }
+            
+            .hero-subtitle {
+                font-size: 1.3em;
+                color: var(--text-secondary);
+                margin-bottom: 10px;
+                font-weight: 400;
+            }
+            
+            .hero-description {
+                font-size: 1.1em;
+                color: var(--text-tertiary);
+                margin-bottom: 40px;
+                line-height: 1.6;
+            }
+            
+            .cta-buttons {
+                display: flex;
+                gap: 15px;
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+            
+            .cta-primary {
+                background: var(--discord-blurple);
+                color: white;
+                border: none;
+                border-radius: 12px;
+                padding: 16px 32px;
+                font-size: 1.1em;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                text-decoration: none;
+            }
+            
+            .cta-primary:hover {
+                background: #4752c4;
+                transform: translateY(-3px);
+                box-shadow: 0 10px 25px rgba(88, 101, 242, 0.3);
+            }
+            
+            .cta-secondary {
+                background: rgba(255, 255, 255, 0.1);
+                color: var(--text-primary);
+                border: 1px solid var(--border-glass);
+                border-radius: 12px;
+                padding: 16px 32px;
+                font-size: 1.1em;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                text-decoration: none;
+            }
+            
+            .cta-secondary:hover {
+                background: rgba(255, 255, 255, 0.2);
+                transform: translateY(-3px);
+            }
+            
+            .features-section {
+                padding: 80px 30px;
+                background: rgba(0, 0, 0, 0.3);
+            }
+            
+            .features-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 30px;
+                max-width: 1200px;
+                margin: 0 auto;
+            }
+            
+            .feature-card {
+                background: var(--bg-glass);
+                backdrop-filter: blur(20px);
+                border: 1px solid var(--border-glass);
+                border-radius: 16px;
+                padding: 30px;
+                text-align: center;
+                transition: all 0.3s ease;
+            }
+            
+            .feature-card:hover {
+                transform: translateY(-5px);
+                box-shadow: var(--shadow-glass);
+            }
+            
+            .feature-icon {
+                font-size: 2.5em;
+                margin-bottom: 15px;
+            }
+            
+            .feature-title {
+                font-size: 1.3em;
+                font-weight: 700;
+                margin-bottom: 10px;
+                color: var(--text-primary);
+            }
+            
+            .feature-desc {
+                color: var(--text-secondary);
+                font-size: 0.95em;
+                line-height: 1.5;
+            }
+            
+            .error-message {
+                position: fixed;
+                top: 80px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(237, 66, 69, 0.9);
+                color: white;
+                padding: 12px 20px;
+                border-radius: 8px;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                z-index: 1000;
+                font-size: 0.9em;
+                font-weight: 500;
+                display: none;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="error-message" id="errorMessage"></div>
+        
+        <video class="background-video" autoplay muted loop playsinline id="backgroundVideo">
+            <source src="https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&" type="video/mp4">
+        </video>
+
+        <nav class="navbar">
+            <div class="logo">DiscordProfile</div>
+            <div class="nav-links">
+                <a href="/" class="nav-link">Home</a>
+                <a href="/features" class="nav-link">Features</a>
+                <a href="/about" class="nav-link">About</a>
+                <a href="/auth/discord" class="login-btn">Login / Register</a>
+            </div>
+        </nav>
+
+        <section class="hero-section">
+            <div class="hero-content">
+                <h1 class="hero-title">Bring your discord profile to another level.</h1>
+                <p class="hero-subtitle">try ... now</p>
+                <p class="hero-description">Showcase your Discord profile with style. Display your badges, status, and achievements in a beautiful, customizable profile page that stands out from the crowd.</p>
+                <div class="cta-buttons">
+                    <a href="/auth/discord" class="cta-primary">Sign In Here!</a>
+                    <a href="/features" class="cta-secondary">Learn More</a>
+                </div>
+            </div>
+        </section>
+
+        <section class="features-section">
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🎮</div>
+                    <h3 class="feature-title">Real-time Status</h3>
+                    <p class="feature-desc">Show your online, idle, DND, or offline status with beautiful indicators</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🏆</div>
+                    <h3 class="feature-title">Badge Display</h3>
+                    <p class="feature-desc">Show off all your Discord badges and achievements in one place</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎨</div>
+                    <h3 class="feature-title">Customizable</h3>
+                    <p class="feature-desc">Personalize your profile with different themes and layouts</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3 class="feature-title">Fast & Secure</h3>
+                    <p class="feature-desc">Lightning fast loading with secure Discord OAuth integration</p>
+                </div>
+            </div>
+        </section>
+
+        <script>
+            // Check for errors
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+            
+            if (error) {
+                const errorMessage = document.getElementById('errorMessage');
+                errorMessage.textContent = 'Login failed. Please try again.';
+                errorMessage.style.display = 'block';
+                setTimeout(() => {
+                    errorMessage.style.display = 'none';
+                }, 5000);
+            }
+        </script>
+    </body>
+    </html>
+    `);
+});
+
+// Serve profile page
+app.get('/profile', (req, res) => {
+    res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>My Profile - DiscordProfile</title>
         <meta http-equiv="Permissions-Policy" content="browsing-topics=(), run-ad-auction=(), join-ad-interest-group=(), private-state-token-redemption=(), private-state-token-issuance=(), private-aggregation=(), attribution-reporting=()">
         
         <style>
@@ -200,6 +536,69 @@ app.get('/', (req, res) => {
                 filter: brightness(0.6);
             }
             
+            .navbar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                background: var(--bg-glass);
+                backdrop-filter: blur(20px);
+                border-bottom: 1px solid var(--border-glass);
+                padding: 15px 30px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                z-index: 1000;
+            }
+            
+            .logo {
+                font-size: 1.4em;
+                font-weight: 800;
+                background: linear-gradient(135deg, #fff, var(--discord-blurple));
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                text-decoration: none;
+            }
+            
+            .nav-links {
+                display: flex;
+                gap: 20px;
+                align-items: center;
+            }
+            
+            .nav-link {
+                color: var(--text-secondary);
+                text-decoration: none;
+                font-weight: 500;
+                font-size: 0.9em;
+                transition: color 0.3s ease;
+                padding: 8px 16px;
+                border-radius: 8px;
+            }
+            
+            .nav-link:hover {
+                color: var(--text-primary);
+                background: rgba(255, 255, 255, 0.1);
+            }
+            
+            .logout-btn {
+                background: var(--discord-red);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 10px 20px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                text-decoration: none;
+                font-size: 0.9em;
+            }
+            
+            .logout-btn:hover {
+                background: #c03537;
+                transform: translateY(-2px);
+            }
+            
             .container {
                 display: flex;
                 min-height: 100vh;
@@ -207,20 +606,7 @@ app.get('/', (req, res) => {
                 justify-content: center;
                 position: relative;
                 z-index: 1;
-                padding: 20px;
-            }
-            
-            .login-container {
-                background: var(--bg-glass);
-                backdrop-filter: blur(20px);
-                -webkit-backdrop-filter: blur(20px);
-                border: 1px solid var(--border-glass);
-                border-radius: 16px;
-                padding: 40px 30px;
-                text-align: center;
-                max-width: 350px;
-                width: 100%;
-                box-shadow: var(--shadow-glass);
+                padding: 100px 20px 50px;
             }
             
             .profile-card {
@@ -237,52 +623,11 @@ app.get('/', (req, res) => {
                 opacity: 0;
                 transform: scale(0.9) translateY(20px);
                 transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
-                display: none;
             }
             
             .profile-card.show {
                 opacity: 1;
                 transform: scale(1) translateY(0);
-            }
-            
-            .login-title {
-                font-size: 1.8em;
-                font-weight: 700;
-                background: linear-gradient(135deg, #fff 0%, var(--text-secondary) 100%);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                margin-bottom: 15px;
-            }
-            
-            .login-subtitle {
-                color: var(--text-secondary);
-                font-size: 0.95em;
-                margin-bottom: 30px;
-                font-weight: 400;
-            }
-            
-            .discord-login-btn {
-                background: var(--discord-blurple);
-                color: white;
-                border: none;
-                border-radius: 12px;
-                padding: 14px 28px;
-                font-size: 0.95em;
-                font-weight: 600;
-                cursor: pointer;
-                transition: all 0.3s ease;
-                box-shadow: 0 4px 12px rgba(88, 101, 242, 0.3);
-                display: inline-flex;
-                align-items: center;
-                gap: 10px;
-                text-decoration: none;
-                margin: 5px 0;
-            }
-            
-            .discord-login-btn:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 16px rgba(88, 101, 242, 0.4);
-                background: #4752c4;
             }
             
             .profile-header {
@@ -366,6 +711,8 @@ app.get('/', (req, res) => {
                 gap: 6px;
                 margin: 12px 0;
                 flex-wrap: wrap;
+                justify-content: center;
+                min-height: 30px;
             }
             
             .badge {
@@ -414,58 +761,6 @@ app.get('/', (req, res) => {
                 font-weight: 600;
             }
             
-            .discord-features {
-                background: rgba(255, 255, 255, 0.03);
-                border-radius: 12px;
-                padding: 15px;
-                margin: 20px 0;
-                border: 1px solid var(--border-glass);
-            }
-            
-            .features-title {
-                color: var(--text-secondary);
-                font-size: 0.85em;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-                margin-bottom: 10px;
-                text-align: center;
-            }
-            
-            .features-grid {
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 8px;
-            }
-            
-            .feature-item {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                gap: 4px;
-                padding: 8px;
-                border-radius: 8px;
-                background: rgba(255, 255, 255, 0.05);
-                transition: all 0.3s ease;
-            }
-            
-            .feature-item:hover {
-                background: rgba(255, 255, 255, 0.1);
-                transform: translateY(-2px);
-            }
-            
-            .feature-icon {
-                font-size: 1.2em;
-                opacity: 0.9;
-            }
-            
-            .feature-label {
-                color: var(--text-secondary);
-                font-size: 0.7em;
-                font-weight: 500;
-                text-align: center;
-            }
-            
             .social-links {
                 display: flex;
                 justify-content: center;
@@ -494,102 +789,21 @@ app.get('/', (req, res) => {
                 color: var(--text-primary);
             }
             
-            .discord-login-corner {
-                position: fixed;
-                bottom: 20px;
-                right: 20px;
-                background: var(--discord-blurple);
-                color: white;
-                border: none;
-                border-radius: 12px;
-                padding: 10px 16px;
-                font-size: 0.85em;
-                font-weight: 600;
-                cursor: pointer;
-                backdrop-filter: blur(10px);
-                transition: all 0.3s ease;
-                box-shadow: 0 4px 12px rgba(88, 101, 242, 0.3);
-                display: flex;
-                align-items: center;
-                gap: 6px;
-                z-index: 100;
-                text-decoration: none;
-                display: none;
-            }
-            
-            .discord-login-corner:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 16px rgba(88, 101, 242, 0.4);
-            }
-            
-            .click-to-play {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(26, 26, 46, 0.95) 100%);
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                z-index: 1000;
-                color: white;
-                cursor: pointer;
-                transition: all 0.8s cubic-bezier(0.23, 1, 0.32, 1);
-                gap: 15px;
-                padding: 20px;
-                text-align: center;
-            }
-            
-            .click-title {
-                font-size: 2.2em;
-                font-weight: 700;
-                background: linear-gradient(135deg, #fff 0%, var(--text-secondary) 100%);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                letter-spacing: 1px;
-                animation: titlePulse 2s ease-in-out infinite;
-            }
-            
-            .click-subtitle {
-                font-size: 0.95em;
-                color: var(--text-tertiary);
-                font-weight: 300;
-                letter-spacing: 0.5px;
-            }
-            
-            .click-to-play.hide {
-                opacity: 0;
-                pointer-events: none;
-            }
-            
             .error-message {
                 position: fixed;
-                top: 20px;
+                top: 80px;
                 left: 50%;
                 transform: translateX(-50%);
                 background: rgba(237, 66, 69, 0.9);
                 color: white;
-                padding: 10px 16px;
+                padding: 12px 20px;
                 border-radius: 8px;
                 backdrop-filter: blur(10px);
                 border: 1px solid rgba(255, 255, 255, 0.3);
                 z-index: 1000;
-                font-size: 0.85em;
+                font-size: 0.9em;
                 font-weight: 500;
                 display: none;
-            }
-            
-            @keyframes titlePulse {
-                0%, 100% {
-                    transform: scale(1);
-                    opacity: 1;
-                }
-                50% {
-                    transform: scale(1.05);
-                    opacity: 0.8;
-                }
             }
             
             .profile-card {
@@ -609,30 +823,21 @@ app.get('/', (req, res) => {
     <body>
         <div class="error-message" id="errorMessage"></div>
         
-        <div class="click-to-play" id="clickToPlay">
-            <div class="click-title">WELCOME TO MY PROFILE</div>
-            <div class="click-subtitle">Click anywhere to continue</div>
-        </div>
-        
         <video class="background-video" autoplay muted loop playsinline id="backgroundVideo">
             <source src="https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&" type="video/mp4">
         </video>
-        
-        <a href="/auth/discord" class="discord-login-corner" id="discordLoginCorner">
-            <span>Login with Discord</span>
-        </a>
+
+        <nav class="navbar">
+            <a href="/" class="logo">DiscordProfile</a>
+            <div class="nav-links">
+                <a href="/" class="nav-link">Home</a>
+                <a href="/features" class="nav-link">Features</a>
+                <a href="/about" class="nav-link">About</a>
+                <a href="#" class="logout-btn" id="logoutBtn">Logout</a>
+            </div>
+        </nav>
         
         <div class="container">
-            <!-- Login Screen (shown by default) -->
-            <div class="login-container" id="loginContainer">
-                <div class="login-title">Welcome</div>
-                <div class="login-subtitle">Connect your Discord profile</div>
-                <a href="/auth/discord" class="discord-login-btn">
-                    <span>Login with Discord</span>
-                </a>
-            </div>
-            
-            <!-- Profile Card (hidden until login) -->
             <div class="profile-card" id="profileCard">
                 <div class="profile-header">
                     <div class="profile-pic-container">
@@ -673,36 +878,6 @@ app.get('/', (req, res) => {
                     </div>
                 </div>
                 
-                <div class="discord-features">
-                    <div class="features-title">Discord Features</div>
-                    <div class="features-grid">
-                        <div class="feature-item">
-                            <div class="feature-icon">🎮</div>
-                            <div class="feature-label">Games</div>
-                        </div>
-                        <div class="feature-item">
-                            <div class="feature-icon">🎵</div>
-                            <div class="feature-label">Music</div>
-                        </div>
-                        <div class="feature-item">
-                            <div class="feature-icon">📱</div>
-                            <div class="feature-label">Mobile</div>
-                        </div>
-                        <div class="feature-item">
-                            <div class="feature-icon">🎭</div>
-                            <div class="feature-label">Nitro</div>
-                        </div>
-                        <div class="feature-item">
-                            <div class="feature-icon">🔒</div>
-                            <div class="feature-label">Secure</div>
-                        </div>
-                        <div class="feature-item">
-                            <div class="feature-icon">🌐</div>
-                            <div class="feature-label">Global</div>
-                        </div>
-                    </div>
-                </div>
-                
                 <div class="social-links">
                     <a href="#" class="social-link" title="Instagram">📷</a>
                     <a href="#" class="social-link" title="Twitter">🐦</a>
@@ -714,10 +889,7 @@ app.get('/', (req, res) => {
 
         <script>
             // DOM Elements
-            const clickToPlay = document.getElementById('clickToPlay');
-            const loginContainer = document.getElementById('loginContainer');
             const profileCard = document.getElementById('profileCard');
-            const discordLoginCorner = document.getElementById('discordLoginCorner');
             const profileImage = document.getElementById('profileImage');
             const displayName = document.getElementById('displayName');
             const displayUsername = document.getElementById('displayUsername');
@@ -729,8 +901,7 @@ app.get('/', (req, res) => {
             const userStatus = document.getElementById('userStatus');
             const verifiedStatus = document.getElementById('verifiedStatus');
             const badgeCount = document.getElementById('badgeCount');
-            
-            let currentSession = null;
+            const logoutBtn = document.getElementById('logoutBtn');
             
             // Discord badge mappings
             const badgeMap = {
@@ -748,59 +919,31 @@ app.get('/', (req, res) => {
                 4194304: { emoji: '📱', title: 'Uses Android App' }
             };
 
-            // Status detection based on time and random factor (since OAuth doesn't provide real status)
+            // Get session from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionId = urlParams.get('session');
+            
+            if (!sessionId) {
+                window.location.href = '/';
+                return;
+            }
+            
+            // Set logout URL
+            logoutBtn.href = \`/auth/logout?session=\${sessionId}\`;
+            
+            // Status detection
             function detectUserStatus() {
                 const now = new Date();
                 const hour = now.getHours();
-                const minute = now.getMinutes();
                 
-                // More likely to be online during active hours
                 if (hour >= 14 && hour <= 23) {
                     const statuses = ['online', 'idle', 'dnd'];
                     return statuses[Math.floor(Math.random() * statuses.length)];
                 } else if (hour >= 0 && hour <= 6) {
-                    return 'idle'; // More likely idle during night
+                    return 'idle';
                 } else {
                     return Math.random() > 0.7 ? 'online' : 'idle';
                 }
-            }
-            
-            // Check for errors and existing session
-            function checkExistingSession() {
-                const urlParams = new URLSearchParams(window.location.search);
-                const sessionId = urlParams.get('session');
-                const error = urlParams.get('error');
-                
-                if (error) {
-                    showError('Login failed. Please try again.');
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                }
-                
-                if (sessionId) {
-                    currentSession = sessionId;
-                    showProfileView();
-                    fetchUserData(sessionId);
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                }
-            }
-            
-            // Show error message
-            function showError(message) {
-                errorMessage.textContent = message;
-                errorMessage.style.display = 'block';
-                setTimeout(() => {
-                    errorMessage.style.display = 'none';
-                }, 4000);
-            }
-            
-            // Show profile view and hide login
-            function showProfileView() {
-                loginContainer.style.display = 'none';
-                profileCard.style.display = 'block';
-                discordLoginCorner.style.display = 'flex';
-                setTimeout(() => {
-                    profileCard.classList.add('show');
-                }, 100);
             }
             
             // Calculate account age
@@ -844,12 +987,11 @@ app.get('/', (req, res) => {
                 badgeCount.textContent = count;
             }
             
-            // Set status with better detection
+            // Set status
             function setStatus(status) {
                 statusIndicator.className = 'status-indicator';
                 let statusText = 'Offline';
                 
-                // If no status provided, detect based on time
                 if (!status) {
                     status = detectUserStatus();
                 }
@@ -879,19 +1021,23 @@ app.get('/', (req, res) => {
                 userStatus.textContent = statusText;
             }
             
-            // Fetch user data from session
-            async function fetchUserData(sessionId) {
+            // Fetch user data
+            async function fetchUserData() {
                 try {
-                    const response = await fetch('/api/user?session=' + sessionId);
+                    const response = await fetch(\`/api/user?session=\${sessionId}\`);
                     const data = await response.json();
                     
                     if (data.success && data.user) {
                         updateProfileWithDiscord(data.user);
-                        discordLoginCorner.innerHTML = '🔓 Logout';
-                        discordLoginCorner.href = '/auth/logout?session=' + sessionId;
+                        setTimeout(() => {
+                            profileCard.classList.add('show');
+                        }, 100);
+                    } else {
+                        window.location.href = '/';
                     }
                 } catch (error) {
                     console.error('Failed to fetch user data:', error);
+                    window.location.href = '/';
                 }
             }
             
@@ -916,33 +1062,35 @@ app.get('/', (req, res) => {
                 // Badges
                 displayBadges(user.public_flags);
                 
-                // Status with smart detection
-                setStatus('online'); // Default to online since user just logged in
+                // Status
+                setStatus('online');
                 
-                // Update status periodically to make it feel real
+                // Update status periodically
                 setInterval(() => {
                     setStatus(detectUserStatus());
-                }, 30000); // Update every 30 seconds
+                }, 30000);
             }
-            
-            function showContent() {
-                clickToPlay.classList.add('hide');
-                // No sound controls - removed as requested
-            }
-            
-            // Event Listeners
-            clickToPlay.addEventListener('click', showContent);
             
             // Initialize
-            checkExistingSession();
+            fetchUserData();
         </script>
     </body>
     </html>
     `);
 });
 
+// Serve features page
+app.get('/features', (req, res) => {
+    res.redirect('/');
+});
+
+// Serve about page
+app.get('/about', (req, res) => {
+    res.redirect('/');
+});
+
 server.listen(PORT, '0.0.0.0', () => {
     console.log('🚀 Server running on port ' + PORT);
-    console.log('✅ Enhanced Discord profile display ready');
-    console.log('🎯 Real status detection, smaller UI, no sound controls');
+    console.log('✅ Homepage with registration flow ready');
+    console.log('🎯 Badges working, Discord features removed');
 });
