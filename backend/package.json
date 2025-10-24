@@ -1,6 +1,6 @@
 {
   "name": "discord-profile-system",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Advanced Discord profile system with bot integration and anti-DDOS protection",
   "main": "server.js",
   "scripts": {
@@ -22,7 +22,8 @@
     "profile",
     "oauth",
     "bot",
-    "anti-ddos"
+    "anti-ddos",
+    "admin"
   ],
   "author": "Your Name",
   "license": "MIT"
