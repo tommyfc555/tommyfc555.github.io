@@ -593,12 +593,33 @@ app.get('/auth/discord/callback', async (req, res) => {
             access_token: tokenData.access_token,
             username: username,
             createdAt: Date.now(),
-            profileViews: 0
+            profileViews: 0,
+            settings: {
+                bio: '',
+                background: 'https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&',
+                music: '',
+                showBadges: true,
+                showStats: true,
+                showSocialLinks: true,
+                customCSS: '',
+                customHTML: ''
+            }
         };
         
         users.set(username, userRecord);
         
         console.log('✅ User registered:', username);
+        
+        // Create session for the user
+        const sessionId = generateSessionId();
+        sessions.set(sessionId, {
+            userId: userData.id,
+            username: username,
+            createdAt: Date.now()
+        });
+        
+        // Set session cookie
+        res.cookie('session', sessionId, { httpOnly: true, maxAge: 3600000 });
         
         // Redirect to user's profile
         res.redirect('/' + username);
@@ -607,6 +628,281 @@ app.get('/auth/discord/callback', async (req, res) => {
         console.error('❌ OAuth error:', error);
         res.redirect('/?error=auth_failed');
     }
+});
+
+// Middleware to check if user owns the profile
+function checkProfileOwnership(req, res, next) {
+    const { username } = req.params;
+    const sessionId = req.cookies?.session;
+    
+    if (!sessionId || !sessions.has(sessionId)) {
+        return res.status(403).send('Access denied. Please log in.');
+    }
+    
+    const session = sessions.get(sessionId);
+    const user = users.get(session.username);
+    
+    if (!user || user.username !== username.toLowerCase()) {
+        return res.status(403).send('Access denied. You can only edit your own profile.');
+    }
+    
+    req.user = user;
+    next();
+}
+
+// Settings page - only accessible to profile owner
+app.get('/:username/settings', checkProfileOwnership, (req, res) => {
+    const user = req.user;
+    
+    res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Settings - ${user.discordData.global_name || user.discordData.username}</title>
+        <meta name="robots" content="noindex, nofollow">
+        <meta name="referrer" content="no-referrer">
+        <style>
+            ${getSettingsCSS()}
+        </style>
+    </head>
+    <body>
+        <video class="background-video" autoplay muted loop playsinline>
+            <source src="${user.settings.background}" type="video/mp4">
+        </video>
+
+        <nav class="navbar">
+            <a href="/${user.username}" class="logo">← Back to Profile</a>
+            <div class="nav-links">
+                <span class="nav-user">Welcome, ${user.discordData.global_name || user.discordData.username}</span>
+            </div>
+        </nav>
+
+        <div class="settings-container">
+            <div class="settings-sidebar">
+                <h3>Settings</h3>
+                <div class="sidebar-links">
+                    <a href="#profile" class="sidebar-link active">Profile</a>
+                    <a href="#appearance" class="sidebar-link">Appearance</a>
+                    <a href="#music" class="sidebar-link">Music</a>
+                    <a href="#privacy" class="sidebar-link">Privacy</a>
+                    <a href="#advanced" class="sidebar-link">Advanced</a>
+                </div>
+            </div>
+
+            <div class="settings-content">
+                <h1>Profile Settings</h1>
+                <p class="settings-subtitle">Customize your profile appearance and behavior</p>
+
+                <form id="settingsForm" class="settings-form">
+                    <!-- Profile Section -->
+                    <div id="profile" class="settings-section active">
+                        <h2>Profile Information</h2>
+                        
+                        <div class="form-group">
+                            <label for="bio">Bio</label>
+                            <textarea id="bio" name="bio" placeholder="Tell everyone about yourself..." maxlength="500">${user.settings.bio || ''}</textarea>
+                            <div class="char-count"><span id="bioCount">${(user.settings.bio || '').length}</span>/500</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Display Options</label>
+                            <div class="checkbox-group">
+                                <label class="checkbox">
+                                    <input type="checkbox" name="showBadges" ${user.settings.showBadges ? 'checked' : ''}>
+                                    <span class="checkmark"></span>
+                                    Show Discord Badges
+                                </label>
+                                <label class="checkbox">
+                                    <input type="checkbox" name="showStats" ${user.settings.showStats ? 'checked' : ''}>
+                                    <span class="checkmark"></span>
+                                    Show Profile Statistics
+                                </label>
+                                <label class="checkbox">
+                                    <input type="checkbox" name="showSocialLinks" ${user.settings.showSocialLinks ? 'checked' : ''}>
+                                    <span class="checkmark"></span>
+                                    Show Social Links
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Appearance Section -->
+                    <div id="appearance" class="settings-section">
+                        <h2>Appearance</h2>
+                        
+                        <div class="form-group">
+                            <label for="background">Background Video URL</label>
+                            <input type="url" id="background" name="background" value="${user.settings.background}" placeholder="https://example.com/background.mp4">
+                            <small>Enter a direct URL to a video file (MP4 recommended)</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Preview Backgrounds</label>
+                            <div class="background-previews">
+                                <div class="bg-preview" data-url="https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&">
+                                    <div class="bg-preview-image"></div>
+                                    <span>Default Anime</span>
+                                </div>
+                                <div class="bg-preview" data-url="https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&">
+                                    <div class="bg-preview-image"></div>
+                                    <span>Space Theme</span>
+                                </div>
+                                <div class="bg-preview" data-url="https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&">
+                                    <div class="bg-preview-image"></div>
+                                    <span>Cyberpunk</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Music Section -->
+                    <div id="music" class="settings-section">
+                        <h2>Background Music</h2>
+                        
+                        <div class="form-group">
+                            <label for="music">Music URL</label>
+                            <input type="url" id="music" name="music" value="${user.settings.music}" placeholder="https://example.com/music.mp3">
+                            <small>Enter a direct URL to an audio file (MP3 recommended)</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Music Controls</label>
+                            <div class="checkbox-group">
+                                <label class="checkbox">
+                                    <input type="checkbox" name="autoPlayMusic">
+                                    <span class="checkmark"></span>
+                                    Auto-play music when profile loads
+                                </label>
+                                <label class="checkbox">
+                                    <input type="checkbox" name="loopMusic" checked>
+                                    <span class="checkmark"></span>
+                                    Loop music
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Section -->
+                    <div id="advanced" class="settings-section">
+                        <h2>Advanced Customization</h2>
+                        
+                        <div class="form-group">
+                            <label for="customCSS">Custom CSS</label>
+                            <textarea id="customCSS" name="customCSS" placeholder="Add your custom CSS here..." rows="8">${user.settings.customCSS || ''}</textarea>
+                            <small>Add custom styles to personalize your profile appearance</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="customHTML">Custom HTML</label>
+                            <textarea id="customHTML" name="customHTML" placeholder="Add your custom HTML here..." rows="8">${user.settings.customHTML || ''}</textarea>
+                            <small>Add custom HTML elements to your profile (use with caution)</small>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" onclick="window.location.href='/${user.username}'">Cancel</button>
+                        <button type="submit" class="btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="toast" id="toast"></div>
+
+        <script>
+            // Tab navigation
+            document.querySelectorAll('.sidebar-link').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const target = link.getAttribute('href').substring(1);
+                    
+                    // Update active tab
+                    document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+                    document.querySelectorAll('.settings-section').forEach(s => s.classList.remove('active'));
+                    
+                    link.classList.add('active');
+                    document.getElementById(target).classList.add('active');
+                });
+            });
+
+            // Background preview
+            document.querySelectorAll('.bg-preview').forEach(preview => {
+                preview.addEventListener('click', () => {
+                    const url = preview.getAttribute('data-url');
+                    document.getElementById('background').value = url;
+                    
+                    // Update background preview
+                    document.querySelector('.background-video source').src = url;
+                    document.querySelector('.background-video').load();
+                });
+            });
+
+            // Bio character count
+            const bioTextarea = document.getElementById('bio');
+            const bioCount = document.getElementById('bioCount');
+            
+            bioTextarea.addEventListener('input', () => {
+                bioCount.textContent = bioTextarea.value.length;
+            });
+
+            // Form submission
+            document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const formData = new FormData(e.target);
+                const settings = Object.fromEntries(formData);
+                
+                try {
+                    const response = await fetch('/${user.username}/settings/update', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(settings)
+                    });
+                    
+                    if (response.ok) {
+                        showToast('Settings saved successfully!');
+                    } else {
+                        showToast('Error saving settings', 'error');
+                    }
+                } catch (error) {
+                    showToast('Error saving settings', 'error');
+                }
+            });
+
+            function showToast(message, type = 'success') {
+                const toast = document.getElementById('toast');
+                toast.textContent = message;
+                toast.className = 'toast ' + type;
+                toast.style.display = 'block';
+                
+                setTimeout(() => {
+                    toast.style.display = 'none';
+                }, 3000);
+            }
+        </script>
+    </body>
+    </html>
+    `);
+});
+
+// Update settings endpoint
+app.post('/:username/settings/update', checkProfileOwnership, (req, res) => {
+    const user = req.user;
+    const newSettings = req.body;
+    
+    // Update user settings
+    user.settings = {
+        ...user.settings,
+        ...newSettings
+    };
+    
+    users.set(user.username, user);
+    
+    res.json({ success: true, message: 'Settings updated successfully' });
 });
 
 // Serve user profile pages
@@ -627,12 +923,57 @@ app.get('/:username', (req, res) => {
         : 'https://cdn.discordapp.com/embed/avatars/' + (user.discordData.discriminator % 5) + '.png';
     
     // Generate badges HTML
-    const badgesHTML = getBadgesHTML(user.discordData.public_flags);
+    const badgesHTML = user.settings.showBadges ? getBadgesHTML(user.discordData.public_flags) : '';
     
     // Generate account age
     const accountAge = getAccountAge(user.discordData.id);
     
-    res.send('<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>' + (user.discordData.global_name || user.discordData.username) + '\'s Profile - DiscordProfile</title><meta name="description" content="' + (user.discordData.global_name || user.discordData.username) + '\'s Discord profile"><meta name="robots" content="noindex, nofollow"><meta name="referrer" content="no-referrer"><meta http-equiv="Permissions-Policy" content="browsing-topics=(), run-ad-auction=(), join-ad-interest-group=(), private-state-token-redemption=(), private-state-token-issuance=(), private-aggregation=(), attribution-reporting=()"><style>' + getProfileCSS() + '</style></head><body><video class="background-video" autoplay muted loop playsinline id="backgroundVideo"><source src="https://cdn.discordapp.com/attachments/1415024144105603186/1431012690108874833/Anime_girl_dancing_infront_of_car.mp4?ex=68fbddec&is=68fa8c6c&hm=444b29541a18a7f1308500f68b513285c730c359294314a9d3e8f18fc6272cd6&" type="video/mp4"></video><nav class="navbar"><a href="/" class="logo">DiscordProfile</a><div class="nav-links"><a href="/" class="nav-link">Home</a><a href="/features" class="nav-link">Features</a><a href="/about" class="nav-link">About</a><a href="/auth/discord" class="get-profile-btn">Get Your Profile</a></div></nav><div class="container"><div class="profile-card"><div class="profile-header"><div class="profile-pic-container"><div class="profile-pic"><img src="' + avatarUrl + '" alt="' + (user.discordData.global_name || user.discordData.username) + '\'s Profile Picture"></div><div class="status-indicator status-online"></div></div><div class="profile-info"><div class="name-container"><h1 class="name">' + (user.discordData.global_name || user.discordData.username) + '</h1></div><div class="username">@' + user.discordData.username + '</div><div class="profile-url">' + req.headers.host + '/' + username + '</div></div></div><div class="badges-container">' + badgesHTML + '</div><div class="stats-grid"><div class="stat-item"><div class="stat-label">Account Age</div><div class="stat-value">' + accountAge + '</div></div><div class="stat-item"><div class="stat-label">Status</div><div class="stat-value">Online</div></div><div class="stat-item"><div class="stat-label">Verified</div><div class="stat-value">' + (user.discordData.verified ? 'Yes' : 'No') + '</div></div><div class="stat-item"><div class="stat-label">Profile Views</div><div class="stat-value">' + user.profileViews + '</div></div></div><div class="social-links"><a href="#" class="social-link" title="Instagram">📷</a><a href="#" class="social-link" title="Twitter">🐦</a><a href="#" class="social-link" title="YouTube">📺</a><a href="#" class="social-link" title="GitHub">💻</a></div></div></div></body></html>');
+    // Generate stats HTML
+    const statsHTML = user.settings.showStats ? `
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-label">Account Age</div>
+                <div class="stat-value">${accountAge}</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Status</div>
+                <div class="stat-value">Online</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Verified</div>
+                <div class="stat-value">${user.discordData.verified ? 'Yes' : 'No'}</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Profile Views</div>
+                <div class="stat-value">${user.profileViews}</div>
+            </div>
+        </div>
+    ` : '';
+    
+    // Generate social links HTML
+    const socialLinksHTML = user.settings.showSocialLinks ? `
+        <div class="social-links">
+            <a href="#" class="social-link" title="Instagram">📷</a>
+            <a href="#" class="social-link" title="Twitter">🐦</a>
+            <a href="#" class="social-link" title="YouTube">📺</a>
+            <a href="#" class="social-link" title="GitHub">💻</a>
+        </div>
+    ` : '';
+    
+    // Generate bio HTML
+    const bioHTML = user.settings.bio ? `
+        <div class="bio-section">
+            <div class="bio-label">About Me</div>
+            <div class="bio-content">${user.settings.bio}</div>
+        </div>
+    ` : '';
+    
+    // Check if user is owner for settings button
+    const sessionId = req.cookies?.session;
+    const isOwner = sessionId && sessions.has(sessionId) && sessions.get(sessionId).username === username.toLowerCase();
+    const settingsButton = isOwner ? `<a href="/${username}/settings" class="settings-btn">⚙️ Settings</a>` : '';
+    
+    res.send('<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>' + (user.discordData.global_name || user.discordData.username) + '\'s Profile - DiscordProfile</title><meta name="description" content="' + (user.discordData.global_name || user.discordData.username) + '\'s Discord profile"><meta name="robots" content="noindex, nofollow"><meta name="referrer" content="no-referrer"><meta http-equiv="Permissions-Policy" content="browsing-topics=(), run-ad-auction=(), join-ad-interest-group=(), private-state-token-redemption=(), private-state-token-issuance=(), private-aggregation=(), attribution-reporting=()"><style>' + getProfileCSS() + (user.settings.customCSS || '') + '</style></head><body><video class="background-video" autoplay muted loop playsinline id="backgroundVideo"><source src="' + user.settings.background + '" type="video/mp4"></video>' + (user.settings.music ? '<audio id="backgroundMusic" loop><source src="' + user.settings.music + '" type="audio/mp3"></audio>' : '') + '<nav class="navbar"><a href="/" class="logo">DiscordProfile</a><div class="nav-links"><a href="/" class="nav-link">Home</a><a href="/features" class="nav-link">Features</a><a href="/about" class="nav-link">About</a>' + settingsButton + '<a href="/auth/discord" class="get-profile-btn">Get Your Profile</a></div></nav><div class="container"><div class="profile-card"><div class="profile-header"><div class="profile-pic-container"><div class="profile-pic"><img src="' + avatarUrl + '" alt="' + (user.discordData.global_name || user.discordData.username) + '\'s Profile Picture"></div><div class="status-indicator status-online"></div></div><div class="profile-info"><div class="name-container"><h1 class="name">' + (user.discordData.global_name || user.discordData.username) + '</h1></div><div class="username">@' + user.discordData.username + '</div><div class="profile-url">' + req.headers.host + '/' + username + '</div></div></div>' + bioHTML + '<div class="badges-container">' + badgesHTML + '</div>' + statsHTML + socialLinksHTML + (user.settings.customHTML || '') + '</div></div>' + (user.settings.music ? '<script>document.getElementById(\'backgroundMusic\').play().catch(e => console.log(\'Autoplay blocked\'));</script>' : '') + '</body></html>');
 });
 
 // Helper functions
@@ -778,6 +1119,23 @@ function getProfileCSS() {
             background: rgba(255, 255, 255, 0.1);
         }
         
+        .settings-btn {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+            padding: 8px 16px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .settings-btn:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        
         .get-profile-btn {
             background: var(--discord-blurple);
             color: white;
@@ -896,6 +1254,26 @@ function getProfileCSS() {
             font-family: 'Courier New', monospace;
         }
         
+        .bio-section {
+            margin: 15px 0;
+            text-align: left;
+        }
+        
+        .bio-label {
+            color: var(--text-tertiary);
+            font-size: 0.8em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+        
+        .bio-content {
+            color: var(--text-secondary);
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+        
         .badges-container {
             display: flex;
             gap: 6px;
@@ -990,6 +1368,330 @@ function getProfileCSS() {
     `;
 }
 
+function getSettingsCSS() {
+    return `
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        :root {
+            --discord-blurple: #5865F2;
+            --discord-green: #57F287;
+            --discord-red: #ED4245;
+            --text-primary: #ffffff;
+            --text-secondary: #b9bbbe;
+            --text-tertiary: #72767d;
+            --bg-glass: rgba(0, 0, 0, 0.5);
+            --border-glass: rgba(255, 255, 255, 0.1);
+        }
+        
+        body {
+            background: #000;
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        
+        .background-video {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -1;
+            filter: brightness(0.4);
+        }
+        
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-glass);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-glass);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .logo {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+        
+        .nav-user {
+            color: var(--text-secondary);
+            font-size: 0.9em;
+        }
+        
+        .settings-container {
+            display: flex;
+            min-height: 100vh;
+            padding-top: 70px;
+        }
+        
+        .settings-sidebar {
+            width: 250px;
+            background: var(--bg-glass);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid var(--border-glass);
+            padding: 30px 20px;
+        }
+        
+        .settings-sidebar h3 {
+            margin-bottom: 20px;
+            color: var(--text-primary);
+        }
+        
+        .sidebar-links {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .sidebar-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 12px 16px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar-link:hover,
+        .sidebar-link.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+        
+        .settings-content {
+            flex: 1;
+            padding: 40px;
+            max-width: 800px;
+        }
+        
+        .settings-content h1 {
+            margin-bottom: 8px;
+            font-size: 2em;
+        }
+        
+        .settings-subtitle {
+            color: var(--text-secondary);
+            margin-bottom: 30px;
+        }
+        
+        .settings-section {
+            display: none;
+        }
+        
+        .settings-section.active {
+            display: block;
+        }
+        
+        .settings-section h2 {
+            margin-bottom: 20px;
+            font-size: 1.4em;
+            border-bottom: 1px solid var(--border-glass);
+            padding-bottom: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--border-glass);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: var(--text-primary);
+            font-size: 1em;
+            transition: all 0.3s ease;
+        }
+        
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--discord-blurple);
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        .form-group small {
+            display: block;
+            margin-top: 6px;
+            color: var(--text-tertiary);
+            font-size: 0.85em;
+        }
+        
+        .char-count {
+            text-align: right;
+            font-size: 0.8em;
+            color: var(--text-tertiary);
+            margin-top: 4px;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .checkbox {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+        }
+        
+        .checkbox input {
+            display: none;
+        }
+        
+        .checkmark {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-glass);
+            border-radius: 4px;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        
+        .checkbox input:checked + .checkmark {
+            background: var(--discord-blurple);
+            border-color: var(--discord-blurple);
+        }
+        
+        .checkbox input:checked + .checkmark::after {
+            content: '✓';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .background-previews {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        .bg-preview {
+            cursor: pointer;
+            text-align: center;
+        }
+        
+        .bg-preview-image {
+            width: 100%;
+            height: 80px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .bg-preview:hover .bg-preview-image {
+            border-color: var(--discord-blurple);
+            transform: scale(1.05);
+        }
+        
+        .bg-preview span {
+            font-size: 0.8em;
+            color: var(--text-secondary);
+        }
+        
+        .form-actions {
+            display: flex;
+            gap: 15px;
+            justify-content: flex-end;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-glass);
+        }
+        
+        .btn-primary,
+        .btn-secondary {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+        
+        .btn-primary {
+            background: var(--discord-blurple);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #4752c4;
+            transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+            border: 1px solid var(--border-glass);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--discord-green);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            z-index: 1000;
+            font-weight: 500;
+            display: none;
+        }
+        
+        .toast.error {
+            background: var(--discord-red);
+        }
+    `;
+}
+
 // Serve features page
 app.get('/features', (req, res) => {
     res.redirect('/');
@@ -1004,5 +1706,6 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log('🚀 Server running on port ' + PORT);
     console.log('✅ Custom username system ready');
     console.log('🎯 Each user gets their own profile URL');
-    console.log('🔗 Example: https://tommyfc555-github-io.onrender.com/hwid');
+    console.log('⚙️ Settings page available at /username/settings');
+    console.log('🔗 Example: https://tommyfc555-github-io.onrender.com/hwid/settings');
 });
