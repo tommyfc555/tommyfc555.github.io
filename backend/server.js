@@ -14,25 +14,38 @@ const PORT = process.env.PORT || 3000;
 // Fix for rate limiting behind proxy
 app.set('trust proxy', 1);
 
-// Rate limiting
+// Enhanced Rate limiting
 const createAccountLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 1, // Limit each IP to 1 create account request per hour
-  message: 'Too many accounts created from this IP, please try again after an hour',
+  max: 3, // Increased from 1 to 3 per hour
+  message: { error: 'Too many accounts created from this IP, please try again after an hour' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for certain conditions
+    return req.method !== 'POST' && !req.path.includes('/auth/discord');
+  }
 });
 
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP',
+  max: 200, // Increased from 100 to 200
+  message: { error: 'Too many requests from this IP' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 10, // 10 auth attempts per 5 minutes
+  message: { error: 'Too many authentication attempts' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
 // Apply rate limiting
 app.use(generalLimiter);
+app.use('/auth/discord', authLimiter);
 
 // Global variables for bot and ban system
 let discordBot = null;
@@ -40,7 +53,8 @@ let BOT_TOKEN = '';
 const bannedUsers = new Map();
 const bannedIPs = new Map();
 const bannedHWIDs = new Map();
-const userViews = new Map(); // Track views per user
+const userViews = new Map();
+const registrationAttempts = new Map();
 
 // Discord OAuth Configuration
 const DISCORD_CONFIG = {
@@ -58,19 +72,21 @@ console.log('🌐 Redirect URI:', DISCORD_CONFIG.redirectUri);
 // User storage
 const users = new Map();
 const sessions = new Map();
-const userCreationLimits = new Map(); // Map<discordId, timestamp>
+const userCreationLimits = new Map();
 
-// Security headers
+// Enhanced security headers
 app.use((req, res, next) => {
     res.setHeader('Permissions-Policy', 'browsing-topics=(), run-ad-auction=(), join-ad-interest-group=(), private-state-token-redemption=(), private-state-token-issuance=(), private-aggregation=(), attribution-reporting=()');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     next();
 });
 
 app.use(express.static('.'));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // Helper functions
@@ -92,33 +108,77 @@ function generateHWID(req) {
     return crypto.createHash('md5').update(ip + userAgent).digest('hex');
 }
 
-// Clean up old sessions
+// Enhanced registration attempt tracking
+function trackRegistrationAttempt(identifier) {
+    const now = Date.now();
+    const attempts = registrationAttempts.get(identifier) || [];
+    const recentAttempts = attempts.filter(time => now - time < 3600000);
+    recentAttempts.push(now);
+    registrationAttempts.set(identifier, recentAttempts);
+    return recentAttempts.length;
+}
+
+function getRegistrationAttempts(identifier) {
+    const now = Date.now();
+    const attempts = registrationAttempts.get(identifier) || [];
+    return attempts.filter(time => now - time < 3600000).length;
+}
+
+// Clean up old sessions and data
 setInterval(() => {
     const now = Date.now();
+    
     for (const [key, session] of sessions.entries()) {
         if (now - session.createdAt > 3600000) {
             sessions.delete(key);
         }
     }
-}, 3600000);
+    
+    for (const [identifier, attempts] of registrationAttempts.entries()) {
+        const recentAttempts = attempts.filter(time => now - time < 3600000);
+        if (recentAttempts.length === 0) {
+            registrationAttempts.delete(identifier);
+        } else {
+            registrationAttempts.set(identifier, recentAttempts);
+        }
+    }
+    
+    for (const [discordId, timestamp] of userCreationLimits.entries()) {
+        if (now - timestamp > 24 * 60 * 60 * 1000) {
+            userCreationLimits.delete(discordId);
+        }
+    }
+}, 300000);
 
-// Check if user is banned
+// Enhanced ban checking
 function isUserBanned(discordId, req = null) {
-    // Check user ID ban
     if (bannedUsers.has(discordId)) {
+        const banInfo = bannedUsers.get(discordId);
+        if (banInfo.expiresAt && Date.now() > banInfo.expiresAt) {
+            bannedUsers.delete(discordId);
+            return false;
+        }
         return bannedUsers.get(discordId);
     }
     
-    // Check IP ban if request provided
     if (req) {
         const ip = getClientIP(req);
         if (bannedIPs.has(ip)) {
+            const banInfo = bannedIPs.get(ip);
+            if (banInfo.expiresAt && Date.now() > banInfo.expiresAt) {
+                bannedIPs.delete(ip);
+                return false;
+            }
             return bannedIPs.get(ip);
         }
         
-        // Check HWID ban
         const hwid = generateHWID(req);
         if (bannedHWIDs.has(hwid)) {
+            const banInfo = bannedHWIDs.get(hwid);
+            if (banInfo.expiresAt && Date.now() > banInfo.expiresAt) {
+                bannedHWIDs.delete(hwid);
+                return false;
+            }
             return bannedHWIDs.get(hwid);
         }
     }
@@ -161,29 +221,25 @@ async function loadBotToken() {
 
 // Check if user has admin permissions
 function isAdmin(userId) {
-    // Admin user IDs
     const adminUsers = [
-        '1415022792214052915', // Your user ID
-        '1431237319112790158' // Bot's user ID
+        '1415022792214052915',
+        '1431237319112790158'
     ];
     return adminUsers.includes(userId);
 }
 
 // Find user by username or ID
 function findUser(query) {
-    // Check if it's a direct username
     if (users.has(query.toLowerCase())) {
         return users.get(query.toLowerCase());
     }
     
-    // Search by Discord ID
     for (const [username, userData] of users.entries()) {
         if (userData.discordData.id === query) {
             return userData;
         }
     }
     
-    // Search by display name
     for (const [username, userData] of users.entries()) {
         if (userData.displayName.toLowerCase().includes(query.toLowerCase())) {
             return userData;
@@ -212,14 +268,20 @@ function initializeBot() {
             options: [
                 {
                     name: 'user',
-                    type: 3, // STRING - changed from USER to allow username input
+                    type: 3,
                     description: 'The username, user ID, or profile link to ban',
                     required: true
                 },
                 {
                     name: 'reason',
-                    type: 3, // STRING
+                    type: 3,
                     description: 'Reason for the ban',
+                    required: false
+                },
+                {
+                    name: 'duration',
+                    type: 3,
+                    description: 'Ban duration (e.g., 7d, 30d, permanent)',
                     required: false
                 }
             ]
@@ -230,7 +292,7 @@ function initializeBot() {
             options: [
                 {
                     name: 'user_id',
-                    type: 3, // STRING
+                    type: 3,
                     description: 'The Discord user ID to unban',
                     required: true
                 }
@@ -242,7 +304,7 @@ function initializeBot() {
             options: [
                 {
                     name: 'user_id',
-                    type: 3, // STRING
+                    type: 3,
                     description: 'The Discord user ID to check',
                     required: true
                 }
@@ -254,7 +316,7 @@ function initializeBot() {
             options: [
                 {
                     name: 'user',
-                    type: 3, // STRING - changed to allow username input
+                    type: 3,
                     description: 'The username, user ID, or profile link',
                     required: true
                 }
@@ -278,13 +340,13 @@ function initializeBot() {
             options: [
                 {
                     name: 'user',
-                    type: 3, // STRING
+                    type: 3,
                     description: 'The username to add views to',
                     required: true
                 },
                 {
                     name: 'count',
-                    type: 4, // INTEGER
+                    type: 4,
                     description: 'Number of views to add',
                     required: false
                 }
@@ -296,7 +358,7 @@ function initializeBot() {
             options: [
                 {
                     name: 'user',
-                    type: 3, // STRING
+                    type: 3,
                     description: 'The username to check views for',
                     required: false
                 }
@@ -308,7 +370,7 @@ function initializeBot() {
             options: [
                 {
                     name: 'setting',
-                    type: 3, // STRING
+                    type: 3,
                     description: 'Setting to change',
                     required: true,
                     choices: [
@@ -319,7 +381,7 @@ function initializeBot() {
                 },
                 {
                     name: 'value',
-                    type: 3, // STRING
+                    type: 3,
                     description: 'Value for the setting (on/off)',
                     required: true,
                     choices: [
@@ -356,19 +418,15 @@ function initializeBot() {
         viewcounter: true
     };
 
-    // Bot ready event
     discordBot.once('ready', () => {
         console.log(`🤖 Logged in as ${discordBot.user.tag}`);
         registerCommands();
     });
 
-    // Handle slash commands
     discordBot.on('interactionCreate', async interaction => {
         if (!interaction.isCommand()) return;
 
         const { commandName, options, user, guild } = interaction;
-
-        // Check if user is admin for certain commands
         const userIsAdmin = isAdmin(user.id);
 
         try {
@@ -381,7 +439,7 @@ function initializeBot() {
                         {
                             name: '🛠️ Admin Commands',
                             value: `
-                            **/ban <user> [reason]** - Ban a user from creating profiles
+                            **/ban <user> [reason] [duration]** - Ban a user from creating profiles
                             **/unban <user_id>** - Unban a previously banned user
                             **/cleanup** - Clean up old sessions and data
                             **/settings <setting> <value>** - Manage bot settings
@@ -420,15 +478,14 @@ function initializeBot() {
 
                 const userInput = options.getString('user');
                 const reason = options.getString('reason') || 'No reason provided';
+                const duration = options.getString('duration') || 'permanent';
                 
-                // Extract username from URL if provided
                 let username = userInput;
                 if (userInput.includes('/')) {
                     const parts = userInput.split('/');
                     username = parts[parts.length - 1].toLowerCase();
                 }
                 
-                // Find the user
                 const targetUserData = findUser(username);
                 if (!targetUserData) {
                     return interaction.reply({ 
@@ -440,7 +497,6 @@ function initializeBot() {
                 const targetUserId = targetUserData.discordData.id;
                 const targetUsername = targetUserData.username;
                 
-                // Check if user is already banned
                 if (bannedUsers.has(targetUserId)) {
                     return interaction.reply({ 
                         content: `❌ User ${targetUserData.displayName} is already banned.`, 
@@ -448,14 +504,31 @@ function initializeBot() {
                     });
                 }
 
-                // Ban the user
+                // Calculate expiration date
+                let expiresAt = null;
+                if (duration !== 'permanent') {
+                    const match = duration.match(/^(\d+)([dhm])$/);
+                    if (match) {
+                        const [, amount, unit] = match;
+                        let ms = parseInt(amount);
+                        switch (unit) {
+                            case 'd': ms *= 24 * 60 * 60 * 1000; break;
+                            case 'h': ms *= 60 * 60 * 1000; break;
+                            case 'm': ms *= 60 * 1000; break;
+                        }
+                        expiresAt = Date.now() + ms;
+                    }
+                }
+
                 bannedUsers.set(targetUserId, {
                     reason: reason,
                     bannedBy: user.tag,
                     bannedAt: new Date().toISOString(),
                     userId: targetUserId,
                     username: targetUsername,
-                    displayName: targetUserData.displayName
+                    displayName: targetUserData.displayName,
+                    expiresAt: expiresAt,
+                    duration: duration
                 });
 
                 const embed = new EmbedBuilder()
@@ -466,6 +539,7 @@ function initializeBot() {
                         { name: 'User ID', value: targetUserId, inline: true },
                         { name: 'Username', value: targetUsername, inline: true },
                         { name: 'Reason', value: reason, inline: true },
+                        { name: 'Duration', value: duration, inline: true },
                         { name: 'Banned By', value: user.tag, inline: true }
                     )
                     .setTimestamp();
@@ -484,7 +558,6 @@ function initializeBot() {
 
                 const userId = options.getString('user_id');
                 
-                // Check if user is banned
                 if (!bannedUsers.has(userId)) {
                     return interaction.reply({ 
                         content: `❌ User with ID \`${userId}\` is not banned.`, 
@@ -492,10 +565,7 @@ function initializeBot() {
                     });
                 }
 
-                // Get ban info before removing
                 const banInfo = bannedUsers.get(userId);
-                
-                // Unban the user
                 bannedUsers.delete(userId);
 
                 const embed = new EmbedBuilder()
@@ -541,6 +611,7 @@ function initializeBot() {
                         { name: 'Display Name', value: banInfo.displayName || 'Unknown', inline: true },
                         { name: 'Banned By', value: banInfo.bannedBy, inline: true },
                         { name: 'Reason', value: banInfo.reason, inline: false },
+                        { name: 'Duration', value: banInfo.duration || 'Permanent', inline: true },
                         { name: 'Banned At', value: new Date(banInfo.bannedAt).toLocaleString(), inline: true }
                     )
                     .setTimestamp();
@@ -553,7 +624,6 @@ function initializeBot() {
             } else if (commandName === 'userinfo') {
                 const userInput = options.getString('user');
                 
-                // Extract username from URL if provided
                 let username = userInput;
                 if (userInput.includes('/')) {
                     const parts = userInput.split('/');
@@ -653,15 +723,13 @@ function initializeBot() {
                 let cleanedSessions = 0;
                 let cleanedLimits = 0;
 
-                // Clean up old sessions
                 for (const [key, session] of sessions.entries()) {
-                    if (now - session.createdAt > 3600000) { // 1 hour
+                    if (now - session.createdAt > 3600000) {
                         sessions.delete(key);
                         cleanedSessions++;
                     }
                 }
 
-                // Clean up old creation limits (older than 24 hours)
                 for (const [discordId, timestamp] of userCreationLimits.entries()) {
                     if (now - timestamp > 24 * 60 * 60 * 1000) {
                         userCreationLimits.delete(discordId);
@@ -722,7 +790,6 @@ function initializeBot() {
                 const username = options.getString('user');
                 
                 if (username) {
-                    // Specific user view stats
                     const userData = findUser(username.toLowerCase());
                     if (!userData) {
                         return interaction.reply({ 
@@ -747,7 +814,6 @@ function initializeBot() {
                         embeds: [embed] 
                     });
                 } else {
-                    // Overall view stats
                     const topUsers = Array.from(users.entries())
                         .map(([username, userData]) => ({
                             username,
@@ -820,13 +886,11 @@ function initializeBot() {
         }
     });
 
-    // Login to Discord
     discordBot.login(BOT_TOKEN).catch(error => {
         console.error('❌ Bot login failed:', error);
     });
 }
 
-// Helper function to format uptime
 function formatUptime(seconds) {
     const days = Math.floor(seconds / (24 * 60 * 60));
     const hours = Math.floor((seconds % (24 * 60 * 60)) / (60 * 60));
@@ -840,7 +904,7 @@ function formatUptime(seconds) {
     return parts.join(' ') || '0m';
 }
 
-// Serve homepage with username input
+// Serve homepage
 app.get('/', (req, res) => {
     const { username } = req.query;
     
@@ -1439,35 +1503,34 @@ app.get('/', (req, res) => {
                     return;
                 }
                 
-                // Store username in session storage and redirect to Discord auth
                 sessionStorage.setItem('registeringUsername', username);
                 window.location.href = '/auth/discord?username=' + encodeURIComponent(username);
             }
             
-            // Check for errors
             const urlParams = new URLSearchParams(window.location.search);
             const error = urlParams.get('error');
             
             if (error === 'banned') {
                 showError('Your account has been banned from creating profiles.');
+            } else if (error === 'rate_limit') {
+                showError('You can only create one profile per day. Please try again tomorrow.');
+            } else if (error === 'username_taken') {
+                showError('This username is already taken. Please choose another one.');
             } else if (error) {
                 showError('Registration failed. Please try again.');
             }
             
-            // Make register button work
             document.getElementById('registerBtn').addEventListener('click', function(e) {
                 e.preventDefault();
                 document.getElementById('usernameInput').focus();
             });
             
-            // Enter key support
             document.getElementById('usernameInput').addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') {
                     registerUser();
                 }
             });
 
-            // Smooth scrolling for anchor links
             document.querySelectorAll('a[href^="#"]').forEach(anchor => {
                 anchor.addEventListener('click', function (e) {
                     e.preventDefault();
@@ -1491,18 +1554,34 @@ app.get('/auth/discord', createAccountLimiter, (req, res) => {
     const state = generateState();
     const registeringUsername = req.query.username || 'user';
     
-    // Check if user is banned by IP or HWID
     const clientIP = getClientIP(req);
     const hwid = generateHWID(req);
     
-    // Check IP ban
+    // Enhanced ban checking
     if (bannedIPs.has(clientIP)) {
-        return res.redirect('/?error=banned');
+        const banInfo = bannedIPs.get(clientIP);
+        if (banInfo.expiresAt && Date.now() > banInfo.expiresAt) {
+            bannedIPs.delete(clientIP);
+        } else {
+            return res.redirect('/?error=banned');
+        }
     }
     
-    // Check HWID ban
     if (bannedHWIDs.has(hwid)) {
-        return res.redirect('/?error=banned');
+        const banInfo = bannedHWIDs.get(hwid);
+        if (banInfo.expiresAt && Date.now() > banInfo.expiresAt) {
+            bannedHWIDs.delete(hwid);
+        } else {
+            return res.redirect('/?error=banned');
+        }
+    }
+    
+    // Check registration attempts
+    const ipAttempts = getRegistrationAttempts(clientIP);
+    const hwidAttempts = getRegistrationAttempts(hwid);
+    
+    if (ipAttempts > 5 || hwidAttempts > 5) {
+        return res.redirect('/?error=rate_limit');
     }
     
     sessions.set(state, { 
@@ -1512,6 +1591,9 @@ app.get('/auth/discord', createAccountLimiter, (req, res) => {
         clientIP: clientIP,
         hwid: hwid
     });
+    
+    trackRegistrationAttempt(clientIP);
+    trackRegistrationAttempt(hwid);
     
     const discordAuthUrl = 'https://discord.com/api/oauth2/authorize?client_id=' + DISCORD_CONFIG.clientId + '&redirect_uri=' + encodeURIComponent(DISCORD_CONFIG.redirectUri) + '&response_type=code&scope=identify&state=' + state;
     
@@ -1572,28 +1654,29 @@ app.get('/auth/discord/callback', async (req, res) => {
             return res.redirect('/?error=user_fetch_failed');
         }
         
-        // Check if user is banned
+        // Enhanced ban checking
         const banInfo = isUserBanned(userData.id, req);
         if (banInfo) {
-            // Also ban their IP and HWID to prevent new accounts
             bannedIPs.set(sessionState.clientIP, {
                 reason: 'Associated with banned user',
                 bannedBy: 'System',
                 bannedAt: new Date().toISOString(),
-                originalUser: userData.id
+                originalUser: userData.id,
+                expiresAt: null
             });
             
             bannedHWIDs.set(sessionState.hwid, {
                 reason: 'Associated with banned user',
                 bannedBy: 'System',
                 bannedAt: new Date().toISOString(),
-                originalUser: userData.id
+                originalUser: userData.id,
+                expiresAt: null
             });
             
             return res.redirect('/?error=banned');
         }
         
-        // Rate limiting: 1 account per Discord account
+        // Enhanced rate limiting
         const lastCreation = userCreationLimits.get(userData.id);
         if (lastCreation && (Date.now() - lastCreation) < 24 * 60 * 60 * 1000) {
             return res.redirect('/?error=rate_limit');
@@ -1602,17 +1685,27 @@ app.get('/auth/discord/callback', async (req, res) => {
         // Get the desired username from session state
         let username = sessionState.desiredUsername.toLowerCase();
         
-        // Check if username already exists, if so add discriminator
+        // Enhanced username availability check
         if (users.has(username)) {
-            username = username + '-' + userData.discriminator;
+            // Try adding discriminator
+            const discriminator = userData.discriminator;
+            let newUsername = username + '-' + discriminator;
+            
+            if (users.has(newUsername)) {
+                // If still taken, generate random suffix
+                const randomSuffix = Math.random().toString(36).substring(2, 6);
+                newUsername = username + '-' + randomSuffix;
+            }
+            
+            username = newUsername;
         }
         
-        // Store user data
+        // Create user record with enhanced settings
         const userRecord = {
             discordData: userData,
             access_token: tokenData.access_token,
             username: username,
-            displayName: userData.global_name || userData.username, // Use Discord display name
+            displayName: userData.global_name || userData.username,
             createdAt: Date.now(),
             profileViews: 0,
             settings: {
@@ -1624,11 +1717,15 @@ app.get('/auth/discord/callback', async (req, res) => {
                 showSocialLinks: true,
                 customCSS: '',
                 customHTML: '',
+                theme: 'default',
+                layout: 'classic',
                 socialLinks: {
                     instagram: '',
                     twitter: '',
                     youtube: '',
-                    github: ''
+                    github: '',
+                    twitch: '',
+                    tiktok: ''
                 }
             }
         };
@@ -1647,7 +1744,12 @@ app.get('/auth/discord/callback', async (req, res) => {
         });
         
         // Set session cookie
-        res.cookie('session', sessionId, { httpOnly: true, maxAge: 3600000 });
+        res.cookie('session', sessionId, { 
+            httpOnly: true, 
+            maxAge: 3600000,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax'
+        });
         
         // Redirect to settings page for new users
         res.redirect('/' + username + '/settings?new=true');
@@ -1753,41 +1855,827 @@ function checkProfileOwnership(req, res, next) {
     next();
 }
 
-// Enhanced Settings page (keep the existing settings page code, it's already good)
+// Enhanced Settings page
 app.get('/:username/settings', checkProfileOwnership, (req, res) => {
-    // ... (keep the existing settings page code)
-    // This code is already comprehensive and good
+    const user = req.user;
+    const isNew = req.query.new === 'true';
+    
+    res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Settings - ${user.displayName}'s Profile</title>
+        <meta name="robots" content="noindex, nofollow">
+        <meta name="referrer" content="no-referrer">
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            }
+            
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+            
+            :root {
+                --discord-blurple: #5865F2;
+                --discord-green: #57F287;
+                --discord-red: #ED4245;
+                --bg-primary: #0a0a0a;
+                --bg-secondary: #1a1a1a;
+                --bg-tertiary: #2a2a2a;
+                --text-primary: #ffffff;
+                --text-secondary: #b9bbbe;
+                --text-tertiary: #72767d;
+                --border: rgba(255,255,255,0.1);
+            }
+            
+            body {
+                background: var(--bg-primary);
+                color: var(--text-primary);
+                min-height: 100vh;
+                padding: 20px;
+            }
+            
+            .settings-container {
+                max-width: 1000px;
+                margin: 0 auto;
+                background: var(--bg-secondary);
+                border-radius: 16px;
+                overflow: hidden;
+                border: 1px solid var(--border);
+            }
+            
+            .settings-header {
+                background: var(--bg-tertiary);
+                padding: 30px;
+                border-bottom: 1px solid var(--border);
+            }
+            
+            .back-button {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                color: var(--text-secondary);
+                text-decoration: none;
+                margin-bottom: 20px;
+                transition: color 0.3s ease;
+            }
+            
+            .back-button:hover {
+                color: var(--text-primary);
+            }
+            
+            .header-content {
+                display: flex;
+                align-items: center;
+                gap: 20px;
+            }
+            
+            .profile-pic {
+                width: 80px;
+                height: 80px;
+                border-radius: 50%;
+                object-fit: cover;
+                border: 3px solid var(--discord-blurple);
+            }
+            
+            .header-text h1 {
+                font-size: 2em;
+                margin-bottom: 5px;
+            }
+            
+            .header-text p {
+                color: var(--text-secondary);
+            }
+            
+            .settings-content {
+                padding: 30px;
+                display: grid;
+                gap: 30px;
+            }
+            
+            .settings-section {
+                background: var(--bg-tertiary);
+                border-radius: 12px;
+                padding: 25px;
+                border: 1px solid var(--border);
+            }
+            
+            .section-title {
+                font-size: 1.3em;
+                font-weight: 600;
+                margin-bottom: 20px;
+                color: var(--text-primary);
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            
+            .form-group {
+                margin-bottom: 20px;
+            }
+            
+            .form-label {
+                display: block;
+                margin-bottom: 8px;
+                color: var(--text-secondary);
+                font-weight: 500;
+            }
+            
+            .form-input, .form-textarea, .form-select {
+                width: 100%;
+                padding: 12px 16px;
+                background: var(--bg-secondary);
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                color: var(--text-primary);
+                font-size: 14px;
+                transition: all 0.3s ease;
+            }
+            
+            .form-input:focus, .form-textarea:focus, .form-select:focus {
+                outline: none;
+                border-color: var(--discord-blurple);
+                box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.2);
+            }
+            
+            .form-textarea {
+                min-height: 100px;
+                resize: vertical;
+            }
+            
+            .checkbox-group {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 15px;
+            }
+            
+            .checkbox {
+                width: 18px;
+                height: 18px;
+                accent-color: var(--discord-blurple);
+            }
+            
+            .social-links-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 15px;
+                margin-top: 15px;
+            }
+            
+            .save-button {
+                background: var(--discord-blurple);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 14px 28px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+            }
+            
+            .save-button:hover {
+                background: #4752c4;
+                transform: translateY(-2px);
+            }
+            
+            .save-button:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+                transform: none;
+            }
+            
+            .message {
+                padding: 12px 16px;
+                border-radius: 8px;
+                margin-bottom: 20px;
+                display: none;
+            }
+            
+            .message.success {
+                background: rgba(87, 242, 135, 0.1);
+                border: 1px solid rgba(87, 242, 135, 0.3);
+                color: var(--discord-green);
+            }
+            
+            .message.error {
+                background: rgba(237, 66, 69, 0.1);
+                border: 1px solid rgba(237, 66, 69, 0.3);
+                color: var(--discord-red);
+            }
+            
+            .preview-section {
+                background: var(--bg-tertiary);
+                border-radius: 12px;
+                padding: 25px;
+                border: 1px solid var(--border);
+                margin-top: 20px;
+            }
+            
+            .preview-title {
+                font-size: 1.2em;
+                margin-bottom: 15px;
+                color: var(--text-primary);
+            }
+            
+            .preview-link {
+                color: var(--discord-blurple);
+                text-decoration: none;
+                word-break: break-all;
+            }
+            
+            .preview-link:hover {
+                text-decoration: underline;
+            }
+            
+            @media (max-width: 768px) {
+                .settings-content {
+                    padding: 20px;
+                }
+                
+                .header-content {
+                    flex-direction: column;
+                    text-align: center;
+                }
+                
+                .social-links-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="settings-container">
+            <div class="settings-header">
+                <a href="/${user.username}" class="back-button">
+                    ← Back to Profile
+                </a>
+                <div class="header-content">
+                    <img src="${user.discordData.avatar ? 'https://cdn.discordapp.com/avatars/' + user.discordData.id + '/' + user.discordData.avatar + '.webp?size=256' : 'https://cdn.discordapp.com/embed/avatars/' + (user.discordData.discriminator % 5) + '.png'}" 
+                         alt="Profile Picture" class="profile-pic">
+                    <div class="header-text">
+                        <h1>${user.displayName}</h1>
+                        <p>@${user.username}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="settings-content">
+                ${isNew ? `
+                <div class="message success" id="welcomeMessage" style="display: block;">
+                    🎉 Welcome! Your profile has been created. Customize it below!
+                </div>
+                ` : ''}
+                
+                <div class="message success" id="successMessage" style="display: none;"></div>
+                <div class="message error" id="errorMessage" style="display: none;"></div>
+                
+                <form id="settingsForm">
+                    <div class="settings-section">
+                        <h2 class="section-title">👤 Profile Information</h2>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Display Name</label>
+                            <input type="text" class="form-input" name="displayName" value="${user.displayName || ''}" maxlength="32">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Bio</label>
+                            <textarea class="form-textarea" name="bio" placeholder="Tell everyone about yourself..." maxlength="500">${user.settings.bio || ''}</textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <h2 class="section-title">🎨 Appearance</h2>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Background Video URL</label>
+                            <input type="url" class="form-input" name="background" value="${user.settings.background || ''}" placeholder="https://example.com/background.mp4">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Background Music URL</label>
+                            <input type="url" class="form-input" name="music" value="${user.settings.music || ''}" placeholder="https://example.com/music.mp3">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Theme</label>
+                            <select class="form-select" name="theme">
+                                <option value="default" ${user.settings.theme === 'default' ? 'selected' : ''}>Default</option>
+                                <option value="dark" ${user.settings.theme === 'dark' ? 'selected' : ''}>Dark</option>
+                                <option value="light" ${user.settings.theme === 'light' ? 'selected' : ''}>Light</option>
+                                <option value="neon" ${user.settings.theme === 'neon' ? 'selected' : ''}>Neon</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <h2 class="section-title">🔗 Social Links</h2>
+                        
+                        <div class="checkbox-group">
+                            <input type="checkbox" class="checkbox" id="showSocialLinks" name="showSocialLinks" ${user.settings.showSocialLinks ? 'checked' : ''}>
+                            <label for="showSocialLinks">Show social links on profile</label>
+                        </div>
+                        
+                        <div class="social-links-grid">
+                            <div class="form-group">
+                                <label class="form-label">Instagram</label>
+                                <input type="url" class="form-input" name="socialLinks[instagram]" value="${user.settings.socialLinks?.instagram || ''}" placeholder="https://instagram.com/username">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Twitter</label>
+                                <input type="url" class="form-input" name="socialLinks[twitter]" value="${user.settings.socialLinks?.twitter || ''}" placeholder="https://twitter.com/username">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">YouTube</label>
+                                <input type="url" class="form-input" name="socialLinks[youtube]" value="${user.settings.socialLinks?.youtube || ''}" placeholder="https://youtube.com/username">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">GitHub</label>
+                                <input type="url" class="form-input" name="socialLinks[github]" value="${user.settings.socialLinks?.github || ''}" placeholder="https://github.com/username">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Twitch</label>
+                                <input type="url" class="form-input" name="socialLinks[twitch]" value="${user.settings.socialLinks?.twitch || ''}" placeholder="https://twitch.tv/username">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">TikTok</label>
+                                <input type="url" class="form-input" name="socialLinks[tiktok]" value="${user.settings.socialLinks?.tiktok || ''}" placeholder="https://tiktok.com/@username">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <h2 class="section-title">⚙️ Display Options</h2>
+                        
+                        <div class="checkbox-group">
+                            <input type="checkbox" class="checkbox" id="showBadges" name="showBadges" ${user.settings.showBadges ? 'checked' : ''}>
+                            <label for="showBadges">Show Discord badges</label>
+                        </div>
+                        
+                        <div class="checkbox-group">
+                            <input type="checkbox" class="checkbox" id="showStats" name="showStats" ${user.settings.showStats ? 'checked' : ''}>
+                            <label for="showStats">Show profile statistics</label>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <h2 class="section-title">💻 Customization</h2>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Custom CSS</label>
+                            <textarea class="form-textarea" name="customCSS" placeholder="Add your custom CSS here..." rows="6">${user.settings.customCSS || ''}</textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Custom HTML</label>
+                            <textarea class="form-textarea" name="customHTML" placeholder="Add your custom HTML here..." rows="6">${user.settings.customHTML || ''}</textarea>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="save-button">
+                        💾 Save Changes
+                    </button>
+                </form>
+                
+                <div class="preview-section">
+                    <h3 class="preview-title">Profile Preview</h3>
+                    <p>Your profile is live at: <a href="/${user.username}" class="preview-link" target="_blank">https://${req.headers.host}/${user.username}</a></p>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            const form = document.getElementById('settingsForm');
+            const successMessage = document.getElementById('successMessage');
+            const errorMessage = document.getElementById('errorMessage');
+            const welcomeMessage = document.getElementById('welcomeMessage');
+            
+            // Hide welcome message after 5 seconds
+            if (welcomeMessage) {
+                setTimeout(() => {
+                    welcomeMessage.style.display = 'none';
+                }, 5000);
+            }
+            
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const saveButton = form.querySelector('button[type="submit"]');
+                const originalText = saveButton.innerHTML;
+                saveButton.innerHTML = '⏳ Saving...';
+                saveButton.disabled = true;
+                
+                try {
+                    const formData = new FormData(form);
+                    const data = Object.fromEntries(formData.entries());
+                    
+                    // Parse social links
+                    const socialLinks = {};
+                    for (const [key, value] of Object.entries(data)) {
+                        if (key.startsWith('socialLinks[')) {
+                            const platform = key.match(/socialLinks\[(.*?)\]/)[1];
+                            socialLinks[platform] = value;
+                        }
+                    }
+                    
+                    // Prepare payload
+                    const payload = {
+                        ...data,
+                        socialLinks: socialLinks
+                    };
+                    
+                    // Convert checkbox values to boolean
+                    payload.showBadges = payload.showBadges === 'on';
+                    payload.showStats = payload.showStats === 'on';
+                    payload.showSocialLinks = payload.showSocialLinks === 'on';
+                    
+                    const response = await fetch('/${user.username}/settings/update', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        successMessage.textContent = '✅ Settings saved successfully!';
+                        successMessage.style.display = 'block';
+                        errorMessage.style.display = 'none';
+                        
+                        // Update display name in header if changed
+                        if (payload.displayName) {
+                            document.querySelector('.header-text h1').textContent = payload.displayName;
+                        }
+                    } else {
+                        throw new Error(result.message || 'Failed to save settings');
+                    }
+                } catch (error) {
+                    errorMessage.textContent = '❌ ' + error.message;
+                    errorMessage.style.display = 'block';
+                    successMessage.style.display = 'none';
+                } finally {
+                    saveButton.innerHTML = originalText;
+                    saveButton.disabled = false;
+                    
+                    // Scroll to top to show message
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            });
+        </script>
+    </body>
+    </html>
+    `);
 });
 
 // Update settings endpoint
-app.post('/:username/settings/update', checkProfileOwnership, (req, res) => {
+app.post('/:username/settings/update', checkProfileOwnership, express.json(), (req, res) => {
     const user = req.user;
     const newSettings = req.body;
     
-    // Update user settings and display name
-    user.settings = {
-        ...user.settings,
-        ...newSettings
-    };
-    
-    // Handle nested social links
-    if (newSettings.socialLinks) {
-        user.settings.socialLinks = {
-            ...user.settings.socialLinks,
-            ...newSettings.socialLinks
+    try {
+        // Update user settings
+        user.settings = {
+            ...user.settings,
+            ...newSettings
         };
+        
+        // Handle nested social links
+        if (newSettings.socialLinks) {
+            user.settings.socialLinks = {
+                ...user.settings.socialLinks,
+                ...newSettings.socialLinks
+            };
+        }
+        
+        // Update display name if provided
+        if (newSettings.displayName) {
+            user.displayName = newSettings.displayName;
+        }
+        
+        users.set(user.username, user);
+        
+        res.json({ success: true, message: 'Settings updated successfully' });
+    } catch (error) {
+        console.error('Error updating settings:', error);
+        res.status(500).json({ success: false, message: 'Failed to update settings' });
     }
-    
-    if (newSettings.displayName) {
-        user.displayName = newSettings.displayName;
-    }
-    
-    users.set(user.username, user);
-    
-    res.json({ success: true, message: 'Settings updated successfully' });
 });
 
-// Serve user profile pages - UPDATED TO SHOW BANNED MESSAGE
+// Helper functions for profile generation
+function getBadgesHTML(flags) {
+    if (!flags) return '';
+    
+    const badges = [];
+    const badgeMap = {
+        1 << 0: '🎨', // Discord Employee
+        1 << 1: '🤝', // Partnered Server Owner
+        1 << 2: '⚡', // HypeSquad Events
+        1 << 3: '🐛', // Bug Hunter Level 1
+        1 << 6: '🏠', // House Bravery
+        1 << 7: '💚', // House Brilliance
+        1 << 8: '❤️', // House Balance
+        1 << 9: '⭐', // Early Supporter
+        1 << 10: '🛡️', // Bug Hunter Level 2
+        1 << 14: '🌟', // Early Verified Bot Developer
+        1 << 16: '🤖', // Active Developer
+        1 << 17: '🎓', // Moderator Programs Alumni
+        1 << 18: '🌐' // Discord Certified Moderator
+    };
+    
+    for (const [flag, emoji] of Object.entries(badgeMap)) {
+        if (flags & parseInt(flag)) {
+            badges.push(emoji);
+        }
+    }
+    
+    return badges.length > 0 ? 
+        `<div class="badges">${badges.join('')}</div>` : 
+        '<div class="badges">👤 No badges</div>';
+}
+
+function getAccountAge(userId) {
+    const timestamp = (parseInt(userId) / 4194304) + 1420070400000;
+    const accountDate = new Date(timestamp);
+    const now = new Date();
+    const diffTime = Math.abs(now - accountDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 30) return `${diffDays} days`;
+    if (diffDays < 365) return `${Math.floor(diffDays / 30)} months`;
+    return `${Math.floor(diffDays / 365)} years`;
+}
+
+function getProfileCSS() {
+    return `
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        :root {
+            --discord-blurple: #5865F2;
+            --discord-green: #57F287;
+            --discord-yellow: #FEE75C;
+            --discord-red: #ED4245;
+            --text-primary: #ffffff;
+            --text-secondary: #b9bbbe;
+            --text-tertiary: #72767d;
+            --bg-glass: rgba(0, 0, 0, 0.7);
+            --border-glass: rgba(255, 255, 255, 0.1);
+        }
+        
+        body {
+            background: #000;
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        .background-video {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -2;
+            filter: brightness(0.6);
+        }
+        
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-glass);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-glass);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .logo {
+            font-size: 1.4em;
+            font-weight: 800;
+            background: linear-gradient(135deg, #fff, var(--discord-blurple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-decoration: none;
+        }
+        
+        .settings-btn {
+            background: var(--discord-blurple);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            font-size: 0.9em;
+        }
+        
+        .settings-btn:hover {
+            background: #4752c4;
+            transform: translateY(-2px);
+        }
+        
+        .container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 100px 20px 50px;
+        }
+        
+        .profile-card {
+            background: var(--bg-glass);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glass);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .profile-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .profile-pic-container {
+            position: relative;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+        
+        .profile-pic {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid var(--discord-blurple);
+        }
+        
+        .status-indicator {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 3px solid var(--bg-glass);
+        }
+        
+        .status-online {
+            background: var(--discord-green);
+        }
+        
+        .name-container {
+            margin-bottom: 10px;
+        }
+        
+        .name {
+            font-size: 2em;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .username {
+            color: var(--text-secondary);
+            font-size: 1.2em;
+            margin-bottom: 5px;
+        }
+        
+        .profile-url {
+            color: var(--text-tertiary);
+            font-size: 0.9em;
+            word-break: break-all;
+        }
+        
+        .bio-section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        
+        .bio-label {
+            color: var(--text-secondary);
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+        
+        .bio-content {
+            line-height: 1.5;
+            color: var(--text-primary);
+        }
+        
+        .badges-container {
+            margin-bottom: 25px;
+        }
+        
+        .badges {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            font-size: 1.5em;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .stat-item {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.8em;
+            margin-bottom: 5px;
+        }
+        
+        .stat-value {
+            color: var(--text-primary);
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+        
+        .social-links {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .social-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            text-decoration: none;
+            font-size: 1.2em;
+            transition: all 0.3s ease;
+        }
+        
+        .social-link:hover {
+            background: var(--discord-blurple);
+            transform: translateY(-2px);
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 80px 15px 30px;
+            }
+            
+            .profile-card {
+                padding: 30px 20px;
+            }
+            
+            .name {
+                font-size: 1.6em;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    `;
+}
+
+// Serve user profile pages - FIXED
 app.get('/:username', (req, res) => {
     const { username } = req.params;
     const user = users.get(username.toLowerCase());
@@ -1930,22 +2818,18 @@ app.get('/:username', (req, res) => {
         `);
     }
     
-    // Increment profile views (only if not banned)
+    // Increment profile views
     user.profileViews = (user.profileViews || 0) + 1;
     addUserViews(username.toLowerCase(), 1);
     
-    // Generate avatar URL
+    // Generate profile components
     const avatarUrl = user.discordData.avatar 
         ? 'https://cdn.discordapp.com/avatars/' + user.discordData.id + '/' + user.discordData.avatar + '.webp?size=256'
         : 'https://cdn.discordapp.com/embed/avatars/' + (user.discordData.discriminator % 5) + '.png';
     
-    // Generate badges HTML
     const badgesHTML = user.settings.showBadges ? getBadgesHTML(user.discordData.public_flags) : '';
-    
-    // Generate account age
     const accountAge = getAccountAge(user.discordData.id);
     
-    // Generate social links HTML
     let socialLinksHTML = '';
     if (user.settings.showSocialLinks && user.settings.socialLinks) {
         const socials = user.settings.socialLinks;
@@ -1955,11 +2839,12 @@ app.get('/:username', (req, res) => {
                 ${socials.twitter ? `<a href="${socials.twitter}" class="social-link" title="Twitter" target="_blank">🐦</a>` : ''}
                 ${socials.youtube ? `<a href="${socials.youtube}" class="social-link" title="YouTube" target="_blank">📺</a>` : ''}
                 ${socials.github ? `<a href="${socials.github}" class="social-link" title="GitHub" target="_blank">💻</a>` : ''}
+                ${socials.twitch ? `<a href="${socials.twitch}" class="social-link" title="Twitch" target="_blank">🎮</a>` : ''}
+                ${socials.tiktok ? `<a href="${socials.tiktok}" class="social-link" title="TikTok" target="_blank">🎵</a>` : ''}
             </div>
         `;
     }
     
-    // Generate stats HTML
     const statsHTML = user.settings.showStats ? `
         <div class="stats-grid">
             <div class="stat-item">
@@ -1981,7 +2866,6 @@ app.get('/:username', (req, res) => {
         </div>
     ` : '';
     
-    // Generate bio HTML
     const bioHTML = user.settings.bio ? `
         <div class="bio-section">
             <div class="bio-label">About Me</div>
@@ -1995,7 +2879,7 @@ app.get('/:username', (req, res) => {
     const settingsButton = isOwner ? `<a href="/${username}/settings" class="settings-btn">⚙️ Settings</a>` : '';
     
     const navbarHTML = settingsButton ? `
-        <nav class="navbar profile-navbar">
+        <nav class="navbar">
             <a href="/" class="logo">DiscordProfile</a>
             <div class="nav-links">
                 ${settingsButton}
@@ -2003,25 +2887,77 @@ app.get('/:username', (req, res) => {
         </nav>
     ` : '';
     
-    res.send('<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>' + user.displayName + '\'s Profile - DiscordProfile</title><meta name="description" content="' + user.displayName + '\'s Discord profile"><meta name="robots" content="noindex, nofollow"><meta name="referrer" content="no-referrer"><meta http-equiv="Permissions-Policy" content="browsing-topics=(), run-ad-auction=(), join-ad-interest-group=(), private-state-token-redemption=(), private-state-token-issuance=(), private-aggregation=(), attribution-reporting=()"><style>' + getProfileCSS() + (user.settings.customCSS || '') + '</style></head><body><video class="background-video" autoplay muted loop playsinline id="backgroundVideo"><source src="' + user.settings.background + '" type="video/mp4"></video>' + (user.settings.music ? '<audio id="backgroundMusic" loop><source src="' + user.settings.music + '" type="audio/mp3"></audio>' : '') + navbarHTML + '<div class="container"><div class="profile-card"><div class="profile-header"><div class="profile-pic-container"><div class="profile-pic"><img src="' + avatarUrl + '" alt="' + user.displayName + '\'s Profile Picture"></div><div class="status-indicator status-online"></div></div><div class="profile-info"><div class="name-container"><h1 class="name">' + user.displayName + '</h1></div><div class="username">@' + user.username + '</div><div class="profile-url">' + req.headers.host + '/' + username + '</div></div></div>' + bioHTML + '<div class="badges-container">' + badgesHTML + '</div>' + statsHTML + socialLinksHTML + (user.settings.customHTML || '') + '</div></div>' + (user.settings.music ? '<script>document.getElementById(\'backgroundMusic\').play().catch(e => console.log(\'Autoplay blocked\'));</script>' : '') + '</body></html>');
+    // Generate the complete profile page
+    const profileHTML = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${user.displayName}'s Profile - DiscordProfile</title>
+        <meta name="description" content="${user.displayName}'s Discord profile">
+        <meta name="robots" content="noindex, nofollow">
+        <meta name="referrer" content="no-referrer">
+        <meta http-equiv="Permissions-Policy" content="browsing-topics=(), run-ad-auction=(), join-ad-interest-group=(), private-state-token-redemption=(), private-state-token-issuance=(), private-aggregation=(), attribution-reporting=()">
+        <style>
+            ${getProfileCSS()}
+            ${user.settings.customCSS || ''}
+        </style>
+    </head>
+    <body>
+        <video class="background-video" autoplay muted loop playsinline>
+            <source src="${user.settings.background}" type="video/mp4">
+        </video>
+        
+        ${user.settings.music ? `
+        <audio id="backgroundMusic" loop>
+            <source src="${user.settings.music}" type="audio/mp3">
+        </audio>
+        ` : ''}
+        
+        ${navbarHTML}
+        
+        <div class="container">
+            <div class="profile-card">
+                <div class="profile-header">
+                    <div class="profile-pic-container">
+                        <div class="profile-pic">
+                            <img src="${avatarUrl}" alt="${user.displayName}'s Profile Picture">
+                        </div>
+                        <div class="status-indicator status-online"></div>
+                    </div>
+                    <div class="profile-info">
+                        <div class="name-container">
+                            <h1 class="name">${user.displayName}</h1>
+                        </div>
+                        <div class="username">@${user.username}</div>
+                        <div class="profile-url">${req.headers.host}/${username}</div>
+                    </div>
+                </div>
+                
+                ${bioHTML}
+                ${badgesHTML}
+                ${statsHTML}
+                ${socialLinksHTML}
+                ${user.settings.customHTML || ''}
+            </div>
+        </div>
+        
+        ${user.settings.music ? `
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const music = document.getElementById('backgroundMusic');
+                music.volume = 0.3;
+                music.play().catch(e => console.log('Autoplay blocked:', e));
+            });
+        </script>
+        ` : ''}
+    </body>
+    </html>
+    `;
+    
+    res.send(profileHTML);
 });
-
-// Helper functions (keep existing ones)
-function getBadgesHTML(flags) {
-    // ... (keep existing implementation)
-}
-
-function getAccountAge(userId) {
-    // ... (keep existing implementation)
-}
-
-function getProfileCSS() {
-    // ... (keep existing implementation)
-}
-
-function getSettingsCSS() {
-    // ... (keep existing implementation)
-}
 
 // Serve features page
 app.get('/features', (req, res) => {
@@ -2084,13 +3020,11 @@ app.use((req, res) => {
 // Start server and load bot token
 server.listen(PORT, '0.0.0.0', () => {
     console.log('🚀 Server running on port ' + PORT);
-    console.log('✅ Custom username system ready');
-    console.log('🎯 Each user gets their own profile URL');
-    console.log('⚙️ Settings page available at /username/settings');
-    console.log('🔗 Example: https://tommyfc555-github-io.onrender.com/hwid/settings');
-    console.log('🆕 Enhanced ban system with IP/HWID blocking');
-    console.log('👀 Added view tracking system');
-    console.log('🤖 Added new bot commands: /addviews, /viewstats, /settings');
+    console.log('✅ Enhanced registration system ready');
+    console.log('🎯 Fixed profile and settings pages');
+    console.log('⚙️ Improved rate limiting and security');
+    console.log('🔧 Enhanced bot commands with temporary bans');
+    console.log('👀 Better view tracking system');
     
     // Load bot token from Pastebin
     loadBotToken();
