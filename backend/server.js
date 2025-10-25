@@ -2,7 +2,7 @@ const express = require('express');
 const http = require('http');
 const crypto = require('crypto');
 const cookieParser = require('cookie-parser');
-const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } = require('discord.js');
 const rateLimit = require('express-rate-limit');
 const fetch = require('node-fetch');
 
@@ -105,24 +105,29 @@ setInterval(() => {
 function isUserBanned(discordId, req = null) {
     // Check user ID ban
     if (bannedUsers.has(discordId)) {
-        return true;
+        return bannedUsers.get(discordId);
     }
     
     // Check IP ban if request provided
     if (req) {
         const ip = getClientIP(req);
         if (bannedIPs.has(ip)) {
-            return true;
+            return bannedIPs.get(ip);
         }
         
         // Check HWID ban
         const hwid = generateHWID(req);
         if (bannedHWIDs.has(hwid)) {
-            return true;
+            return bannedHWIDs.get(hwid);
         }
     }
     
     return false;
+}
+
+// Get ban info for a user
+function getBanInfo(discordId) {
+    return bannedUsers.get(discordId) || null;
 }
 
 // Load bot token from Pastebin
@@ -158,7 +163,8 @@ function initializeBot() {
         intents: [
             GatewayIntentBits.Guilds,
             GatewayIntentBits.GuildMessages,
-            GatewayIntentBits.MessageContent
+            GatewayIntentBits.MessageContent,
+            GatewayIntentBits.GuildMembers
         ]
     });
 
@@ -169,10 +175,16 @@ function initializeBot() {
             description: 'Ban a user from creating profiles',
             options: [
                 {
-                    name: 'username',
-                    type: 3, // STRING
-                    description: 'The username to ban',
+                    name: 'user',
+                    type: 6, // USER
+                    description: 'The user to ban',
                     required: true
+                },
+                {
+                    name: 'reason',
+                    type: 3, // STRING
+                    description: 'Reason for the ban',
+                    required: false
                 }
             ]
         },
@@ -181,16 +193,52 @@ function initializeBot() {
             description: 'Unban a user',
             options: [
                 {
-                    name: 'username',
+                    name: 'user_id',
                     type: 3, // STRING
-                    description: 'The username to unban',
+                    description: 'The Discord user ID to unban',
                     required: true
                 }
             ]
         },
         {
+            name: 'baninfo',
+            description: 'Get ban information for a user',
+            options: [
+                {
+                    name: 'user_id',
+                    type: 3, // STRING
+                    description: 'The Discord user ID to check',
+                    required: true
+                }
+            ]
+        },
+        {
+            name: 'userinfo',
+            description: 'Get information about a user',
+            options: [
+                {
+                    name: 'user',
+                    type: 6, // USER
+                    description: 'The user to get information about',
+                    required: true
+                }
+            ]
+        },
+        {
+            name: 'serverinfo',
+            description: 'Get server information'
+        },
+        {
+            name: 'cleanup',
+            description: 'Clean up old sessions and data (Admin only)'
+        },
+        {
+            name: 'stats',
+            description: 'Show bot statistics'
+        },
+        {
             name: 'help',
-            description: 'Show all available commands (Admin only)'
+            description: 'Show all available commands'
         }
     ];
 
@@ -218,112 +266,292 @@ function initializeBot() {
     discordBot.on('interactionCreate', async interaction => {
         if (!interaction.isCommand()) return;
 
-        const { commandName, options, user } = interaction;
+        const { commandName, options, user, guild } = interaction;
 
         // Check if user is admin for certain commands
         const userIsAdmin = isAdmin(user.id);
 
-        if (commandName === 'help') {
-            if (!userIsAdmin) {
-                return interaction.reply({ 
-                    content: '❌ This command is only available to administrators.', 
+        try {
+            if (commandName === 'help') {
+                const helpEmbed = new EmbedBuilder()
+                    .setTitle('🤖 Discord Profile Bot Commands')
+                    .setColor(0x5865F2)
+                    .setDescription('Here are all the available commands:')
+                    .addFields(
+                        {
+                            name: '🛠️ Admin Commands',
+                            value: `
+                            **/ban <user> [reason]** - Ban a user from creating profiles
+                            **/unban <user_id>** - Unban a previously banned user
+                            **/cleanup** - Clean up old sessions and data
+                            `,
+                            inline: false
+                        },
+                        {
+                            name: 'ℹ️ Info Commands',
+                            value: `
+                            **/baninfo <user_id>** - Get ban information for a user
+                            **/userinfo <user>** - Get information about a user
+                            **/serverinfo** - Get server information
+                            **/stats** - Show bot statistics
+                            **/help** - Show this help message
+                            `,
+                            inline: false
+                        }
+                    )
+                    .setFooter({ text: 'Admin commands are only available to authorized users' })
+                    .setTimestamp();
+
+                await interaction.reply({ 
+                    embeds: [helpEmbed], 
                     ephemeral: true 
                 });
-            }
 
-            const helpMessage = `
-**🤖 Discord Profile Bot Commands**
-
-**/ban <username>** - Ban a user from creating profiles
-**/unban <username>** - Unban a previously banned user
-**/help** - Show this help message
-
-**Admin Only Commands:**
-- All commands are admin-only for security
-- Bans prevent users from creating new accounts
-- Bans apply to user ID, IP, and hardware ID
-
-**Usage Examples:**
-\`/ban eviluser\` - Bans the user "eviluser"
-\`/unban reformeduser\` - Unbans the user "reformeduser"
-            `;
-
-            await interaction.reply({ 
-                content: helpMessage, 
-                ephemeral: true 
-            });
-
-        } else if (commandName === 'ban') {
-            if (!userIsAdmin) {
-                return interaction.reply({ 
-                    content: '❌ This command is only available to administrators.', 
-                    ephemeral: true 
-                });
-            }
-
-            const username = options.getString('username').toLowerCase();
-            
-            // Find user in database
-            const userToBan = Array.from(users.values()).find(u => 
-                u.username.toLowerCase() === username || 
-                u.discordData.username.toLowerCase() === username
-            );
-
-            if (!userToBan) {
-                return interaction.reply({ 
-                    content: `❌ User "${username}" not found.`, 
-                    ephemeral: true 
-                });
-            }
-
-            // Ban the user by ID
-            bannedUsers.set(userToBan.discordData.id, {
-                reason: 'Banned by moderator',
-                bannedBy: user.tag,
-                bannedAt: new Date().toISOString()
-            });
-
-            // Also remove their profile
-            users.delete(userToBan.username);
-
-            await interaction.reply({ 
-                content: `✅ Successfully banned ${username} and removed their profile.`, 
-                ephemeral: false 
-            });
-
-        } else if (commandName === 'unban') {
-            if (!userIsAdmin) {
-                return interaction.reply({ 
-                    content: '❌ This command is only available to administrators.', 
-                    ephemeral: true 
-                });
-            }
-
-            const username = options.getString('username').toLowerCase();
-            
-            // Find banned user by username
-            let unbannedUserId = null;
-            for (const [userId, banData] of bannedUsers.entries()) {
-                const user = Array.from(users.values()).find(u => u.discordData.id === userId);
-                if (user && (user.username.toLowerCase() === username || user.discordData.username.toLowerCase() === username)) {
-                    unbannedUserId = userId;
-                    break;
+            } else if (commandName === 'ban') {
+                if (!userIsAdmin) {
+                    return interaction.reply({ 
+                        content: '❌ This command is only available to administrators.', 
+                        ephemeral: true 
+                    });
                 }
-            }
 
-            if (!unbannedUserId) {
-                return interaction.reply({ 
-                    content: `❌ User "${username}" is not banned or not found.`, 
+                const targetUser = options.getUser('user');
+                const reason = options.getString('reason') || 'No reason provided';
+                
+                // Check if user is already banned
+                if (bannedUsers.has(targetUser.id)) {
+                    return interaction.reply({ 
+                        content: `❌ User ${targetUser.tag} is already banned.`, 
+                        ephemeral: true 
+                    });
+                }
+
+                // Ban the user
+                bannedUsers.set(targetUser.id, {
+                    reason: reason,
+                    bannedBy: user.tag,
+                    bannedAt: new Date().toISOString(),
+                    userId: targetUser.id,
+                    username: targetUser.tag
+                });
+
+                // Find and remove their profile if it exists
+                let profileRemoved = false;
+                for (const [username, userData] of users.entries()) {
+                    if (userData.discordData.id === targetUser.id) {
+                        users.delete(username);
+                        profileRemoved = true;
+                        break;
+                    }
+                }
+
+                const embed = new EmbedBuilder()
+                    .setTitle('✅ User Banned')
+                    .setColor(0xED4245)
+                    .setDescription(`Successfully banned ${targetUser.tag}`)
+                    .addFields(
+                        { name: 'User ID', value: targetUser.id, inline: true },
+                        { name: 'Reason', value: reason, inline: true },
+                        { name: 'Banned By', value: user.tag, inline: true },
+                        { name: 'Profile Removed', value: profileRemoved ? 'Yes' : 'No', inline: true }
+                    )
+                    .setTimestamp();
+
+                await interaction.reply({ 
+                    embeds: [embed]
+                });
+
+            } else if (commandName === 'unban') {
+                if (!userIsAdmin) {
+                    return interaction.reply({ 
+                        content: '❌ This command is only available to administrators.', 
+                        ephemeral: true 
+                    });
+                }
+
+                const userId = options.getString('user_id');
+                
+                // Check if user is banned
+                if (!bannedUsers.has(userId)) {
+                    return interaction.reply({ 
+                        content: `❌ User with ID \`${userId}\` is not banned.`, 
+                        ephemeral: true 
+                    });
+                }
+
+                // Get ban info before removing
+                const banInfo = bannedUsers.get(userId);
+                
+                // Unban the user
+                bannedUsers.delete(userId);
+
+                const embed = new EmbedBuilder()
+                    .setTitle('✅ User Unbanned')
+                    .setColor(0x57F287)
+                    .setDescription(`Successfully unbanned user`)
+                    .addFields(
+                        { name: 'User ID', value: userId, inline: true },
+                        { name: 'Previously Banned By', value: banInfo.bannedBy, inline: true },
+                        { name: 'Ban Reason', value: banInfo.reason, inline: true },
+                        { name: 'Unbanned By', value: user.tag, inline: true }
+                    )
+                    .setTimestamp();
+
+                await interaction.reply({ 
+                    embeds: [embed]
+                });
+
+            } else if (commandName === 'baninfo') {
+                if (!userIsAdmin) {
+                    return interaction.reply({ 
+                        content: '❌ This command is only available to administrators.', 
+                        ephemeral: true 
+                    });
+                }
+
+                const userId = options.getString('user_id');
+                const banInfo = bannedUsers.get(userId);
+                
+                if (!banInfo) {
+                    return interaction.reply({ 
+                        content: `✅ User with ID \`${userId}\` is not banned.`, 
+                        ephemeral: true 
+                    });
+                }
+
+                const embed = new EmbedBuilder()
+                    .setTitle('🔍 Ban Information')
+                    .setColor(0xFEE75C)
+                    .addFields(
+                        { name: 'User ID', value: userId, inline: true },
+                        { name: 'Username', value: banInfo.username || 'Unknown', inline: true },
+                        { name: 'Banned By', value: banInfo.bannedBy, inline: true },
+                        { name: 'Reason', value: banInfo.reason, inline: false },
+                        { name: 'Banned At', value: new Date(banInfo.bannedAt).toLocaleString(), inline: true }
+                    )
+                    .setTimestamp();
+
+                await interaction.reply({ 
+                    embeds: [embed],
                     ephemeral: true 
                 });
+
+            } else if (commandName === 'userinfo') {
+                const targetUser = options.getUser('user');
+                
+                const embed = new EmbedBuilder()
+                    .setTitle('👤 User Information')
+                    .setColor(0x5865F2)
+                    .setThumbnail(targetUser.displayAvatarURL())
+                    .addFields(
+                        { name: 'Username', value: targetUser.tag, inline: true },
+                        { name: 'User ID', value: targetUser.id, inline: true },
+                        { name: 'Account Created', value: `<t:${Math.floor(targetUser.createdTimestamp / 1000)}:R>`, inline: true },
+                        { name: 'Bot', value: targetUser.bot ? 'Yes' : 'No', inline: true }
+                    )
+                    .setFooter({ text: `Requested by ${user.tag}` })
+                    .setTimestamp();
+
+                await interaction.reply({ 
+                    embeds: [embed] 
+                });
+
+            } else if (commandName === 'serverinfo') {
+                if (!guild) {
+                    return interaction.reply({ 
+                        content: '❌ This command can only be used in a server.', 
+                        ephemeral: true 
+                    });
+                }
+
+                const embed = new EmbedBuilder()
+                    .setTitle('🏠 Server Information')
+                    .setColor(0x5865F2)
+                    .setThumbnail(guild.iconURL())
+                    .addFields(
+                        { name: 'Server Name', value: guild.name, inline: true },
+                        { name: 'Server ID', value: guild.id, inline: true },
+                        { name: 'Member Count', value: guild.memberCount.toString(), inline: true },
+                        { name: 'Created', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:R>`, inline: true },
+                        { name: 'Owner', value: `<@${guild.ownerId}>`, inline: true },
+                        { name: 'Boost Level', value: `Level ${guild.premiumTier}`, inline: true }
+                    )
+                    .setFooter({ text: `Requested by ${user.tag}` })
+                    .setTimestamp();
+
+                await interaction.reply({ 
+                    embeds: [embed] 
+                });
+
+            } else if (commandName === 'stats') {
+                const totalUsers = users.size;
+                const totalBans = bannedUsers.size;
+                const totalSessions = sessions.size;
+
+                const embed = new EmbedBuilder()
+                    .setTitle('📊 Bot Statistics')
+                    .setColor(0x5865F2)
+                    .addFields(
+                        { name: 'Total Profiles', value: totalUsers.toString(), inline: true },
+                        { name: 'Active Bans', value: totalBans.toString(), inline: true },
+                        { name: 'Active Sessions', value: totalSessions.toString(), inline: true },
+                        { name: 'Uptime', value: formatUptime(process.uptime()), inline: true },
+                        { name: 'Memory Usage', value: `${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)} MB`, inline: true }
+                    )
+                    .setFooter({ text: 'Discord Profile Bot' })
+                    .setTimestamp();
+
+                await interaction.reply({ 
+                    embeds: [embed] 
+                });
+
+            } else if (commandName === 'cleanup') {
+                if (!userIsAdmin) {
+                    return interaction.reply({ 
+                        content: '❌ This command is only available to administrators.', 
+                        ephemeral: true 
+                    });
+                }
+
+                const now = Date.now();
+                let cleanedSessions = 0;
+                let cleanedLimits = 0;
+
+                // Clean up old sessions
+                for (const [key, session] of sessions.entries()) {
+                    if (now - session.createdAt > 3600000) { // 1 hour
+                        sessions.delete(key);
+                        cleanedSessions++;
+                    }
+                }
+
+                // Clean up old creation limits (older than 24 hours)
+                for (const [discordId, timestamp] of userCreationLimits.entries()) {
+                    if (now - timestamp > 24 * 60 * 60 * 1000) {
+                        userCreationLimits.delete(discordId);
+                        cleanedLimits++;
+                    }
+                }
+
+                const embed = new EmbedBuilder()
+                    .setTitle('🧹 Cleanup Completed')
+                    .setColor(0x57F287)
+                    .addFields(
+                        { name: 'Sessions Cleaned', value: cleanedSessions.toString(), inline: true },
+                        { name: 'Rate Limits Cleaned', value: cleanedLimits.toString(), inline: true },
+                        { name: 'Remaining Sessions', value: sessions.size.toString(), inline: true }
+                    )
+                    .setTimestamp();
+
+                await interaction.reply({ 
+                    embeds: [embed] 
+                });
             }
-
-            // Unban the user
-            bannedUsers.delete(unbannedUserId);
-
+        } catch (error) {
+            console.error('Error handling command:', error);
             await interaction.reply({ 
-                content: `✅ Successfully unbanned ${username}.`, 
-                ephemeral: false 
+                content: '❌ An error occurred while executing this command.', 
+                ephemeral: true 
             });
         }
     });
@@ -332,6 +560,20 @@ function initializeBot() {
     discordBot.login(BOT_TOKEN).catch(error => {
         console.error('❌ Bot login failed:', error);
     });
+}
+
+// Helper function to format uptime
+function formatUptime(seconds) {
+    const days = Math.floor(seconds / (24 * 60 * 60));
+    const hours = Math.floor((seconds % (24 * 60 * 60)) / (60 * 60));
+    const minutes = Math.floor((seconds % (60 * 60)) / 60);
+    
+    const parts = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    
+    return parts.join(' ') || '0m';
 }
 
 // Serve homepage with username input
@@ -1043,7 +1285,8 @@ app.get('/auth/discord/callback', async (req, res) => {
         }
         
         // Check if user is banned
-        if (isUserBanned(userData.id, req)) {
+        const banInfo = isUserBanned(userData.id, req);
+        if (banInfo) {
             return res.redirect('/?error=banned');
         }
         
@@ -1560,7 +1803,7 @@ app.post('/:username/settings/update', checkProfileOwnership, (req, res) => {
     res.json({ success: true, message: 'Settings updated successfully' });
 });
 
-// Serve user profile pages
+// Serve user profile pages - UPDATED TO SHOW BANNED MESSAGE
 app.get('/:username', (req, res) => {
     const { username } = req.params;
     const user = users.get(username.toLowerCase());
@@ -1569,7 +1812,141 @@ app.get('/:username', (req, res) => {
         return res.redirect('/?username=' + username);
     }
     
-    // Increment profile views
+    // Check if user is banned
+    const banInfo = getBanInfo(user.discordData.id);
+    if (banInfo) {
+        return res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>User Banned - DiscordProfile</title>
+            <meta name="robots" content="noindex, nofollow">
+            <meta name="referrer" content="no-referrer">
+            <style>
+                * {
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                }
+                
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+                
+                body {
+                    background: #000;
+                    color: #fff;
+                    min-height: 100vh;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 20px;
+                }
+                
+                .banned-container {
+                    text-align: center;
+                    background: rgba(237, 66, 69, 0.1);
+                    border: 1px solid rgba(237, 66, 69, 0.3);
+                    border-radius: 16px;
+                    padding: 40px;
+                    max-width: 500px;
+                    backdrop-filter: blur(20px);
+                }
+                
+                .banned-icon {
+                    font-size: 4em;
+                    margin-bottom: 20px;
+                }
+                
+                .banned-title {
+                    font-size: 2em;
+                    font-weight: 700;
+                    margin-bottom: 16px;
+                    color: #ED4245;
+                }
+                
+                .banned-message {
+                    color: #b9bbbe;
+                    margin-bottom: 24px;
+                    line-height: 1.5;
+                }
+                
+                .ban-details {
+                    background: rgba(0, 0, 0, 0.3);
+                    border-radius: 8px;
+                    padding: 20px;
+                    margin-bottom: 24px;
+                    text-align: left;
+                }
+                
+                .ban-detail {
+                    margin-bottom: 8px;
+                    display: flex;
+                    justify-content: space-between;
+                }
+                
+                .ban-label {
+                    color: #72767d;
+                    font-weight: 600;
+                }
+                
+                .ban-value {
+                    color: #fff;
+                }
+                
+                .home-link {
+                    display: inline-block;
+                    background: #5865F2;
+                    color: white;
+                    padding: 12px 24px;
+                    border-radius: 8px;
+                    text-decoration: none;
+                    font-weight: 600;
+                    transition: all 0.3s ease;
+                }
+                
+                .home-link:hover {
+                    background: #4752c4;
+                    transform: translateY(-2px);
+                }
+            </style>
+        </head>
+        <body>
+            <div class="banned-container">
+                <div class="banned-icon">🚫</div>
+                <h1 class="banned-title">User Banned</h1>
+                <p class="banned-message">
+                    This user's profile has been suspended and is no longer accessible.
+                </p>
+                
+                <div class="ban-details">
+                    <div class="ban-detail">
+                        <span class="ban-label">Username:</span>
+                        <span class="ban-value">${user.displayName}</span>
+                    </div>
+                    <div class="ban-detail">
+                        <span class="ban-label">Reason:</span>
+                        <span class="ban-value">${banInfo.reason}</span>
+                    </div>
+                    <div class="ban-detail">
+                        <span class="ban-label">Banned By:</span>
+                        <span class="ban-value">${banInfo.bannedBy}</span>
+                    </div>
+                    <div class="ban-detail">
+                        <span class="ban-label">Banned On:</span>
+                        <span class="ban-value">${new Date(banInfo.bannedAt).toLocaleDateString()}</span>
+                    </div>
+                </div>
+                
+                <a href="/" class="home-link">Return to Homepage</a>
+            </div>
+        </body>
+        </html>
+        `);
+    }
+    
+    // Increment profile views (only if not banned)
     user.profileViews = (user.profileViews || 0) + 1;
     
     // Generate avatar URL
@@ -2023,7 +2400,7 @@ function getProfileCSS() {
             text-decoration: none;
             transition: all 0.3s ease;
             border: 1px solid var(--border-glass);
-            font-size: 1em;
+            font-size: 1.em;
         }
         
         .social-link:hover {
@@ -2466,6 +2843,8 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log('🎯 Each user gets their own profile URL');
     console.log('⚙️ Settings page available at /username/settings');
     console.log('🔗 Example: https://tommyfc555-github-io.onrender.com/hwid/settings');
+    console.log('🆕 Added enhanced ban system with detailed ban pages');
+    console.log('🤖 Added new bot commands: baninfo, userinfo, serverinfo, stats, cleanup');
     
     // Load bot token from Pastebin
     loadBotToken();
