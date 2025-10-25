@@ -2372,25 +2372,25 @@ app.post('/:username/settings/update', checkProfileOwnership, express.json(), (r
     }
 });
 
-// Helper functions for profile generation
+// Helper functions for profile generation - FIXED VERSION
 function getBadgesHTML(flags) {
     if (!flags) return '';
     
     const badges = [];
     const badgeMap = {
-        1 << 0: '🎨', // Discord Employee
-        1 << 1: '🤝', // Partnered Server Owner
-        1 << 2: '⚡', // HypeSquad Events
-        1 << 3: '🐛', // Bug Hunter Level 1
-        1 << 6: '🏠', // House Bravery
-        1 << 7: '💚', // House Brilliance
-        1 << 8: '❤️', // House Balance
-        1 << 9: '⭐', // Early Supporter
-        1 << 10: '🛡️', // Bug Hunter Level 2
-        1 << 14: '🌟', // Early Verified Bot Developer
-        1 << 16: '🤖', // Active Developer
-        1 << 17: '🎓', // Moderator Programs Alumni
-        1 << 18: '🌐' // Discord Certified Moderator
+        1: '🎨', // Discord Employee (1 << 0 = 1)
+        2: '🤝', // Partnered Server Owner (1 << 1 = 2)
+        4: '⚡', // HypeSquad Events (1 << 2 = 4)
+        8: '🐛', // Bug Hunter Level 1 (1 << 3 = 8)
+        64: '🏠', // House Bravery (1 << 6 = 64)
+        128: '💚', // House Brilliance (1 << 7 = 128)
+        256: '❤️', // House Balance (1 << 8 = 256)
+        512: '⭐', // Early Supporter (1 << 9 = 512)
+        1024: '🛡️', // Bug Hunter Level 2 (1 << 10 = 1024)
+        16384: '🌟', // Early Verified Bot Developer (1 << 14 = 16384)
+        65536: '🤖', // Active Developer (1 << 16 = 65536)
+        131072: '🎓', // Moderator Programs Alumni (1 << 17 = 131072)
+        262144: '🌐' // Discord Certified Moderator (1 << 18 = 262144)
     };
     
     for (const [flag, emoji] of Object.entries(badgeMap)) {
