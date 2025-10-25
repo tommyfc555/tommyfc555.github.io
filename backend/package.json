@@ -37,12 +37,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/discord-profile-bot"
+    "url": "https://github.com/tommyfc555/discord-profile-bot"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/discord-profile-bot/issues"
+    "url": "https://github.com/tommyfc555/discord-profile-bot/issues"
   },
-  "homepage": "https://github.com/yourusername/discord-profile-bot#readme",
+  "homepage": "https://github.com/tommyfc555/discord-profile-bot#readme",
   "engines": {
     "node": ">=16.0.0",
     "npm": ">=7.0.0"
