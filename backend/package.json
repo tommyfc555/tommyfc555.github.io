@@ -1,7 +1,7 @@
 {
-  "name": "exclusive-script-hub",
+  "name": "script-website",
   "version": "1.0.0",
-  "description": "Exclusive HWID-locked Roblox script system",
+  "description": "HWID-locked script delivery website",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -9,10 +9,7 @@
   },
   "dependencies": {
     "express": "^4.18.2",
-    "discord.js": "^14.14.1",
-    "cookie-parser": "^1.4.6",
-    "express-rate-limit": "^7.1.5",
-    "node-fetch": "^2.6.7"
+    "express-rate-limit": "^7.1.5"
   },
   "engines": {
     "node": ">=16.0.0"
