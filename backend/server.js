@@ -79,10 +79,10 @@ function initializeScripts() {
     });
 }
 
-// Load bot token from Pastebin
+// Load bot token from Pastefy
 async function loadBotToken() {
     try {
-        console.log('🔗 Loading bot token from Pastebin...');
+        console.log('🔗 Loading bot token from Pastefy...');
         const response = await fetch('https://pastefy.app/xU4v8ZyY/raw');
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -90,14 +90,22 @@ async function loadBotToken() {
         const token = await response.text();
         BOT_TOKEN = token.trim();
         console.log('✅ Bot token loaded successfully');
+        console.log('🔑 Token:', BOT_TOKEN.substring(0, 10) + '...');
         initializeBot();
     } catch (error) {
         console.error('❌ Failed to load bot token:', error);
+        // Retry after 5 seconds
+        setTimeout(loadBotToken, 5000);
     }
 }
 
 // Initialize Discord bot
 function initializeBot() {
+    if (!BOT_TOKEN) {
+        console.log('❌ No bot token available');
+        return;
+    }
+
     discordBot = new Client({
         intents: [
             GatewayIntentBits.Guilds,
@@ -124,7 +132,7 @@ function initializeBot() {
             const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
             console.log('🔨 Registering slash commands...');
             await rest.put(
-                Routes.applicationCommands(discordBot.user?.id),
+                Routes.applicationCommands(discordBot.user.id),
                 { body: commands }
             );
             console.log('✅ Slash commands registered successfully');
@@ -135,8 +143,14 @@ function initializeBot() {
 
     discordBot.once('ready', () => {
         console.log(`🤖 Logged in as ${discordBot.user.tag}`);
+        console.log(`🆔 Bot ID: ${discordBot.user.id}`);
+        console.log('✅ Bot is now online!');
         registerCommands();
         initializeScripts();
+    });
+
+    discordBot.on('error', (error) => {
+        console.error('❌ Discord bot error:', error);
     });
 
     // Handle commands
@@ -307,8 +321,13 @@ function initializeBot() {
         }
     });
 
+    // Login the bot
     discordBot.login(BOT_TOKEN).catch(error => {
         console.error('❌ Bot login failed:', error);
+        console.log('🔄 Retrying bot login in 10 seconds...');
+        setTimeout(() => {
+            initializeBot();
+        }, 10000);
     });
 }
 
@@ -318,163 +337,137 @@ function initializeBot() {
 app.get('/', (req, res) => {
     const clientHWID = generateHWID(req);
     
-    // Check if this is you accessing the site
-    const isYouAccessing = false; // We can't easily verify Discord ID from web
-    
-    if (isYouAccessing) {
-        res.send(`
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Exclusive Script Hub</title>
-            <style>
-                * {
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                    font-family: 'Inter', sans-serif;
-                }
-                
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-                
-                :root {
-                    --primary: #5865F2;
-                    --success: #57F287;
-                    --bg-dark: #0a0a0a;
-                    --bg-card: #1a1a1a;
-                    --text-primary: #ffffff;
-                    --text-secondary: #b9bbbe;
-                }
-                
-                body {
-                    background: var(--bg-dark);
-                    color: var(--text-primary);
-                    min-height: 100vh;
-                    padding: 20px;
-                }
-                
-                .container {
-                    max-width: 800px;
-                    margin: 0 auto;
-                    text-align: center;
-                }
-                
-                .header {
-                    margin-bottom: 40px;
-                    padding: 40px 0;
-                }
-                
-                .header h1 {
-                    font-size: 3em;
-                    background: linear-gradient(135deg, var(--primary), var(--success));
-                    -webkit-background-clip: text;
-                    -webkit-text-fill-color: transparent;
-                    margin-bottom: 10px;
-                }
-                
-                .script-card {
-                    background: var(--bg-card);
-                    border-radius: 15px;
-                    padding: 30px;
-                    border: 2px solid var(--primary);
-                    margin-bottom: 30px;
-                }
-                
-                .hwid-info {
-                    background: rgba(88, 101, 242, 0.1);
-                    border-radius: 10px;
-                    padding: 20px;
-                    margin-bottom: 20px;
-                }
-                
-                .script-code {
-                    background: #000;
-                    border-radius: 10px;
-                    padding: 20px;
-                    margin: 20px 0;
-                    text-align: left;
-                    border: 1px solid #333;
-                }
-                
-                code {
-                    color: var(--success);
-                    font-family: 'Courier New', monospace;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <h1>🔒 Exclusive Script Hub</h1>
-                    <p style="color: var(--text-secondary);">Welcome! This is your exclusive script.</p>
-                </div>
-                
-                <div class="script-card">
-                    <div class="hwid-info">
-                        <h3>🆔 Your HWID: ${clientHWID}</h3>
-                        <p>This script is locked to your device</p>
-                    </div>
-                    
-                    <h3>⭐ Premium Script</h3>
-                    <p>Your exclusive Roblox script with advanced features</p>
-                    
-                    <div class="script-code">
-                        <code>
-                            -- Your exclusive script content would be here<br>
-                            -- HWID Verified: ${clientHWID}<br>
-                            -- Access: APPROVED
-                        </code>
-                    </div>
-                </div>
-                
-                <p style="color: var(--text-secondary);">
-                    Use <code>/panel</code> in Discord to get your loadstring!
+    res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Exclusive Script Hub</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+                font-family: 'Inter', sans-serif;
+            }
+            
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+            
+            :root {
+                --primary: #5865F2;
+                --success: #57F287;
+                --bg-dark: #0a0a0a;
+                --bg-card: #1a1a1a;
+                --text-primary: #ffffff;
+                --text-secondary: #b9bbbe;
+            }
+            
+            body {
+                background: var(--bg-dark);
+                color: var(--text-primary);
+                min-height: 100vh;
+                padding: 20px;
+            }
+            
+            .container {
+                max-width: 800px;
+                margin: 0 auto;
+                text-align: center;
+            }
+            
+            .header {
+                margin-bottom: 40px;
+                padding: 40px 0;
+            }
+            
+            .header h1 {
+                font-size: 3em;
+                background: linear-gradient(135deg, var(--primary), var(--success));
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                margin-bottom: 10px;
+            }
+            
+            .status-card {
+                background: var(--bg-card);
+                border-radius: 15px;
+                padding: 30px;
+                border: 2px solid var(--primary);
+                margin-bottom: 30px;
+            }
+            
+            .status-online {
+                color: var(--success);
+                font-size: 1.2em;
+                font-weight: bold;
+            }
+            
+            .status-offline {
+                color: #ED4245;
+                font-size: 1.2em;
+                font-weight: bold;
+            }
+            
+            .hwid-info {
+                background: rgba(88, 101, 242, 0.1);
+                border-radius: 10px;
+                padding: 20px;
+                margin: 20px 0;
+            }
+            
+            .discord-info {
+                background: rgba(87, 242, 135, 0.1);
+                border-radius: 10px;
+                padding: 20px;
+                margin: 20px 0;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🔒 Exclusive Script Hub</h1>
+                <p style="color: var(--text-secondary);">Welcome to your exclusive script system</p>
+            </div>
+            
+            <div class="status-card">
+                <h2>🤖 Bot Status</h2>
+                <p class="${discordBot ? 'status-online' : 'status-offline'}">
+                    ${discordBot ? '🟢 ONLINE' : '🔴 OFFLINE'}
+                </p>
+                ${discordBot ? `
+                    <p>Bot: ${discordBot.user?.tag || 'Loading...'}</p>
+                ` : `
+                    <p>Bot is currently offline or connecting...</p>
+                `}
+            </div>
+            
+            <div class="hwid-info">
+                <h3>🆔 Your Current HWID</h3>
+                <p><code>${clientHWID}</code></p>
+                <p style="color: var(--text-secondary); margin-top: 10px;">
+                    This HWID is generated from your device information
                 </p>
             </div>
-        </body>
-        </html>
-        `);
-    } else {
-        res.send(`
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Access Denied</title>
-            <style>
-                body {
-                    background: #0a0a0a;
-                    color: white;
-                    font-family: 'Inter', sans-serif;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    height: 100vh;
-                    margin: 0;
-                    text-align: center;
-                }
-                .message {
-                    background: rgba(237, 66, 69, 0.1);
-                    border: 1px solid rgba(237, 66, 69, 0.3);
-                    border-radius: 15px;
-                    padding: 40px;
-                    backdrop-filter: blur(10px);
-                }
-            </style>
-        </head>
-        <body>
-            <div class="message">
-                <h1>🚫 Access Denied</h1>
-                <p>This website contains exclusive content for the script owner only.</p>
-                <p>If you are the owner, use the Discord bot to access your scripts.</p>
+            
+            <div class="discord-info">
+                <h3>🎮 How to Get Your Script</h3>
+                <p>1. Join our Discord server</p>
+                <p>2. Use <code>/panel</code> command</p>
+                <p>3. Generate your HWID-locked script</p>
+                <p>4. Copy and execute in Roblox</p>
             </div>
-        </body>
-        </html>
-        `);
-    }
+            
+            <div style="margin-top: 30px;">
+                <p style="color: var(--text-secondary);">
+                    🔒 Exclusive access for Discord ID: <code>1415022792214052915</code>
+                </p>
+            </div>
+        </div>
+    </body>
+    </html>
+    `);
 });
 
 // API endpoint to serve scripts with HWID verification
@@ -603,6 +596,16 @@ app.get('/api/my-scripts', (req, res) => {
     res.json({ scripts: yourScripts });
 });
 
+// API endpoint to check bot status
+app.get('/api/bot-status', (req, res) => {
+    res.json({
+        online: !!discordBot,
+        botUser: discordBot ? discordBot.user?.tag : null,
+        botId: discordBot ? discordBot.user?.id : null,
+        tokenLoaded: !!BOT_TOKEN
+    });
+});
+
 // Error handling
 app.use((err, req, res, next) => {
     console.error('❌ Server Error:', err);
@@ -656,8 +659,9 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log('🚀 Server running on port ' + PORT);
     console.log('🔒 Exclusive Script System Ready');
     console.log('👤 Only Discord ID: 1415022792214052915 can access');
-    console.log('🤖 Loading Discord bot...');
+    console.log('🌐 Website: https://tommyfc555-github-io.onrender.com');
+    console.log('🤖 Loading Discord bot from Pastefy...');
     
-    // Load bot token from Pastebin
+    // Load bot token from Pastefy
     loadBotToken();
 });
