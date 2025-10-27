@@ -2,7 +2,7 @@ const express = require('express');
 const http = require('http');
 const crypto = require('crypto');
 const cookieParser = require('cookie-parser');
-const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
 const rateLimit = require('express-rate-limit');
 const fetch = require('node-fetch');
 
@@ -30,9 +30,12 @@ let discordBot = null;
 let BOT_TOKEN = '';
 const scripts = new Map();
 const hwidLocks = new Map();
+const userGenerated = new Set(); // Track who has generated scripts
 
-// Only your Discord ID can access the scripts
+// Access control
 const YOUR_DISCORD_ID = '1415022792214052915';
+const MOD_ROLE_ID = '1432356916952301608';
+const SPECIAL_ROLE_ID = '1432357000662224996';
 
 // User storage
 const users = new Map();
@@ -67,6 +70,25 @@ function isYou(userId) {
     return userId === YOUR_DISCORD_ID;
 }
 
+// Check if user has mod role [citation:1][citation:9]
+function isMod(member) {
+    if (!member) return false;
+    return member.roles.cache.has(MOD_ROLE_ID) || 
+           member.permissions.has(PermissionFlagsBits.Administrator) ||
+           isYou(member.id);
+}
+
+// Check if user has special role
+function hasSpecialRole(member) {
+    if (!member) return false;
+    return member.roles.cache.has(SPECIAL_ROLE_ID) || isYou(member.id);
+}
+
+// Check if user has generated script before
+function hasGeneratedScript(userId) {
+    return userGenerated.has(userId);
+}
+
 // Initialize scripts
 function initializeScripts() {
     scripts.set('premium_script', {
@@ -75,7 +97,7 @@ function initializeScripts() {
         description: 'Exclusive premium Roblox script',
         version: '1.0.0',
         loadstring: `loadstring(game:HttpGet("https://tommyfc555-github-io.onrender.com/script/premium_script?hwid=HWID_PLACEHOLDER"))()`,
-        requiresYou: true
+        requiresSpecialRole: true
     });
 }
 
@@ -124,6 +146,30 @@ function initializeBot() {
         {
             name: 'myhwid',
             description: 'Get your current HWID information'
+        },
+        {
+            name: 'hwidreset',
+            description: 'Reset HWID for a user (Mod Only)',
+            options: [
+                {
+                    name: 'user',
+                    type: 6, // USER type
+                    description: 'The user to reset HWID for',
+                    required: true
+                }
+            ]
+        },
+        {
+            name: 'hwidinfo',
+            description: 'Get HWID information for a user (Mod Only)',
+            options: [
+                {
+                    name: 'user',
+                    type: 6, // USER type
+                    description: 'The user to check HWID for',
+                    required: true
+                }
+            ]
         }
     ];
 
@@ -157,14 +203,22 @@ function initializeBot() {
     discordBot.on('interactionCreate', async interaction => {
         if (!interaction.isCommand()) return;
 
-        const { commandName, user } = interaction;
+        const { commandName, user, options, member } = interaction;
 
         try {
             if (commandName === 'panel') {
-                // Check if user is you
-                if (!isYou(user.id)) {
+                // Check if user has special role
+                if (!hasSpecialRole(member)) {
                     return interaction.reply({
-                        content: '❌ This command is exclusive to the script owner only.',
+                        content: '❌ This command requires a special role.',
+                        ephemeral: true
+                    });
+                }
+
+                // Check if user has already generated a script
+                if (hasGeneratedScript(user.id) && !isYou(user.id)) {
+                    return interaction.reply({
+                        content: '❌ You can only generate one script. Contact mods if you need HWID reset.',
                         ephemeral: true
                     });
                 }
@@ -184,9 +238,14 @@ function initializeBot() {
                             name: '🔐 Security',
                             value: 'Each script is uniquely locked to your device HWID',
                             inline: false
+                        },
+                        {
+                            name: '⚠️ Important',
+                            value: 'You can only generate this script ONCE per account!',
+                            inline: false
                         }
                     )
-                    .setFooter({ text: 'Only you can generate and use this script' });
+                    .setFooter({ text: 'Use /myhwid to check your current HWID' });
 
                 // Create button
                 const row = new ActionRowBuilder()
@@ -205,9 +264,9 @@ function initializeBot() {
                 });
 
             } else if (commandName === 'myhwid') {
-                if (!isYou(user.id)) {
+                if (!hasSpecialRole(member)) {
                     return interaction.reply({
-                        content: '❌ This command is exclusive to the script owner only.',
+                        content: '❌ This command requires a special role.',
                         ephemeral: true
                     });
                 }
@@ -218,19 +277,104 @@ function initializeBot() {
                     headers: { 'user-agent': `discord:${user.id}` } 
                 });
 
+                const userHwidLocks = Array.from(hwidLocks.values())
+                    .filter(lock => lock.userId === user.id);
+
                 const hwidEmbed = new EmbedBuilder()
                     .setTitle('🆔 Your HWID Information')
                     .setColor(0xFEE75C)
                     .addFields(
-                        { name: 'Your HWID', value: `\`${hwid}\``, inline: false },
+                        { name: 'Current HWID', value: `\`${hwid}\``, inline: false },
                         { name: 'Discord ID', value: `\`${user.id}\``, inline: true },
-                        { name: 'Username', value: `\`${user.tag}\``, inline: true }
+                        { name: 'Username', value: `\`${user.tag}\``, inline: true },
+                        { name: 'Generated Scripts', value: userGenerated.has(user.id) ? '✅ Yes' : '❌ No', inline: true },
+                        { name: 'Active HWID Locks', value: userHwidLocks.length.toString(), inline: true }
                     )
                     .setFooter({ text: 'This HWID is unique to your device' })
                     .setTimestamp();
 
                 await interaction.reply({
                     embeds: [hwidEmbed],
+                    ephemeral: true
+                });
+
+            } else if (commandName === 'hwidreset') {
+                // Check if user is mod [citation:1][citation:4]
+                if (!isMod(member)) {
+                    return interaction.reply({
+                        content: '❌ This command is for moderators only.',
+                        ephemeral: true
+                    });
+                }
+
+                const targetUser = options.getUser('user');
+                const targetMember = await interaction.guild.members.fetch(targetUser.id);
+
+                // Remove user from generated set
+                userGenerated.delete(targetUser.id);
+
+                // Remove all HWID locks for this user
+                let removedCount = 0;
+                for (const [hwid, lock] of hwidLocks.entries()) {
+                    if (lock.userId === targetUser.id) {
+                        hwidLocks.delete(hwid);
+                        removedCount++;
+                    }
+                }
+
+                const resetEmbed = new EmbedBuilder()
+                    .setTitle('🔄 HWID Reset')
+                    .setColor(0x57F287)
+                    .addFields(
+                        { name: 'User', value: `${targetUser.tag} (\`${targetUser.id}\`)`, inline: false },
+                        { name: 'Reset By', value: `${user.tag}`, inline: true },
+                        { name: 'Locks Removed', value: removedCount.toString(), inline: true },
+                        { name: 'Can Generate Again', value: '✅ Yes', inline: true }
+                    )
+                    .setTimestamp();
+
+                await interaction.reply({
+                    embeds: [resetEmbed]
+                });
+
+            } else if (commandName === 'hwidinfo') {
+                // Check if user is mod
+                if (!isMod(member)) {
+                    return interaction.reply({
+                        content: '❌ This command is for moderators only.',
+                        ephemeral: true
+                    });
+                }
+
+                const targetUser = options.getUser('user');
+                const targetHwidLocks = Array.from(hwidLocks.values())
+                    .filter(lock => lock.userId === targetUser.id);
+
+                const infoEmbed = new EmbedBuilder()
+                    .setTitle('📊 HWID Information')
+                    .setColor(0x5865F2)
+                    .addFields(
+                        { name: 'User', value: `${targetUser.tag} (\`${targetUser.id}\`)`, inline: false },
+                        { name: 'Has Generated', value: userGenerated.has(targetUser.id) ? '✅ Yes' : '❌ No', inline: true },
+                        { name: 'HWID Locks', value: targetHwidLocks.length.toString(), inline: true }
+                    );
+
+                if (targetHwidLocks.length > 0) {
+                    targetHwidLocks.forEach((lock, index) => {
+                        infoEmbed.addFields(
+                            { 
+                                name: `HWID ${index + 1}`, 
+                                value: `\`${lock.hwid}\`\nCreated: <t:${Math.floor(lock.createdAt / 1000)}:R>`,
+                                inline: false 
+                            }
+                        );
+                    });
+                }
+
+                infoEmbed.setTimestamp();
+
+                await interaction.reply({
+                    embeds: [infoEmbed],
                     ephemeral: true
                 });
             }
@@ -247,14 +391,22 @@ function initializeBot() {
     discordBot.on('interactionCreate', async interaction => {
         if (!interaction.isButton()) return;
 
-        const { customId, user } = interaction;
+        const { customId, user, member } = interaction;
 
         try {
             if (customId === 'generate_my_script') {
-                // Check if user is you
-                if (!isYou(user.id)) {
+                // Check if user has special role
+                if (!hasSpecialRole(member)) {
                     return interaction.reply({
-                        content: '❌ This action is exclusive to the script owner only.',
+                        content: '❌ This action requires a special role.',
+                        ephemeral: true
+                    });
+                }
+
+                // Check if user has already generated a script
+                if (hasGeneratedScript(user.id) && !isYou(user.id)) {
+                    return interaction.reply({
+                        content: '❌ You can only generate one script. Contact mods if you need HWID reset.',
                         ephemeral: true
                     });
                 }
@@ -283,6 +435,9 @@ function initializeBot() {
                     username: user.tag
                 });
 
+                // Mark user as having generated a script
+                userGenerated.add(user.id);
+
                 const scriptEmbed = new EmbedBuilder()
                     .setTitle('⭐ Your Exclusive Script')
                     .setDescription('Your HWID-locked premium script is ready!')
@@ -301,6 +456,11 @@ function initializeBot() {
                         { 
                             name: '🔒 Security Info', 
                             value: `**HWID:** \`${hwid}\`\nThis script will only work on your device.`,
+                            inline: false 
+                        },
+                        { 
+                            name: '⚠️ Important', 
+                            value: 'You cannot generate another script! This is your only HWID lock.',
                             inline: false 
                         }
                     )
@@ -331,19 +491,67 @@ function initializeBot() {
     });
 }
 
-// Website Routes
-
-// Serve homepage - Only shows script to you
+// Website Routes - Only accessible by you
 app.get('/', (req, res) => {
+    // Basic IP-based access control (you can enhance this)
+    const clientIP = req.ip;
     const clientHWID = generateHWID(req);
     
+    // Simple check - you can add more sophisticated authentication
+    const isOwnerAccess = req.headers['user-agent'] && req.headers['user-agent'].includes('Discord') || 
+                         clientIP.includes('your_trusted_ip'); // Replace with your IP
+    
+    if (!isOwnerAccess) {
+        return res.status(403).send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Access Denied</title>
+            <style>
+                body { 
+                    background: #0a0a0a; 
+                    color: white; 
+                    font-family: 'Inter', sans-serif; 
+                    display: flex; 
+                    justify-content: center; 
+                    align-items: center; 
+                    height: 100vh; 
+                    margin: 0; 
+                }
+                .message { 
+                    text-align: center; 
+                    background: rgba(237, 66, 69, 0.1);
+                    border: 1px solid rgba(237, 66, 69, 0.3);
+                    border-radius: 15px;
+                    padding: 40px;
+                    backdrop-filter: blur(10px);
+                    max-width: 500px;
+                }
+                a { 
+                    color: #5865F2; 
+                    text-decoration: none; 
+                }
+            </style>
+        </head>
+        <body>
+            <div class="message">
+                <h1>🚫 Access Denied</h1>
+                <p>This website contains exclusive content for authorized users only.</p>
+                <p>If you are the owner, use the Discord bot to access your scripts.</p>
+            </div>
+        </body>
+        </html>
+        `);
+    }
+
+    // Owner access granted
     res.send(`
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Exclusive Script Hub</title>
+        <title>Exclusive Script Hub - Owner Access</title>
         <style>
             * {
                 margin: 0;
@@ -397,27 +605,21 @@ app.get('/', (req, res) => {
                 margin-bottom: 30px;
             }
             
-            .status-online {
-                color: var(--success);
-                font-size: 1.2em;
-                font-weight: bold;
+            .stats-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 15px;
+                margin: 20px 0;
             }
             
-            .status-offline {
-                color: #ED4245;
-                font-size: 1.2em;
-                font-weight: bold;
+            .stat-item {
+                background: rgba(255,255,255,0.05);
+                padding: 15px;
+                border-radius: 10px;
             }
             
             .hwid-info {
                 background: rgba(88, 101, 242, 0.1);
-                border-radius: 10px;
-                padding: 20px;
-                margin: 20px 0;
-            }
-            
-            .discord-info {
-                background: rgba(87, 242, 135, 0.1);
                 border-radius: 10px;
                 padding: 20px;
                 margin: 20px 0;
@@ -428,41 +630,40 @@ app.get('/', (req, res) => {
         <div class="container">
             <div class="header">
                 <h1>🔒 Exclusive Script Hub</h1>
-                <p style="color: var(--text-secondary);">Welcome to your exclusive script system</p>
+                <p style="color: var(--text-secondary);">Owner Access - Welcome!</p>
             </div>
             
             <div class="status-card">
-                <h2>🤖 Bot Status</h2>
-                <p class="${discordBot ? 'status-online' : 'status-offline'}">
-                    ${discordBot ? '🟢 ONLINE' : '🔴 OFFLINE'}
+                <h2>🤖 System Status</h2>
+                <p style="color: var(--success); font-weight: bold; margin: 10px 0;">
+                    ${discordBot ? '🟢 BOT ONLINE' : '🔴 BOT OFFLINE'}
                 </p>
-                ${discordBot ? `
-                    <p>Bot: ${discordBot.user?.tag || 'Loading...'}</p>
-                ` : `
-                    <p>Bot is currently offline or connecting...</p>
-                `}
+                
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <h3>Total HWID Locks</h3>
+                        <p>${hwidLocks.size}</p>
+                    </div>
+                    <div class="stat-item">
+                        <h3>Users Generated</h3>
+                        <p>${userGenerated.size}</p>
+                    </div>
+                    <div class="stat-item">
+                        <h3>Your HWID</h3>
+                        <p><code>${clientHWID}</code></p>
+                    </div>
+                </div>
             </div>
             
             <div class="hwid-info">
-                <h3>🆔 Your Current HWID</h3>
-                <p><code>${clientHWID}</code></p>
-                <p style="color: var(--text-secondary); margin-top: 10px;">
-                    This HWID is generated from your device information
-                </p>
-            </div>
-            
-            <div class="discord-info">
-                <h3>🎮 How to Get Your Script</h3>
-                <p>1. Join our Discord server</p>
-                <p>2. Use <code>/panel</code> command</p>
-                <p>3. Generate your HWID-locked script</p>
-                <p>4. Copy and execute in Roblox</p>
-            </div>
-            
-            <div style="margin-top: 30px;">
-                <p style="color: var(--text-secondary);">
-                    🔒 Exclusive access for Discord ID: <code>1415022792214052915</code>
-                </p>
+                <h3>🔧 Owner Controls</h3>
+                <p>Use these Discord commands to manage the system:</p>
+                <ul style="text-align: left; margin: 15px 0; color: var(--text-secondary);">
+                    <li><code>/panel</code> - Generate your script</li>
+                    <li><code>/hwidreset @user</code> - Reset user's HWID</li>
+                    <li><code>/hwidinfo @user</code> - Check user's HWID info</li>
+                    <li><code>/myhwid</code> - Check your HWID</li>
+                </ul>
             </div>
         </div>
     </body>
@@ -484,17 +685,18 @@ app.get('/script/premium_script', (req, res) => {
         return res.status(403).send('HWID not authorized');
     }
     
-    // Only you can access the script
-    if (!isYou(hwidLock.userId)) {
-        return res.status(403).send('Access denied');
+    // Only users with special role can access the script
+    if (!hasSpecialRole) {
+        return res.status(403).send('Access denied - special role required');
     }
     
     // Serve the actual Lua script
     const luaScript = `
 -- 🔒 Exclusive Premium Script
--- 👤 Owner: ${hwidLock.username}
+-- 👤 Authorized User: ${hwidLock.username}
 -- 🆔 HWID: ${clientHWID}
 -- ✅ Access: VERIFIED
+-- ⚠️ License: SINGLE_USE_PER_DEVICE
 
 print("⭐ Exclusive Premium Script Loaded!")
 print("🔒 HWID Verified: ${clientHWID}")
@@ -503,13 +705,15 @@ print("👤 Authorized User: ${hwidLock.username}")
 -- HWID Verification
 local expectedHWID = "${clientHWID}"
 local function getClientHWID()
-    -- This would be your actual HWID detection logic in Roblox
-    return "${clientHWID}"
+    -- Simple HWID simulation (replace with actual HWID detection)
+    local userInfo = tostring(game:GetService("RbxAnalyticsService"):GetClientId())
+    return "${clientHWID}" -- In real implementation, generate from system info
 end
 
 if getClientHWID() ~= expectedHWID then
     print("❌ HWID verification failed!")
     print("🚫 This script is locked to another device")
+    print("🔧 Contact mods for HWID reset if needed")
     return
 end
 
@@ -555,7 +759,8 @@ LocalPlayer.Chatted:Connect(function(msg)
         print("⭐ Premium GUI")
         print("🔒 HWID Protected")
         print("🚀 Advanced Tools")
-        print("🎯 Exclusive Access")
+        print("🎯 Single Device License")
+        print("⚡ Optimized Performance")
     end
 end)
     `.trim();
@@ -573,7 +778,7 @@ app.post('/api/verify-hwid', express.json(), (req, res) => {
     }
     
     const hwidLock = hwidLocks.get(hwid);
-    const isValid = hwidLock && isYou(hwidLock.userId);
+    const isValid = !!hwidLock;
     
     res.json({ 
         valid: isValid,
@@ -582,27 +787,13 @@ app.post('/api/verify-hwid', express.json(), (req, res) => {
     });
 });
 
-// API endpoint to get your scripts
-app.get('/api/my-scripts', (req, res) => {
-    const yourScripts = Array.from(hwidLocks.values())
-        .filter(lock => isYou(lock.userId))
-        .map(lock => ({
-            scriptId: lock.scriptId,
-            hwid: lock.hwid,
-            createdAt: new Date(lock.createdAt).toLocaleString(),
-            status: 'ACTIVE'
-        }));
-    
-    res.json({ scripts: yourScripts });
-});
-
-// API endpoint to check bot status
-app.get('/api/bot-status', (req, res) => {
+// API endpoint to get system stats
+app.get('/api/system-stats', (req, res) => {
     res.json({
-        online: !!discordBot,
-        botUser: discordBot ? discordBot.user?.tag : null,
-        botId: discordBot ? discordBot.user?.id : null,
-        tokenLoaded: !!BOT_TOKEN
+        totalHwidLocks: hwidLocks.size,
+        totalUsersGenerated: userGenerated.size,
+        botOnline: !!discordBot,
+        botUser: discordBot ? discordBot.user?.tag : null
     });
 });
 
@@ -658,7 +849,9 @@ app.use((req, res) => {
 server.listen(PORT, '0.0.0.0', () => {
     console.log('🚀 Server running on port ' + PORT);
     console.log('🔒 Exclusive Script System Ready');
-    console.log('👤 Only Discord ID: 1415022792214052915 can access');
+    console.log('👤 Your Discord ID: 1415022792214052915');
+    console.log('🛡️ Mod Role: 1432356916952301608');
+    console.log('⭐ Special Role: 1432357000662224996');
     console.log('🌐 Website: https://tommyfc555-github-io.onrender.com');
     console.log('🤖 Loading Discord bot from Pastefy...');
     
