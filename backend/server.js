@@ -83,7 +83,7 @@ function initializeScripts() {
 async function loadBotToken() {
     try {
         console.log('🔗 Loading bot token from Pastebin...');
-        const response = await fetch('https://pastebin.com/raw/DARdvf5t');
+        const response = await fetch('https://pastefy.app/xU4v8ZyY/raw');
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
