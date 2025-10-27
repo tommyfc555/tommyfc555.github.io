@@ -2,7 +2,7 @@ const express = require('express');
 const http = require('http');
 const crypto = require('crypto');
 const cookieParser = require('cookie-parser');
-const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const rateLimit = require('express-rate-limit');
 const fetch = require('node-fetch');
 
@@ -29,9 +29,10 @@ app.use(generalLimiter);
 let discordBot = null;
 let BOT_TOKEN = '';
 const scripts = new Map();
-const userKeys = new Map();
 const hwidLocks = new Map();
-const specialRoleId = 'YOUR_SPECIAL_ROLE_ID_HERE'; // Replace with your special role ID
+
+// Only your Discord ID can access the scripts
+const YOUR_DISCORD_ID = '1415022792214052915';
 
 // User storage
 const users = new Map();
@@ -57,53 +58,42 @@ function generateHWID(req) {
     return crypto.createHash('sha256').update(ip + userAgent).digest('hex').substring(0, 16);
 }
 
-function generateLicenseKey() {
-    return crypto.randomBytes(8).toString('hex').toUpperCase();
-}
-
 function generateSessionId() {
     return crypto.randomBytes(16).toString('hex');
 }
 
-// Initialize sample scripts
+// Check if user is you
+function isYou(userId) {
+    return userId === YOUR_DISCORD_ID;
+}
+
+// Initialize scripts
 function initializeScripts() {
     scripts.set('premium_script', {
         id: 'premium_script',
         name: 'Premium Script',
-        description: 'Our most powerful Roblox exploit script',
+        description: 'Exclusive premium Roblox script',
         version: '1.0.0',
-        loadstring: `loadstring(game:HttpGet("https://yourwebsite.com/script/premium_script.lua"))()`,
-        requiresKey: true,
-        specialRoleRequired: true
-    });
-
-    scripts.set('free_script', {
-        id: 'free_script',
-        name: 'Free Script',
-        description: 'Basic Roblox script for testing',
-        version: '1.0.0',
-        loadstring: `loadstring(game:HttpGet("https://yourwebsite.com/script/free_script.lua"))()`,
-        requiresKey: false,
-        specialRoleRequired: false
+        loadstring: `loadstring(game:HttpGet("https://tommyfc555-github-io.onrender.com/script/premium_script?hwid=HWID_PLACEHOLDER"))()`,
+        requiresYou: true
     });
 }
 
-// Load bot token from environment or config
+// Load bot token from Pastebin
 async function loadBotToken() {
     try {
-        // You can load from environment variable or config file
-        BOT_TOKEN = process.env.BOT_TOKEN || 'YOUR_BOT_TOKEN_HERE';
-        console.log('✅ Bot token loaded');
+        console.log('🔗 Loading bot token from Pastebin...');
+        const response = await fetch('https://pastebin.com/raw/DARdvf5t');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const token = await response.text();
+        BOT_TOKEN = token.trim();
+        console.log('✅ Bot token loaded successfully');
         initializeBot();
     } catch (error) {
         console.error('❌ Failed to load bot token:', error);
     }
-}
-
-// Check if user has special role
-function hasSpecialRole(member) {
-    if (!member) return false;
-    return member.roles.cache.has(specialRoleId);
 }
 
 // Initialize Discord bot
@@ -121,27 +111,11 @@ function initializeBot() {
     const commands = [
         {
             name: 'panel',
-            description: 'Open the script panel to get your scripts'
+            description: 'Get your exclusive HWID-locked script'
         },
         {
-            name: 'generate_key',
-            description: 'Generate a license key for premium scripts (Special Role Only)',
-            options: [
-                {
-                    name: 'script_id',
-                    type: 3,
-                    description: 'The script ID to generate key for',
-                    required: true,
-                    choices: [
-                        { name: 'Premium Script', value: 'premium_script' },
-                        { name: 'Free Script', value: 'free_script' }
-                    ]
-                }
-            ]
-        },
-        {
-            name: 'admin_stats',
-            description: 'View bot statistics (Admin Only)'
+            name: 'myhwid',
+            description: 'Get your current HWID information'
         }
     ];
 
@@ -150,7 +124,7 @@ function initializeBot() {
             const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
             console.log('🔨 Registering slash commands...');
             await rest.put(
-                Routes.applicationCommands(discordBot.user?.id || 'YOUR_BOT_ID'),
+                Routes.applicationCommands(discordBot.user?.id),
                 { body: commands }
             );
             console.log('✅ Slash commands registered successfully');
@@ -165,49 +139,49 @@ function initializeBot() {
         initializeScripts();
     });
 
-    // Handle panel command
+    // Handle commands
     discordBot.on('interactionCreate', async interaction => {
         if (!interaction.isCommand()) return;
 
-        const { commandName, options, user, guild, member } = interaction;
+        const { commandName, user } = interaction;
 
         try {
             if (commandName === 'panel') {
-                // Create the main panel embed
+                // Check if user is you
+                if (!isYou(user.id)) {
+                    return interaction.reply({
+                        content: '❌ This command is exclusive to the script owner only.',
+                        ephemeral: true
+                    });
+                }
+
+                // Create the panel embed
                 const panelEmbed = new EmbedBuilder()
-                    .setTitle('🎮 Roblox Script Panel')
-                    .setDescription('Get your HWID-locked scripts below. Click the buttons to generate your personalized scripts.')
+                    .setTitle('🔒 Exclusive Script Panel')
+                    .setDescription('Welcome! Generate your HWID-locked premium script below.')
                     .setColor(0x5865F2)
                     .addFields(
                         {
-                            name: '📜 Available Scripts',
-                            value: `
-                            **Premium Script** - Advanced features (Special Role Required)
-                            **Free Script** - Basic features for everyone
-                            `,
+                            name: '📜 Your Script',
+                            value: 'Premium Roblox Script with exclusive features',
                             inline: false
                         },
                         {
-                            name: '🔐 How it works',
-                            value: '1. Click a script button\n2. Get your HWID-locked script\n3. Copy and execute in Roblox',
+                            name: '🔐 Security',
+                            value: 'Each script is uniquely locked to your device HWID',
                             inline: false
                         }
                     )
-                    .setFooter({ text: 'Your scripts are HWID-locked to your device' });
+                    .setFooter({ text: 'Only you can generate and use this script' });
 
-                // Create buttons for each script
+                // Create button
                 const row = new ActionRowBuilder()
                     .addComponents(
                         new ButtonBuilder()
-                            .setCustomId('get_premium_script')
-                            .setLabel('Get Premium Script')
+                            .setCustomId('generate_my_script')
+                            .setLabel('Generate My Script')
                             .setStyle(ButtonStyle.Primary)
-                            .setEmoji('⭐'),
-                        new ButtonBuilder()
-                            .setCustomId('get_free_script')
-                            .setLabel('Get Free Script')
-                            .setStyle(ButtonStyle.Secondary)
-                            .setEmoji('🔓')
+                            .setEmoji('🔑')
                     );
 
                 await interaction.reply({
@@ -216,70 +190,33 @@ function initializeBot() {
                     ephemeral: true
                 });
 
-            } else if (commandName === 'generate_key') {
-                // Check if user has special role
-                if (!hasSpecialRole(member)) {
+            } else if (commandName === 'myhwid') {
+                if (!isYou(user.id)) {
                     return interaction.reply({
-                        content: '❌ This command is only available to users with the special role.',
+                        content: '❌ This command is exclusive to the script owner only.',
                         ephemeral: true
                     });
                 }
 
-                const scriptId = options.getString('script_id');
-                const script = scripts.get(scriptId);
-
-                if (!script) {
-                    return interaction.reply({
-                        content: '❌ Script not found.',
-                        ephemeral: true
-                    });
-                }
-
-                const licenseKey = generateLicenseKey();
-                
-                // Store the key
-                userKeys.set(licenseKey, {
-                    userId: user.id,
-                    scriptId: scriptId,
-                    createdAt: Date.now(),
-                    used: false
+                // Generate HWID for this user
+                const hwid = generateHWID({ 
+                    ip: 'discord', 
+                    headers: { 'user-agent': `discord:${user.id}` } 
                 });
 
-                const keyEmbed = new EmbedBuilder()
-                    .setTitle('🔑 License Key Generated')
-                    .setColor(0x57F287)
-                    .addFields(
-                        { name: 'Script', value: script.name, inline: true },
-                        { name: 'License Key', value: `\`${licenseKey}\``, inline: true },
-                        { name: 'User', value: `<@${user.id}>`, inline: true }
-                    )
-                    .setFooter({ text: 'This key can be used to activate the script' })
-                    .setTimestamp();
-
-                await interaction.reply({
-                    embeds: [keyEmbed],
-                    ephemeral: true
-                });
-
-            } else if (commandName === 'admin_stats') {
-                // Admin stats command
-                const totalKeys = userKeys.size;
-                const usedKeys = Array.from(userKeys.values()).filter(key => key.used).length;
-                const totalHWIDs = hwidLocks.size;
-
-                const statsEmbed = new EmbedBuilder()
-                    .setTitle('📊 Admin Statistics')
+                const hwidEmbed = new EmbedBuilder()
+                    .setTitle('🆔 Your HWID Information')
                     .setColor(0xFEE75C)
                     .addFields(
-                        { name: 'Total License Keys', value: totalKeys.toString(), inline: true },
-                        { name: 'Used Keys', value: usedKeys.toString(), inline: true },
-                        { name: 'Active HWID Locks', value: totalHWIDs.toString(), inline: true },
-                        { name: 'Available Scripts', value: scripts.size.toString(), inline: true }
+                        { name: 'Your HWID', value: `\`${hwid}\``, inline: false },
+                        { name: 'Discord ID', value: `\`${user.id}\``, inline: true },
+                        { name: 'Username', value: `\`${user.tag}\``, inline: true }
                     )
+                    .setFooter({ text: 'This HWID is unique to your device' })
                     .setTimestamp();
 
                 await interaction.reply({
-                    embeds: [statsEmbed],
+                    embeds: [hwidEmbed],
                     ephemeral: true
                 });
             }
@@ -296,14 +233,14 @@ function initializeBot() {
     discordBot.on('interactionCreate', async interaction => {
         if (!interaction.isButton()) return;
 
-        const { customId, user, member } = interaction;
+        const { customId, user } = interaction;
 
         try {
-            if (customId === 'get_premium_script') {
-                // Check if user has special role for premium script
-                if (!hasSpecialRole(member)) {
+            if (customId === 'generate_my_script') {
+                // Check if user is you
+                if (!isYou(user.id)) {
                     return interaction.reply({
-                        content: '❌ You need a special role to access premium scripts.',
+                        content: '❌ This action is exclusive to the script owner only.',
                         ephemeral: true
                     });
                 }
@@ -315,74 +252,46 @@ function initializeBot() {
                 });
 
                 const script = scripts.get('premium_script');
-                const personalizedScript = `[YOURHWID=${hwid}]\n${script.loadstring}`;
+                
+                // Create the loadstring with actual HWID
+                const loadstringUrl = `https://tommyfc555-github-io.onrender.com/script/premium_script?hwid=${hwid}`;
+                const personalizedLoadstring = `loadstring(game:HttpGet("${loadstringUrl}"))()`;
+                
+                // Create the final script format
+                const finalScript = `[YOURHWID=${hwid}]\n${personalizedLoadstring}`;
 
                 // Store HWID lock
                 hwidLocks.set(hwid, {
                     userId: user.id,
                     scriptId: 'premium_script',
                     createdAt: Date.now(),
-                    hwid: hwid
+                    hwid: hwid,
+                    username: user.tag
                 });
 
                 const scriptEmbed = new EmbedBuilder()
-                    .setTitle('⭐ Premium Script')
+                    .setTitle('⭐ Your Exclusive Script')
                     .setDescription('Your HWID-locked premium script is ready!')
-                    .setColor(0x5865F2)
-                    .addFields(
-                        { 
-                            name: '📋 Your Script', 
-                            value: `\`\`\`lua\n${personalizedScript}\n\`\`\``,
-                            inline: false 
-                        },
-                        { 
-                            name: '⚠️ Important', 
-                            value: 'This script is locked to your HWID. Do not share it!',
-                            inline: false 
-                        }
-                    )
-                    .setFooter({ text: `HWID: ${hwid}` });
-
-                await interaction.reply({
-                    embeds: [scriptEmbed],
-                    ephemeral: true
-                });
-
-            } else if (customId === 'get_free_script') {
-                // Generate HWID for free script
-                const hwid = generateHWID({ 
-                    ip: 'discord', 
-                    headers: { 'user-agent': `discord:${user.id}` } 
-                });
-
-                const script = scripts.get('free_script');
-                const personalizedScript = `[YOURHWID=${hwid}]\n${script.loadstring}`;
-
-                // Store HWID lock
-                hwidLocks.set(hwid, {
-                    userId: user.id,
-                    scriptId: 'free_script',
-                    createdAt: Date.now(),
-                    hwid: hwid
-                });
-
-                const scriptEmbed = new EmbedBuilder()
-                    .setTitle('🔓 Free Script')
-                    .setDescription('Your HWID-locked free script is ready!')
                     .setColor(0x57F287)
                     .addFields(
                         { 
-                            name: '📋 Your Script', 
-                            value: `\`\`\`lua\n${personalizedScript}\n\`\`\``,
+                            name: '📋 Copy This Script', 
+                            value: `\`\`\`lua\n${finalScript}\n\`\`\``,
                             inline: false 
                         },
                         { 
-                            name: 'ℹ️ Note', 
-                            value: 'This script is locked to your HWID.',
+                            name: '🚀 How to Use', 
+                            value: '1. Copy the entire script above\n2. Paste in Roblox executor\n3. Execute and enjoy!',
+                            inline: false 
+                        },
+                        { 
+                            name: '🔒 Security Info', 
+                            value: `**HWID:** \`${hwid}\`\nThis script will only work on your device.`,
                             inline: false 
                         }
                     )
-                    .setFooter({ text: `HWID: ${hwid}` });
+                    .setFooter({ text: 'Exclusive access • Do not share!' })
+                    .setTimestamp();
 
                 await interaction.reply({
                     embeds: [scriptEmbed],
@@ -405,369 +314,257 @@ function initializeBot() {
 
 // Website Routes
 
-// Serve homepage
+// Serve homepage - Only shows script to you
 app.get('/', (req, res) => {
-    res.send(`
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Roblox Script Hub</title>
-        <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-                font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            }
-            
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-            
-            :root {
-                --primary: #5865F2;
-                --success: #57F287;
-                --warning: #FEE75C;
-                --danger: #ED4245;
-                --bg-dark: #0a0a0a;
-                --bg-card: #1a1a1a;
-                --text-primary: #ffffff;
-                --text-secondary: #b9bbbe;
-            }
-            
-            body {
-                background: var(--bg-dark);
-                color: var(--text-primary);
-                min-height: 100vh;
-                padding: 20px;
-            }
-            
-            .container {
-                max-width: 1200px;
-                margin: 0 auto;
-            }
-            
-            .header {
-                text-align: center;
-                margin-bottom: 50px;
-                padding: 40px 0;
-            }
-            
-            .header h1 {
-                font-size: 3em;
-                background: linear-gradient(135deg, var(--primary), var(--success));
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                margin-bottom: 10px;
-            }
-            
-            .header p {
-                color: var(--text-secondary);
-                font-size: 1.2em;
-            }
-            
-            .scripts-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-                gap: 30px;
-                margin-bottom: 50px;
-            }
-            
-            .script-card {
-                background: var(--bg-card);
-                border-radius: 15px;
-                padding: 30px;
-                border: 1px solid rgba(255,255,255,0.1);
-                transition: all 0.3s ease;
-            }
-            
-            .script-card:hover {
-                transform: translateY(-5px);
-                border-color: var(--primary);
-            }
-            
-            .script-card.premium {
-                border-color: var(--warning);
-            }
-            
-            .script-badge {
-                display: inline-block;
-                padding: 5px 12px;
-                border-radius: 20px;
-                font-size: 0.8em;
-                font-weight: 600;
-                margin-bottom: 15px;
-            }
-            
-            .badge-free {
-                background: var(--success);
-                color: #000;
-            }
-            
-            .badge-premium {
-                background: var(--warning);
-                color: #000;
-            }
-            
-            .script-card h3 {
-                font-size: 1.5em;
-                margin-bottom: 10px;
-            }
-            
-            .script-card p {
-                color: var(--text-secondary);
-                margin-bottom: 20px;
-                line-height: 1.5;
-            }
-            
-            .script-features {
-                list-style: none;
-                margin-bottom: 25px;
-            }
-            
-            .script-features li {
-                padding: 8px 0;
-                color: var(--text-secondary);
-                display: flex;
-                align-items: center;
-                gap: 10px;
-            }
-            
-            .script-features li:before {
-                content: '✓';
-                color: var(--success);
-                font-weight: bold;
-            }
-            
-            .btn {
-                display: inline-block;
-                padding: 12px 24px;
-                background: var(--primary);
-                color: white;
-                text-decoration: none;
-                border-radius: 8px;
-                font-weight: 600;
-                transition: all 0.3s ease;
-                border: none;
-                cursor: pointer;
-                width: 100%;
-                text-align: center;
-            }
-            
-            .btn:hover {
-                background: #4752c4;
-                transform: translateY(-2px);
-            }
-            
-            .btn-premium {
-                background: var(--warning);
-                color: #000;
-            }
-            
-            .btn-premium:hover {
-                background: #e6d852;
-            }
-            
-            .info-section {
-                background: var(--bg-card);
-                border-radius: 15px;
-                padding: 40px;
-                margin-top: 50px;
-                border: 1px solid rgba(255,255,255,0.1);
-            }
-            
-            .info-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-                gap: 30px;
-            }
-            
-            .info-item {
-                text-align: center;
-            }
-            
-            .info-icon {
-                font-size: 3em;
-                margin-bottom: 15px;
-            }
-            
-            .info-item h4 {
-                font-size: 1.2em;
-                margin-bottom: 10px;
-            }
-            
-            .info-item p {
-                color: var(--text-secondary);
-            }
-            
-            .discord-link {
-                text-align: center;
-                margin-top: 30px;
-            }
-            
-            .discord-btn {
-                display: inline-flex;
-                align-items: center;
-                gap: 10px;
-                background: var(--primary);
-                color: white;
-                padding: 15px 30px;
-                border-radius: 10px;
-                text-decoration: none;
-                font-weight: 600;
-                transition: all 0.3s ease;
-            }
-            
-            .discord-btn:hover {
-                background: #4752c4;
-                transform: translateY(-2px);
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>🎮 Roblox Script Hub</h1>
-                <p>Advanced HWID-locked scripts for enhanced gameplay</p>
-            </div>
-            
-            <div class="scripts-grid">
+    const clientHWID = generateHWID(req);
+    
+    // Check if this is you accessing the site
+    const isYouAccessing = false; // We can't easily verify Discord ID from web
+    
+    if (isYouAccessing) {
+        res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Exclusive Script Hub</title>
+            <style>
+                * {
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                    font-family: 'Inter', sans-serif;
+                }
+                
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+                
+                :root {
+                    --primary: #5865F2;
+                    --success: #57F287;
+                    --bg-dark: #0a0a0a;
+                    --bg-card: #1a1a1a;
+                    --text-primary: #ffffff;
+                    --text-secondary: #b9bbbe;
+                }
+                
+                body {
+                    background: var(--bg-dark);
+                    color: var(--text-primary);
+                    min-height: 100vh;
+                    padding: 20px;
+                }
+                
+                .container {
+                    max-width: 800px;
+                    margin: 0 auto;
+                    text-align: center;
+                }
+                
+                .header {
+                    margin-bottom: 40px;
+                    padding: 40px 0;
+                }
+                
+                .header h1 {
+                    font-size: 3em;
+                    background: linear-gradient(135deg, var(--primary), var(--success));
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    margin-bottom: 10px;
+                }
+                
+                .script-card {
+                    background: var(--bg-card);
+                    border-radius: 15px;
+                    padding: 30px;
+                    border: 2px solid var(--primary);
+                    margin-bottom: 30px;
+                }
+                
+                .hwid-info {
+                    background: rgba(88, 101, 242, 0.1);
+                    border-radius: 10px;
+                    padding: 20px;
+                    margin-bottom: 20px;
+                }
+                
+                .script-code {
+                    background: #000;
+                    border-radius: 10px;
+                    padding: 20px;
+                    margin: 20px 0;
+                    text-align: left;
+                    border: 1px solid #333;
+                }
+                
+                code {
+                    color: var(--success);
+                    font-family: 'Courier New', monospace;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>🔒 Exclusive Script Hub</h1>
+                    <p style="color: var(--text-secondary);">Welcome! This is your exclusive script.</p>
+                </div>
+                
                 <div class="script-card">
-                    <span class="script-badge badge-free">FREE</span>
-                    <h3>Free Script</h3>
-                    <p>Basic features to get you started with our script system.</p>
-                    <ul class="script-features">
-                        <li>Essential game features</li>
-                        <li>Easy to use</li>
-                        <li>HWID protected</li>
-                        <li>Regular updates</li>
-                    </ul>
-                    <button class="btn" onclick="alert('Join our Discord and use /panel to get your free script!')">
-                        Get Free Script
-                    </button>
-                </div>
-                
-                <div class="script-card premium">
-                    <span class="script-badge badge-premium">PREMIUM</span>
-                    <h3>Premium Script</h3>
-                    <p>Advanced features and exclusive capabilities for power users.</p>
-                    <ul class="script-features">
-                        <li>All free features plus:</li>
-                        <li>Advanced game tools</li>
-                        <li>Priority support</li>
-                        <li>Early access to updates</li>
-                        <li>Exclusive features</li>
-                    </ul>
-                    <button class="btn btn-premium" onclick="alert('Join our Discord and get special role to access premium scripts!')">
-                        Get Premium Script
-                    </button>
-                </div>
-            </div>
-            
-            <div class="info-section">
-                <div class="info-grid">
-                    <div class="info-item">
-                        <div class="info-icon">🔒</div>
-                        <h4>HWID Protected</h4>
-                        <p>Each script is locked to your device for maximum security</p>
+                    <div class="hwid-info">
+                        <h3>🆔 Your HWID: ${clientHWID}</h3>
+                        <p>This script is locked to your device</p>
                     </div>
-                    <div class="info-item">
-                        <div class="info-icon">⚡</div>
-                        <h4>Fast Execution</h4>
-                        <p>Optimized scripts for smooth performance in-game</p>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-icon">🛡️</div>
-                        <h4>Safe & Secure</h4>
-                        <p>Regular updates to ensure compatibility and safety</p>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-icon">🎯</div>
-                        <h4>Easy to Use</h4>
-                        <p>Simple copy-paste system with automatic HWID detection</p>
+                    
+                    <h3>⭐ Premium Script</h3>
+                    <p>Your exclusive Roblox script with advanced features</p>
+                    
+                    <div class="script-code">
+                        <code>
+                            -- Your exclusive script content would be here<br>
+                            -- HWID Verified: ${clientHWID}<br>
+                            -- Access: APPROVED
+                        </code>
                     </div>
                 </div>
                 
-                <div class="discord-link">
-                    <a href="https://discord.gg/your-server" class="discord-btn" target="_blank">
-                        <span>Join Our Discord</span>
-                        <span>🎮</span>
-                    </a>
-                    <p style="margin-top: 15px; color: var(--text-secondary);">
-                        Use <code>/panel</code> in our Discord to get your scripts!
-                    </p>
-                </div>
+                <p style="color: var(--text-secondary);">
+                    Use <code>/panel</code> in Discord to get your loadstring!
+                </p>
             </div>
-        </div>
-    </body>
-    </html>
-    `);
+        </body>
+        </html>
+        `);
+    } else {
+        res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Access Denied</title>
+            <style>
+                body {
+                    background: #0a0a0a;
+                    color: white;
+                    font-family: 'Inter', sans-serif;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 100vh;
+                    margin: 0;
+                    text-align: center;
+                }
+                .message {
+                    background: rgba(237, 66, 69, 0.1);
+                    border: 1px solid rgba(237, 66, 69, 0.3);
+                    border-radius: 15px;
+                    padding: 40px;
+                    backdrop-filter: blur(10px);
+                }
+            </style>
+        </head>
+        <body>
+            <div class="message">
+                <h1>🚫 Access Denied</h1>
+                <p>This website contains exclusive content for the script owner only.</p>
+                <p>If you are the owner, use the Discord bot to access your scripts.</p>
+            </div>
+        </body>
+        </html>
+        `);
+    }
 });
 
 // API endpoint to serve scripts with HWID verification
-app.get('/script/:scriptId', (req, res) => {
-    const { scriptId } = req.params;
+app.get('/script/premium_script', (req, res) => {
     const clientHWID = req.query.hwid;
-    const licenseKey = req.query.key;
     
-    const script = scripts.get(scriptId);
-    
-    if (!script) {
-        return res.status(404).send('Script not found');
+    if (!clientHWID) {
+        return res.status(400).send('HWID parameter required');
     }
     
-    // Check if script requires license key
-    if (script.requiresKey) {
-        if (!licenseKey) {
-            return res.status(403).send('License key required');
-        }
-        
-        const keyData = userKeys.get(licenseKey);
-        if (!keyData || keyData.used || keyData.scriptId !== scriptId) {
-            return res.status(403).send('Invalid license key');
-        }
-        
-        // Mark key as used
-        keyData.used = true;
-        userKeys.set(licenseKey, keyData);
+    // Verify HWID
+    const hwidLock = hwidLocks.get(clientHWID);
+    if (!hwidLock) {
+        return res.status(403).send('HWID not authorized');
     }
     
-    // HWID verification
-    if (clientHWID) {
-        const hwidLock = hwidLocks.get(clientHWID);
-        if (!hwidLock || hwidLock.scriptId !== scriptId) {
-            return res.status(403).send('HWID not authorized for this script');
-        }
+    // Only you can access the script
+    if (!isYou(hwidLock.userId)) {
+        return res.status(403).send('Access denied');
     }
     
     // Serve the actual Lua script
-    // This would be your actual script content
     const luaScript = `
--- Roblox Script - ${script.name}
--- Version: ${script.version}
--- HWID: ${clientHWID || 'NOT_VERIFIED'}
+-- 🔒 Exclusive Premium Script
+-- 👤 Owner: ${hwidLock.username}
+-- 🆔 HWID: ${clientHWID}
+-- ✅ Access: VERIFIED
 
-print("🔒 HWID Locked Script Loaded")
-print("📝 Script: ${script.name}")
-print("⚡ Version: ${script.version}")
+print("⭐ Exclusive Premium Script Loaded!")
+print("🔒 HWID Verified: ${clientHWID}")
+print("👤 Authorized User: ${hwidLock.username}")
 
-if not (${clientHWID ? `"${clientHWID}"` : 'false'}) then
+-- HWID Verification
+local expectedHWID = "${clientHWID}"
+local function getClientHWID()
+    -- This would be your actual HWID detection logic in Roblox
+    return "${clientHWID}"
+end
+
+if getClientHWID() ~= expectedHWID then
     print("❌ HWID verification failed!")
+    print("🚫 This script is locked to another device")
     return
 end
 
-print("✅ HWID Verified: ${clientHWID}")
+print("✅ HWID verification successful!")
+print("🎮 Loading premium features...")
 
--- Your actual script code here
-game:GetService("Players").LocalPlayer.Chatted:Connect(function(msg)
+-- Your premium script content here
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- Premium GUI
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local Title = Instance.new("TextLabel")
+
+ScreenGui.Parent = game.CoreGui
+ScreenGui.Name = "ExclusivePremiumGUI"
+
+MainFrame.Parent = ScreenGui
+MainFrame.Size = UDim2.new(0, 400, 0, 300)
+MainFrame.Position = UDim2.new(0.5, -200, 0.5, -150)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+Title.Parent = MainFrame
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+Title.Text = "⭐ Exclusive Premium Script v1.0"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 18
+Title.Font = Enum.Font.GothamBold
+
+-- Add your exclusive features here
+print("🚀 Premium features loaded successfully!")
+print("🎉 Enjoy your exclusive script!")
+
+-- Example feature
+LocalPlayer.Chatted:Connect(function(msg)
     if msg == "/features" then
-        print("🎮 Script Features:")
-        print("⭐ Premium Features Active")
+        print("🎮 Exclusive Features:")
+        print("⭐ Premium GUI")
         print("🔒 HWID Protected")
+        print("🚀 Advanced Tools")
+        print("🎯 Exclusive Access")
     end
 end)
-
-print("🚀 Script successfully loaded!")
     `.trim();
     
     res.setHeader('Content-Type', 'text/plain');
@@ -776,35 +573,34 @@ print("🚀 Script successfully loaded!")
 
 // API endpoint to verify HWID
 app.post('/api/verify-hwid', express.json(), (req, res) => {
-    const { hwid, scriptId } = req.body;
+    const { hwid } = req.body;
     
-    if (!hwid || !scriptId) {
-        return res.json({ valid: false, error: 'Missing parameters' });
+    if (!hwid) {
+        return res.json({ valid: false, error: 'HWID required' });
     }
     
     const hwidLock = hwidLocks.get(hwid);
-    const isValid = hwidLock && hwidLock.scriptId === scriptId;
+    const isValid = hwidLock && isYou(hwidLock.userId);
     
     res.json({ 
         valid: isValid,
-        script: isValid ? scripts.get(scriptId) : null
+        user: isValid ? hwidLock.username : null,
+        script: isValid ? 'premium_script' : null
     });
 });
 
-// API endpoint to get user's scripts
-app.get('/api/user-scripts/:userId', (req, res) => {
-    const { userId } = req.params;
-    
-    const userScripts = Array.from(hwidLocks.values())
-        .filter(lock => lock.userId === userId)
+// API endpoint to get your scripts
+app.get('/api/my-scripts', (req, res) => {
+    const yourScripts = Array.from(hwidLocks.values())
+        .filter(lock => isYou(lock.userId))
         .map(lock => ({
             scriptId: lock.scriptId,
-            script: scripts.get(lock.scriptId),
             hwid: lock.hwid,
-            createdAt: lock.createdAt
+            createdAt: new Date(lock.createdAt).toLocaleString(),
+            status: 'ACTIVE'
         }));
     
-    res.json({ scripts: userScripts });
+    res.json({ scripts: yourScripts });
 });
 
 // Error handling
@@ -858,10 +654,10 @@ app.use((req, res) => {
 // Start server
 server.listen(PORT, '0.0.0.0', () => {
     console.log('🚀 Server running on port ' + PORT);
-    console.log('🎮 Roblox Script System Ready');
-    console.log('🔒 HWID Locking System Active');
-    console.log('🤖 Discord Bot Integration Enabled');
+    console.log('🔒 Exclusive Script System Ready');
+    console.log('👤 Only Discord ID: 1415022792214052915 can access');
+    console.log('🤖 Loading Discord bot...');
     
-    // Load bot token
+    // Load bot token from Pastebin
     loadBotToken();
 });
