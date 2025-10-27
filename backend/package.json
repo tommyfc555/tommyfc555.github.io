@@ -1,7 +1,7 @@
 {
-  "name": "roblox-script-hub",
+  "name": "exclusive-script-hub",
   "version": "1.0.0",
-  "description": "HWID-locked Roblox script system with Discord bot",
+  "description": "Exclusive HWID-locked Roblox script system",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
