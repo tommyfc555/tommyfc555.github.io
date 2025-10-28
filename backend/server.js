@@ -58,57 +58,60 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Quick response for Discord interactions
-function handlePanelCommand(interaction) {
-    // Immediate response to avoid timeout
-    interaction.deferReply().catch(console.error);
-    
-    if (!isBotReady) {
-        return interaction.editReply({
-            content: 'Bot is still starting up. Please try again in a few seconds.',
-            ephemeral: true
-        }).catch(console.error);
+async function handlePanelCommand(interaction) {
+    try {
+        // Defer reply first to avoid timeout
+        await interaction.deferReply();
+        
+        if (!isBotReady) {
+            return await interaction.editReply({
+                content: 'Bot is still starting up. Please try again in a few seconds.'
+            });
+        }
+
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('claim_key')
+                    .setLabel('Get Key')
+                    .setStyle(ButtonStyle.Success),
+                new ButtonBuilder()
+                    .setCustomId('get_script')
+                    .setLabel('Get Script')
+                    .setStyle(ButtonStyle.Primary)
+            );
+
+        // Add reset key button only for admins
+        if (interaction.member.roles.cache.has(ADMIN_ROLE_ID)) {
+            row.addComponents(
+                new ButtonBuilder()
+                    .setCustomId('reset_key')
+                    .setLabel('Reset Key')
+                    .setStyle(ButtonStyle.Danger)
+            );
+        }
+
+        const embed = new EmbedBuilder()
+            .setTitle('Script Management')
+            .setDescription('Manage your script access below')
+            .setColor(0x0099FF)
+            .addFields(
+                { name: 'Get Key', value: 'Generate your unique access key' },
+                { name: 'Get Script', value: 'Get your script after obtaining key' }
+            )
+            .setFooter({ text: 'Device locked protection system' });
+
+        if (interaction.member.roles.cache.has(ADMIN_ROLE_ID)) {
+            embed.addFields({ name: 'Reset Key', value: 'Generate new key (Admin only)' });
+        }
+
+        await interaction.editReply({
+            embeds: [embed],
+            components: [row]
+        });
+    } catch (error) {
+        console.error('Error in handlePanelCommand:', error);
     }
-
-    const row = new ActionRowBuilder()
-        .addComponents(
-            new ButtonBuilder()
-                .setCustomId('claim_key')
-                .setLabel('Get Key')
-                .setStyle(ButtonStyle.Success),
-            new ButtonBuilder()
-                .setCustomId('get_script')
-                .setLabel('Get Script')
-                .setStyle(ButtonStyle.Primary)
-        );
-
-    // Add reset key button only for admins
-    if (interaction.member.roles.cache.has(ADMIN_ROLE_ID)) {
-        row.addComponents(
-            new ButtonBuilder()
-                .setCustomId('reset_key')
-                .setLabel('Reset Key')
-                .setStyle(ButtonStyle.Danger)
-        );
-    }
-
-    const embed = new EmbedBuilder()
-        .setTitle('Script Management')
-        .setDescription('Manage your script access below')
-        .setColor(0x0099FF)
-        .addFields(
-            { name: 'Get Key', value: 'Generate your unique access key' },
-            { name: 'Get Script', value: 'Get your script after obtaining key' }
-        )
-        .setFooter({ text: 'Device locked protection system' });
-
-    if (interaction.member.roles.cache.has(ADMIN_ROLE_ID)) {
-        embed.addFields({ name: 'Reset Key', value: 'Generate new key (Admin only)' });
-    }
-
-    interaction.editReply({
-        embeds: [embed],
-        components: [row]
-    }).catch(console.error);
 }
 
 // Initialize bot after server starts
@@ -157,7 +160,7 @@ client.on('interactionCreate', async (interaction) => {
     if (!interaction.isCommand()) return;
 
     if (interaction.commandName === 'panel') {
-        handlePanelCommand(interaction);
+        await handlePanelCommand(interaction);
     }
 });
 
@@ -166,89 +169,104 @@ client.on('interactionCreate', async (interaction) => {
 
     const { customId, user, member } = interaction;
 
-    // Defer reply immediately for all button interactions
-    await interaction.deferReply({ ephemeral: true });
+    try {
+        // Defer reply immediately for all button interactions
+        await interaction.deferReply({ ephemeral: true });
 
-    if (customId === 'claim_key') {
-        if (userData.has(user.id)) {
+        if (customId === 'claim_key') {
+            if (userData.has(user.id)) {
+                const userInfo = userData.get(user.id);
+                return await interaction.editReply({
+                    content: `You already have a key: \`${userInfo.key}\``
+                });
+            }
+
+            const key = generateKey();
+            
+            userData.set(user.id, {
+                key: key,
+                hwid: null,
+                locked: false,
+                claimedAt: new Date(),
+                discordId: user.id,
+                username: user.tag
+            });
+
+            await interaction.editReply({
+                content: `Key generated: \`${key}\`\n\nUse Get Script to get your script. It will lock to your device on first run.`
+            });
+        }
+
+        if (customId === 'get_script') {
             const userInfo = userData.get(user.id);
-            return interaction.editReply({
-                content: `You already have a key: \`${userInfo.key}\``
+            
+            if (!userInfo) {
+                return await interaction.editReply({
+                    content: 'Get a key first using the Get Key button'
+                });
+            }
+
+            // Create a secure script URL that only works from Roblox
+            const loadstring = `loadstring(game:HttpGet("${WEBSITE_URL}/secure-script/${userInfo.key}"))()`;
+
+            const embed = new EmbedBuilder()
+                .setTitle('Your Script')
+                .setDescription('Copy and execute in Roblox:')
+                .setColor(0x0099FF)
+                .addFields(
+                    { name: 'Your Key', value: `\`${userInfo.key}\`` },
+                    { name: 'Loadstring', value: `\`\`\`lua\n${loadstring}\n\`\`\`` }
+                )
+                .setFooter({ text: 'Script will lock to first device that runs it' });
+
+            await interaction.editReply({ 
+                embeds: [embed]
             });
         }
 
-        const key = generateKey();
-        
-        userData.set(user.id, {
-            key: key,
-            hwid: null,
-            locked: false,
-            claimedAt: new Date(),
-            discordId: user.id,
-            username: user.tag
-        });
+        if (customId === 'reset_key') {
+            if (!member.roles.cache.has(ADMIN_ROLE_ID)) {
+                return await interaction.editReply({
+                    content: 'You do not have permission to reset keys'
+                });
+            }
 
-        interaction.editReply({
-            content: `Key generated: \`${key}\`\n\nUse Get Script to get your script. It will lock to your device on first run.`
-        });
-    }
+            const userInfo = userData.get(user.id);
+            
+            if (!userInfo) {
+                return await interaction.editReply({
+                    content: 'You dont have a key to reset'
+                });
+            }
 
-    if (customId === 'get_script') {
-        const userInfo = userData.get(user.id);
-        
-        if (!userInfo) {
-            return interaction.editReply({
-                content: 'Get a key first using the Get Key button'
+            const newKey = generateKey();
+            
+            userData.set(user.id, {
+                key: newKey,
+                hwid: null,
+                locked: false,
+                claimedAt: new Date(),
+                discordId: user.id,
+                username: user.tag
+            });
+
+            await interaction.editReply({
+                content: `Key reset successfully!\nNew Key: \`${newKey}\``
             });
         }
-
-        // Create a secure script URL that only works from Roblox
-        const loadstring = `loadstring(game:HttpGet("${WEBSITE_URL}/secure-script/${userInfo.key}"))()`;
-
-        const embed = new EmbedBuilder()
-            .setTitle('Your Script')
-            .setDescription('Copy and execute in Roblox:')
-            .setColor(0x0099FF)
-            .addFields(
-                { name: 'Your Key', value: `\`${userInfo.key}\`` },
-                { name: 'Loadstring', value: `\`\`\`lua\n${loadstring}\n\`\`\`` }
-            )
-            .setFooter({ text: 'Script will lock to first device that runs it' });
-
-        interaction.editReply({ 
-            embeds: [embed]
-        });
-    }
-
-    if (customId === 'reset_key') {
-        if (!member.roles.cache.has(ADMIN_ROLE_ID)) {
-            return interaction.editReply({
-                content: 'You do not have permission to reset keys'
+    } catch (error) {
+        console.error('Error handling button interaction:', error);
+        try {
+            await interaction.editReply({
+                content: 'An error occurred. Please try again.'
+            });
+        } catch (e) {
+            // If we can't edit, try to follow up
+            await interaction.followUp({
+                content: 'An error occurred. Please try again.',
+                ephemeral: true
             });
         }
-
-        const userInfo = userData.get(user.id);
-        
-        if (!userInfo) {
-            return interaction.editReply({
-                content: 'You dont have a key to reset'
-            });
-        }
-
-        const newKey = generateKey();
-        
-        userData.set(user.id, {
-            key: newKey,
-            hwid: null,
-            locked: false,
-            claimedAt: new Date(),
-            discordId: user.id,
-            username: user.tag
-        });
-
-        interaction.editReply({
-            content: `Key reset successfully!\nNew Key: \`${newKey}\``
-        });
     }
 });
 
