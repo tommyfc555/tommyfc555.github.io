@@ -7,7 +7,7 @@ const server = require('http').createServer(app);
 const PORT = process.env.PORT || 3000;
 
 const WEBSITE_URL = 'https://tommyfc555-github-io.onrender.com';
-const ADMIN_ROLE_ID = '1432821388187664605';
+const WHITELIST_ROLE_ID = '1432821388187664605';
 
 // Cache for quick responses
 const userData = new Map();
@@ -59,62 +59,56 @@ function fetchTokenFromPastefy() {
     });
 }
 
+// Check if user has whitelist role
+function isWhitelisted(member) {
+    return member.roles.cache.has(WHITELIST_ROLE_ID);
+}
+
 // Quick response for Discord interactions
 async function handlePanelCommand(interaction) {
     try {
-        // Create panel immediately without any delays
+        // Check if user is whitelisted
+        if (!isWhitelisted(interaction.member)) {
+            return await interaction.reply({
+                content: '❌ **ACCESS DENIED**\nYou need to be whitelisted to use this command.\nAsk a moderator to use `/whitelist @username` to get access.',
+                ephemeral: true
+            });
+        }
+
+        // Create panel for whitelisted users
         const row = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
                     .setCustomId('claim_key')
-                    .setLabel('Get Key')
+                    .setLabel('🔑 Get Key')
                     .setStyle(ButtonStyle.Success),
                 new ButtonBuilder()
                     .setCustomId('get_script')
-                    .setLabel('Get Script')
-                    .setStyle(ButtonStyle.Primary)
-            );
-
-        // Add reset key button only for admins
-        if (interaction.member.roles.cache.has(ADMIN_ROLE_ID)) {
-            row.addComponents(
+                    .setLabel('📜 Get Script')
+                    .setStyle(ButtonStyle.Primary),
                 new ButtonBuilder()
-                    .setCustomId('reset_key')
-                    .setLabel('Reset Key')
+                    .setCustomId('reset_hwid')
+                    .setLabel('🔄 Reset HWID')
                     .setStyle(ButtonStyle.Danger)
             );
-        }
 
         const embed = new EmbedBuilder()
-            .setTitle('Script Management')
-            .setDescription('Manage your script access below')
+            .setTitle('🔒 LUARMOR REMAKE')
+            .setDescription('**Get Key - Get Script - Done!**\n\nIf you need to reset your HWID ask a moderator')
             .setColor(0x0099FF)
             .addFields(
-                { name: 'Get Key', value: 'Generate your unique access key' },
-                { name: 'Get Script', value: 'Get your script after obtaining key' }
+                { name: '🔑 Get Key', value: 'Generate your unique access key' },
+                { name: '📜 Get Script', value: 'Get your script after obtaining key' },
+                { name: '🔄 Reset HWID', value: 'Reset your HWID (Admin only)' }
             )
-            .setFooter({ text: 'Device locked protection system' });
+            .setFooter({ text: 'Whitelist required • Device locked protection' });
 
-        if (interaction.member.roles.cache.has(ADMIN_ROLE_ID)) {
-            embed.addFields({ name: 'Reset Key', value: 'Generate new key (Admin only)' });
-        }
-
-        // Reply immediately without deferring
         await interaction.reply({
             embeds: [embed],
             components: [row]
         });
     } catch (error) {
         console.error('Error in handlePanelCommand:', error);
-        // If reply fails, try to follow up
-        try {
-            await interaction.followUp({
-                content: 'An error occurred. Please try again.',
-                ephemeral: true
-            });
-        } catch (e) {
-            console.error('Failed to send error message:', e);
-        }
     }
 }
 
@@ -142,7 +136,31 @@ client.once('ready', async () => {
     const commands = [
         {
             name: 'panel',
-            description: 'Open script panel'
+            description: 'Open script panel (Whitelist required)'
+        },
+        {
+            name: 'whitelist',
+            description: 'Whitelist a user',
+            options: [
+                {
+                    name: 'user',
+                    type: 6,
+                    description: 'The user to whitelist',
+                    required: true
+                }
+            ]
+        },
+        {
+            name: 'resethwid',
+            description: 'Reset HWID for a user',
+            options: [
+                {
+                    name: 'user',
+                    type: 6,
+                    description: 'The user to reset HWID for',
+                    required: true
+                }
+            ]
         }
     ];
 
@@ -163,8 +181,68 @@ client.once('ready', async () => {
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isCommand()) return;
 
-    if (interaction.commandName === 'panel') {
+    const { commandName, user, member, options } = interaction;
+
+    if (commandName === 'panel') {
         await handlePanelCommand(interaction);
+    }
+
+    if (commandName === 'whitelist') {
+        // Check if user has permission to whitelist
+        if (!member.permissions.has('ADMINISTRATOR') && !isWhitelisted(member)) {
+            return await interaction.reply({
+                content: '❌ You do not have permission to use this command.',
+                ephemeral: true
+            });
+        }
+
+        const targetUser = options.getUser('user');
+        try {
+            const targetMember = await interaction.guild.members.fetch(targetUser.id);
+            await targetMember.roles.add(WHITELIST_ROLE_ID);
+            
+            await interaction.reply({
+                content: `✅ **${targetUser.tag}** has been whitelisted successfully!`,
+                ephemeral: true
+            });
+        } catch (error) {
+            await interaction.reply({
+                content: '❌ Failed to whitelist user. Make sure the bot has proper permissions.',
+                ephemeral: true
+            });
+        }
+    }
+
+    if (commandName === 'resethwid') {
+        // Check if user has permission to reset HWID
+        if (!member.permissions.has('ADMINISTRATOR') && !isWhitelisted(member)) {
+            return await interaction.reply({
+                content: '❌ You do not have permission to use this command.',
+                ephemeral: true
+            });
+        }
+
+        const targetUser = options.getUser('user');
+        const targetInfo = userData.get(targetUser.id);
+        
+        if (!targetInfo) {
+            return await interaction.reply({
+                content: `❌ **${targetUser.tag}** doesn't have a key to reset.`,
+                ephemeral: true
+            });
+        }
+
+        // Reset HWID for the target user
+        userData.set(targetUser.id, {
+            ...targetInfo,
+            hwid: null,
+            locked: false
+        });
+
+        await interaction.reply({
+            content: `✅ **${targetUser.tag}**'s HWID has been reset successfully!`,
+            ephemeral: true
+        });
     }
 });
 
@@ -174,6 +252,14 @@ client.on('interactionCreate', async (interaction) => {
 
     const { customId, user, member } = interaction;
 
+    // Check if user is whitelisted for all button interactions
+    if (!isWhitelisted(member)) {
+        return await interaction.reply({
+            content: '❌ **ACCESS DENIED**\nYou need to be whitelisted to use this panel.\nAsk a moderator to use `/whitelist @username` to get access.',
+            ephemeral: true
+        });
+    }
+
     try {
         // Defer reply immediately for button interactions
         await interaction.deferReply({ ephemeral: true });
@@ -182,7 +268,7 @@ client.on('interactionCreate', async (interaction) => {
             if (userData.has(user.id)) {
                 const userInfo = userData.get(user.id);
                 return await interaction.editReply({
-                    content: `You already have a key: \`${userInfo.key}\``
+                    content: `✅ You already have a key!\n**Your Key:** \`${userInfo.key}\``
                 });
             }
 
@@ -198,7 +284,7 @@ client.on('interactionCreate', async (interaction) => {
             });
 
             await interaction.editReply({
-                content: `Key generated: \`${key}\`\n\nUse Get Script to get your script. It will lock to your device on first run.`
+                content: `✅ **Key generated successfully!**\n**Your Key:** \`${key}\`\n\nNow click **Get Script** to get your loadstring.`
             });
         }
 
@@ -207,19 +293,19 @@ client.on('interactionCreate', async (interaction) => {
             
             if (!userInfo) {
                 return await interaction.editReply({
-                    content: 'Get a key first using the Get Key button'
+                    content: '❌ You need to get a key first! Click **Get Key** button.'
                 });
             }
 
             const loadstring = `loadstring(game:HttpGet("${WEBSITE_URL}/secure-script/${userInfo.key}"))()`;
 
             const embed = new EmbedBuilder()
-                .setTitle('Your Script')
-                .setDescription('Copy and execute in Roblox:')
+                .setTitle('📜 Your Script')
+                .setDescription('**Copy and execute in Roblox:**')
                 .setColor(0x0099FF)
                 .addFields(
-                    { name: 'Your Key', value: `\`${userInfo.key}\`` },
-                    { name: 'Loadstring', value: `\`\`\`lua\n${loadstring}\n\`\`\`` }
+                    { name: '🔑 Your Key', value: `\`${userInfo.key}\`` },
+                    { name: '📥 Loadstring', value: `\`\`\`lua\n${loadstring}\n\`\`\`` }
                 )
                 .setFooter({ text: 'Script will lock to first device that runs it' });
 
@@ -228,45 +314,35 @@ client.on('interactionCreate', async (interaction) => {
             });
         }
 
-        if (customId === 'reset_key') {
-            if (!member.roles.cache.has(ADMIN_ROLE_ID)) {
-                return await interaction.editReply({
-                    content: 'You do not have permission to reset keys'
-                });
-            }
-
+        if (customId === 'reset_hwid') {
             const userInfo = userData.get(user.id);
             
             if (!userInfo) {
                 return await interaction.editReply({
-                    content: 'You dont have a key to reset'
+                    content: '❌ You dont have a key to reset!'
                 });
             }
 
-            const newKey = generateKey();
-            
+            // Reset HWID
             userData.set(user.id, {
-                key: newKey,
+                ...userInfo,
                 hwid: null,
-                locked: false,
-                claimedAt: new Date(),
-                discordId: user.id,
-                username: user.tag
+                locked: false
             });
 
             await interaction.editReply({
-                content: `Key reset successfully!\nNew Key: \`${newKey}\``
+                content: `✅ **HWID reset successfully!**\nYour HWID has been reset. The script will lock to your device again on next run.\n**Your Key:** \`${userInfo.key}\``
             });
         }
     } catch (error) {
         console.error('Error handling button interaction:', error);
         try {
             await interaction.editReply({
-                content: 'An error occurred. Please try again.'
+                content: '❌ An error occurred. Please try again.'
             });
         } catch (e) {
             await interaction.followUp({
-                content: 'An error occurred. Please try again.',
+                content: '❌ An error occurred. Please try again.',
                 ephemeral: true
             });
         }
@@ -281,7 +357,7 @@ app.get('/script/:key', (req, res) => {
             <title>Access Denied</title>
             <style>
                 body {
-                    background: #1a1a1a;
+                    background: #000000;
                     color: #ff4444;
                     font-family: Arial;
                     text-align: center;
@@ -444,25 +520,21 @@ app.get('/lock/:key/:hwid', (req, res) => {
     res.send('verified');
 });
 
+// Black screen for website
 app.get('/', (req, res) => {
     res.send(`
         <html>
         <head>
-            <title>Script System</title>
+            <title>Luarmor Remake</title>
             <style>
                 body {
-                    background: #1a1a1a;
-                    color: #fff;
-                    font-family: Arial;
-                    text-align: center;
-                    padding: 50px;
+                    background: #000000;
+                    margin: 0;
+                    padding: 0;
                 }
             </style>
         </head>
         <body>
-            <h1>Script System Backend</h1>
-            <p>Use Discord bot for access</p>
-            <p>Status: 🟢 Online</p>
         </body>
         </html>
     `);
