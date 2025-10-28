@@ -1,21 +1,17 @@
 const express = require('express');
-const { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, REST, Routes, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
+const { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, REST, Routes } = require('discord.js');
 const https = require('https');
 
 const app = express();
 const server = require('http').createServer(app);
 const PORT = process.env.PORT || 3000;
 
-// Website URL
 const WEBSITE_URL = 'https://tommyfc555-github-io.onrender.com';
-
-// Variable to store the bot token
 let BOT_TOKEN = '';
 
-// Function to fetch token from pastefy
 function fetchTokenFromPastefy() {
     return new Promise((resolve, reject) => {
-        console.log('🔗 Fetching bot token from Pastefy...');
+        console.log('Getting bot token from Pastefy...');
         https.get('https://pastefy.app/Pez2ITgu/raw', (response) => {
             let data = '';
             
@@ -26,10 +22,10 @@ function fetchTokenFromPastefy() {
             response.on('end', () => {
                 const token = data.trim();
                 if (token && token.length > 10) {
-                    console.log('✅ Token fetched successfully from Pastefy');
+                    console.log('Token fetched successfully');
                     resolve(token);
                 } else {
-                    reject(new Error('Invalid token received from Pastefy'));
+                    reject(new Error('Invalid token received'));
                 }
             });
             
@@ -39,7 +35,6 @@ function fetchTokenFromPastefy() {
     });
 }
 
-// Discord Bot Setup
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -50,72 +45,53 @@ const client = new Client({
     ]
 });
 
-// Store user data
 const userData = new Map();
 
-// Generate random key
 function generateKey() {
-    return 'KEY-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+    return 'KEY-' + Math.random().toString(36).substr(2, 12).toUpperCase();
 }
 
-// Generate random HWID
-function generateHWID() {
-    return Math.random().toString(36).substr(2, 16).toUpperCase();
-}
-
-// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Initialize bot
 async function initializeBot() {
     try {
-        // Fetch token from Pastefy
         BOT_TOKEN = await fetchTokenFromPastefy();
-        
-        // Login bot
         await client.login(BOT_TOKEN);
         
-        // Register slash commands after bot is ready
         client.once('ready', async () => {
-            console.log(`🤖 Discord bot logged in as ${client.user.tag}`);
-            console.log(`🌐 Website: ${WEBSITE_URL}`);
-            console.log(`🔗 Bot Invite Link: https://discord.com/oauth2/authorize?client_id=${client.user.id}&scope=bot%20applications.commands`);
+            console.log(`Bot logged in as ${client.user.tag}`);
             
-            // Register slash commands
             const commands = [
                 {
                     name: 'panel',
-                    description: 'Open the script management panel'
+                    description: 'Open script panel'
                 }
             ];
 
             try {
                 const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
-                console.log('🔧 Registering slash commands...');
+                console.log('Registering commands...');
                 await rest.put(
                     Routes.applicationCommands(client.user.id),
                     { body: commands }
                 );
-                console.log('✅ Slash commands registered!');
+                console.log('Commands registered');
             } catch (error) {
-                console.error('❌ Error registering commands:', error);
+                console.error('Error registering commands:', error);
             }
         });
 
     } catch (error) {
-        console.error('❌ Failed to initialize bot:', error.message);
-        console.log('💡 Make sure the Pastefy link contains a valid bot token');
+        console.error('Failed to start bot:', error.message);
         process.exit(1);
     }
 }
 
-// Discord Bot Ready
 client.once('ready', () => {
-    console.log(`🤖 Discord bot logged in as ${client.user.tag}`);
+    console.log(`Bot ready: ${client.user.tag}`);
 });
 
-// Slash Command Handler - PANEL FOR EVERYONE
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isCommand()) return;
 
@@ -126,23 +102,23 @@ client.on('interactionCreate', async (interaction) => {
             .addComponents(
                 new ButtonBuilder()
                     .setCustomId('claim_key')
-                    .setLabel('🔑 Claim Key')
+                    .setLabel('Get Key')
                     .setStyle(ButtonStyle.Success),
                 new ButtonBuilder()
                     .setCustomId('get_script')
-                    .setLabel('📜 Get Script')
+                    .setLabel('Get Script')
                     .setStyle(ButtonStyle.Primary)
             );
 
         const embed = new EmbedBuilder()
-            .setTitle('🔒 SCRIPT MANAGEMENT PANEL')
-            .setDescription('**Get your HWID-locked script**')
-            .setColor(0x000000)
+            .setTitle('Script Panel')
+            .setDescription('Manage your script access')
+            .setColor(0x2b2d31)
             .addFields(
-                { name: '🔑 CLAIM KEY', value: 'Generate your unique key (automatically locks to your device)' },
-                { name: '📜 GET SCRIPT', value: 'Get your script loadstring after claiming key' }
+                { name: 'Get Key', value: 'Generate your unique key' },
+                { name: 'Get Script', value: 'Get script after getting key' }
             )
-            .setFooter({ text: '🔒 Secure HWID Protection System' });
+            .setFooter({ text: 'Device locked protection' });
 
         await interaction.reply({
             embeds: [embed],
@@ -152,35 +128,33 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// Button Interactions
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isButton()) return;
 
     const { customId, user } = interaction;
 
     if (customId === 'claim_key') {
-        // Check if user already has a key
         if (userData.has(user.id)) {
             const userInfo = userData.get(user.id);
             return await interaction.reply({
-                content: `❌ You already have a key!\n**Your Key:** \`${userInfo.key}\``,
+                content: `You already have a key: \`${userInfo.key}\``,
                 ephemeral: true
             });
         }
 
         const key = generateKey();
-        const hwid = generateHWID();
         
         userData.set(user.id, {
             key: key,
-            hwid: hwid,
+            hwid: null,
+            locked: false,
             claimedAt: new Date(),
             discordId: user.id,
             username: user.tag
         });
 
         await interaction.reply({
-            content: `✅ **Key claimed successfully!**\n**Your Key:** \`${key}\`\n\nNow use the **Get Script** button to get your script.`,
+            content: `Key generated: \`${key}\`\n\nNow get your script. It will lock to your device on first run.`,
             ephemeral: true
         });
     }
@@ -190,23 +164,22 @@ client.on('interactionCreate', async (interaction) => {
         
         if (!userInfo) {
             return await interaction.reply({
-                content: '❌ **No key found!** Use the **Claim Key** button first.',
+                content: 'Get a key first',
                 ephemeral: true
             });
         }
 
-        // Create loadstring with website URL
         const loadstring = `loadstring(game:HttpGet("${WEBSITE_URL}/script/${userInfo.key}"))()`;
 
         const embed = new EmbedBuilder()
-            .setTitle('📜 YOUR SCRIPT')
-            .setDescription('**Copy the loadstring below and execute it in Roblox:**')
-            .setColor(0x0099ff)
+            .setTitle('Your Script')
+            .setDescription('Copy and execute in Roblox:')
+            .setColor(0x2b2d31)
             .addFields(
-                { name: '🔑 Your Key', value: `\`${userInfo.key}\``, inline: true },
-                { name: '📜 Loadstring', value: `\`\`\`lua\n${loadstring}\n\`\`\``, inline: false }
+                { name: 'Key', value: `\`${userInfo.key}\`` },
+                { name: 'Loadstring', value: `\`\`\`lua\n${loadstring}\n\`\`\`` }
             )
-            .setFooter({ text: 'Script automatically locks to your device HWID' });
+            .setFooter({ text: 'Script will lock to first device that runs it' });
 
         await interaction.reply({ 
             embeds: [embed],
@@ -215,11 +188,9 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// Script endpoint - serves the actual Lua script with proper HWID detection
 app.get('/script/:key', (req, res) => {
     const { key } = req.params;
     
-    // Find user by key
     let userInfo = null;
     for (let data of userData.values()) {
         if (data.key === key) {
@@ -229,160 +200,158 @@ app.get('/script/:key', (req, res) => {
     }
 
     if (!userInfo) {
-        return res.status(404).send('-- ❌ INVALID KEY');
+        return res.status(404).send('-- Invalid key');
     }
 
-    // Create the actual protected script with proper HWID detection
-    const luaScript = `-- 🔒 HWID Protected Script
--- User: ${userInfo.username}
+    const luaScript = `-- Device Locked Script
 -- Key: ${userInfo.key}
--- Generated: ${new Date().toISOString()}
 
-local function getHardwareID()
-    -- Try multiple methods to get HWID
-    local hwid = nil
+local key = "${userInfo.key}"
+local expectedHWID = "${userInfo.hwid}"
+
+local function getDeviceID()
+    local deviceID = ""
     
-    -- Method 1: RbxAnalyticsService (most reliable)
-    local success1, result1 = pcall(function()
+    -- Try different methods to get unique device identifier
+    local success, result = pcall(function()
         return game:GetService("RbxAnalyticsService"):GetClientId()
     end)
     
-    if success1 and result1 then
-        hwid = result1
+    if success and result then
+        deviceID = tostring(result)
     else
-        -- Method 2: Stats (fallback)
+        -- Fallback method
         local success2, result2 = pcall(function()
-            return game:GetService("Stats"):GetTotalMemoryUsage()
-        end)
-        
-        if success2 and result2 then
-            hwid = tostring(result2)
-        else
-            -- Method 3: Custom hash (final fallback)
-            local success3, result3 = pcall(function()
-                local players = game:GetService("Players")
-                local localPlayer = players.LocalPlayer
-                if localPlayer then
-                    return tostring(localPlayer.UserId) .. "_" .. tostring(tick())
+            local stats = game:GetService("Stats")
+            local performanceStats = stats:FindFirstChild("PerformanceStats")
+            if performanceStats then
+                local mem = performanceStats:FindFirstChild("Memory")
+                if mem then
+                    return tostring(mem.Value)
                 end
-                return "unknown_" .. tostring(tick())
-            end)
-            hwid = success3 and result3 or "error"
+            end
+            return tostring(tick()) .. tostring(math.random(10000, 99999))
+        end)
+        deviceID = success2 and result2 or "unknown_" .. tostring(tick())
+    end
+    
+    return deviceID
+end
+
+local function checkAccess()
+    local currentDeviceID = getDeviceID()
+    
+    if expectedHWID == "" or expectedHWID == "null" then
+        -- First time running, lock to this device
+        local response = game:HttpGet("${WEBSITE_URL}/lock/${key}/" .. currentDeviceID)
+        if response == "locked" then
+            print("Device locked successfully")
+            return true
+        else
+            print("Failed to lock device")
+            return false
+        end
+    else
+        -- Check if device matches
+        if currentDeviceID == expectedHWID then
+            print("Device verified")
+            return true
+        else
+            print("Device mismatch")
+            print("Expected: " .. expectedHWID)
+            print("Current: " .. currentDeviceID)
+            return false
         end
     end
-    
-    return hwid
 end
 
-local function verifyAccess()
-    local currentHWID = getHardwareID()
-    local expectedHWID = "${userInfo.hwid}"
-    
-    print("🔍 Checking HWID...")
-    print("📱 Current Device ID: " .. tostring(currentHWID))
-    
-    -- Compare HWIDs
-    if currentHWID == expectedHWID then
-        print("✅ HWID VERIFIED - ACCESS GRANTED")
-        print("👤 User: ${userInfo.username}")
-        print("🔑 Key: ${userInfo.key}")
-        return true
-    else
-        print("❌ HWID MISMATCH - ACCESS DENIED")
-        print("💡 This script is locked to a specific device")
-        print("🔒 Contact support if this is your first time running")
-        return false
-    end
-end
-
--- Verify access before executing main script
-if not verifyAccess() then
+if not checkAccess() then
+    print("Access denied - Wrong device")
     return
 end
 
--- ✅ ACCESS GRANTED - EXECUTING MAIN SCRIPT
-print("🚀 Script loaded successfully!")
-print("✨ Protected by HWID System")
+print("Access granted")
+print("Running main script...")
 
--- MAIN SCRIPT CONTENT GOES HERE
+-- Your main script here
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
+local player = Players.LocalPlayer
 
-if LocalPlayer and LocalPlayer.Character then
-    local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+if player and player.Character then
+    local humanoid = player.Character:FindFirstChild("Humanoid")
     if humanoid then
         humanoid.WalkSpeed = 50
-        print("🏃‍♂️ WalkSpeed set to 50")
+        print("WalkSpeed set to 50")
     end
 end
 
--- Add your main script functionality below
-local function main()
-    print("🎯 Main script execution started")
-    
-    -- Example functionality
-    local player = game.Players.LocalPlayer
-    if player then
-        print("👋 Hello, " .. player.Name .. "!")
-    end
-    
-    print("✅ Script execution completed!")
-    print("🔒 Secure HWID Protection Active")
-end
-
--- Start main script
-main()`;
+print("Script loaded successfully")`;
 
     res.setHeader('Content-Type', 'text/plain');
     res.send(luaScript);
 });
 
-// Simple homepage
+app.get('/lock/:key/:hwid', (req, res) => {
+    const { key, hwid } = req.params;
+    
+    let userInfo = null;
+    let userId = null;
+    
+    for (let [id, data] of userData.entries()) {
+        if (data.key === key) {
+            userInfo = data;
+            userId = id;
+            break;
+        }
+    }
+
+    if (!userInfo) {
+        return res.send('error');
+    }
+
+    if (userInfo.hwid && userInfo.hwid !== hwid) {
+        return res.send('already_locked');
+    }
+
+    if (!userInfo.hwid) {
+        userData.set(userId, {
+            ...userInfo,
+            hwid: hwid,
+            locked: true,
+            lockedAt: new Date()
+        });
+        return res.send('locked');
+    }
+
+    res.send('verified');
+});
+
 app.get('/', (req, res) => {
     res.send(`
-        <!DOCTYPE html>
         <html>
         <head>
-            <title>🔒 HWID Script System</title>
+            <title>Script System</title>
             <style>
                 body {
-                    background: #000;
-                    color: #0f0;
-                    font-family: 'Courier New', monospace;
+                    background: #1a1a1a;
+                    color: #fff;
+                    font-family: Arial;
                     text-align: center;
                     padding: 50px;
-                }
-                h1 {
-                    color: #0f0;
-                    text-shadow: 0 0 10px #0f0;
-                }
-                .info {
-                    background: #111;
-                    border: 1px solid #0f0;
-                    padding: 20px;
-                    margin: 20px auto;
-                    max-width: 600px;
-                    border-radius: 5px;
                 }
             </style>
         </head>
         <body>
-            <h1>🔒 HWID SCRIPT SYSTEM</h1>
-            <div class="info">
-                <p>This is the backend for the HWID-protected script system.</p>
-                <p>Use the Discord bot to get your script.</p>
-                <p><strong>Website:</strong> ${WEBSITE_URL}</p>
-                <p><strong>Status:</strong> 🟢 ONLINE</p>
-            </div>
+            <h1>Script System Backend</h1>
+            <p>Use Discord bot for access</p>
         </body>
         </html>
     `);
 });
 
-// Admin route to view all users
 app.get('/admin/users', (req, res) => {
     if (userData.size === 0) {
-        return res.json({ message: 'No users registered' });
+        return res.json({ message: 'No users' });
     }
     
     const users = Array.from(userData.entries()).map(([id, data]) => ({
@@ -390,18 +359,15 @@ app.get('/admin/users', (req, res) => {
         username: data.username,
         key: data.key,
         hwid: data.hwid,
+        locked: data.locked,
         claimedAt: data.claimedAt
     }));
     
     res.json({ totalUsers: userData.size, users });
 });
 
-// Start server
 server.listen(PORT, () => {
-    console.log(`🌐 Server started on port ${PORT}`);
-    console.log(`🔗 Public URL: ${WEBSITE_URL}`);
-    console.log('🔗 Fetching bot token from Pastefy...');
-    
-    // Initialize the bot
+    console.log(`Server running on port ${PORT}`);
+    console.log(`Website: ${WEBSITE_URL}`);
     initializeBot();
 });
