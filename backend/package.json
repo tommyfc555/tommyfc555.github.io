@@ -1,7 +1,7 @@
 {
   "name": "discord-hwid-bot",
   "version": "1.0.0",
-  "description": "Discord bot with HWID-protected script system using loadstring from website",
+  "description": "Discord bot with HWID-protected script system",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -15,9 +15,7 @@
     "lua",
     "script",
     "protection",
-    "roblox",
-    "loadstring",
-    "express"
+    "roblox"
   ],
   "author": "TommyFC555",
   "license": "MIT",
@@ -30,13 +28,5 @@
   },
   "engines": {
     "node": ">=16.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/tommyfc555/discord-hwid-bot.git"
-  },
-  "bugs": {
-    "url": "https://github.com/tommyfc555/discord-hwid-bot/issues"
-  },
-  "homepage": "https://github.com/tommyfc555/discord-hwid-bot#readme"
+  }
 }
