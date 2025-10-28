@@ -1,17 +1,199 @@
 const express = require('express');
-const http = require('http');
+const { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, REST, Routes } = require('discord.js');
 const path = require('path');
 
 const app = express();
-const server = http.createServer(app);
-
+const server = require('http').createServer(app);
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Discord Bot Setup
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
+    ]
+});
 
-// Serve the obfuscator website directly
+// Store user data
+const userData = new Map();
+
+// Generate random key
+function generateKey() {
+    return 'KEY-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+}
+
+// HWID validation
+function validateHWID(hwid) {
+    return hwid && hwid.length >= 8 && hwid.length <= 64;
+}
+
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Register slash commands
+const commands = [
+    {
+        name: 'panel',
+        description: 'Open the script management panel'
+    }
+];
+
+const rest = new REST({ version: '10' }).setToken('https://pastefy.app/Pez2ITgu/raw');
+
+(async () => {
+    try {
+        console.log('🔧 Registering slash commands...');
+        await rest.put(
+            Routes.applicationCommands('1432816884415463514'),
+            { body: commands }
+        );
+        console.log('✅ Slash commands registered!');
+    } catch (error) {
+        console.error('❌ Error registering commands:', error);
+    }
+})();
+
+// Discord Bot Ready
+client.once('ready', () => {
+    console.log(`🤖 Discord bot logged in as ${client.user.tag}`);
+    console.log(`🌐 Website running on http://localhost:${PORT}`);
+});
+
+// Slash Command Handler
+client.on('interactionCreate', async (interaction) => {
+    if (!interaction.isCommand()) return;
+
+    const { commandName, user } = interaction;
+
+    if (commandName === 'panel') {
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('claim_key')
+                    .setLabel('🔑 Claim Key')
+                    .setStyle(ButtonStyle.Success),
+                new ButtonBuilder()
+                    .setCustomId('get_script')
+                    .setLabel('📜 Get Script')
+                    .setStyle(ButtonStyle.Primary),
+                new ButtonBuilder()
+                    .setCustomId('reset_hwid')
+                    .setLabel('🔄 Reset HWID')
+                    .setStyle(ButtonStyle.Danger)
+            );
+
+        const embed = new EmbedBuilder()
+            .setTitle('🔒 Script Management Panel')
+            .setDescription('Manage your HWID-locked script access')
+            .setColor(0x00ff88)
+            .addFields(
+                { name: '🔑 Claim Key', value: 'Get your unique HWID key (One-time use)' },
+                { name: '📜 Get Script', value: 'Download the script (requires key & HWID)' },
+                { name: '🔄 Reset HWID', value: 'Generate new HWID for your key' }
+            )
+            .setFooter({ text: 'Each key is locked to your Discord account' });
+
+        await interaction.reply({
+            embeds: [embed],
+            components: [row],
+            ephemeral: true
+        });
+    }
+});
+
+// Button Interactions
+client.on('interactionCreate', async (interaction) => {
+    if (!interaction.isButton()) return;
+
+    const { customId, user } = interaction;
+
+    if (customId === 'claim_key') {
+        if (userData.has(user.id)) {
+            return await interaction.reply({
+                content: '❌ You already have a key! Use "Get Script" or "Reset HWID"',
+                ephemeral: true
+            });
+        }
+
+        const key = generateKey();
+        userData.set(user.id, {
+            key: key,
+            hwid: null,
+            claimedAt: new Date(),
+            discordId: user.id,
+            username: user.tag
+        });
+
+        const embed = new EmbedBuilder()
+            .setTitle('🔑 Key Claimed Successfully!')
+            .setDescription(`Your unique key: \`${key}\``)
+            .addFields(
+                { name: 'Next Steps', value: '1. Visit our website to set HWID\n2. Use "Get Script" to download' },
+                { name: 'Important', value: '• This key is locked to your account\n• Only one HWID per key\n• Keep your key secure!' }
+            )
+            .setColor(0x00ff88)
+            .setFooter({ text: `Claimed at: ${new Date().toLocaleString()}` });
+
+        await interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    if (customId === 'get_script') {
+        const userInfo = userData.get(user.id);
+        
+        if (!userInfo) {
+            return await interaction.reply({
+                content: '❌ You need to claim a key first! Use the "Claim Key" button.',
+                ephemeral: true
+            });
+        }
+
+        if (!userInfo.hwid) {
+            return await interaction.reply({
+                content: `❌ HWID not set! Visit our website and enter your key to set HWID.\nWebsite: http://localhost:${PORT}`,
+                ephemeral: true
+            });
+        }
+
+        const embed = new EmbedBuilder()
+            .setTitle('📜 Script Ready for Download')
+            .setDescription('Your HWID-locked script is ready!')
+            .addFields(
+                { name: 'Your Key', value: `\`${userInfo.key}\``, inline: true },
+                { name: 'Your HWID', value: `\`${userInfo.hwid}\``, inline: true },
+                { name: 'Download Link', value: `[Click Here](http://localhost:${PORT}/download/${userInfo.key})` }
+            )
+            .setColor(0x0099ff)
+            .setFooter({ text: 'Script will only work with your HWID' });
+
+        await interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    if (customId === 'reset_hwid') {
+        const userInfo = userData.get(user.id);
+        
+        if (!userInfo) {
+            return await interaction.reply({
+                content: '❌ You need to claim a key first!',
+                ephemeral: true
+            });
+        }
+
+        // Reset HWID
+        userData.set(user.id, {
+            ...userInfo,
+            hwid: null
+        });
+
+        await interaction.reply({
+            content: `✅ HWID reset successfully! Visit our website to set a new HWID:\nhttp://localhost:${PORT}`,
+            ephemeral: true
+        });
+    }
+});
+
+// Website Routes
 app.get('/', (req, res) => {
     res.send(`
 <!DOCTYPE html>
@@ -19,583 +201,444 @@ app.get('/', (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔒 Black Obfuscator</title>
+    <title>LuaShield - HWID Management</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Courier New', monospace;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         
         body {
-            background: #0a0a0a;
-            color: #00ff00;
+            background: #0f0f0f;
+            color: #fff;
             min-height: 100vh;
-            padding: 20px;
-            overflow-x: hidden;
+            padding: 2rem;
+            background: linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 100%);
         }
         
         .container {
-            max-width: 1200px;
+            max-width: 600px;
             margin: 0 auto;
+            background: rgba(26, 26, 26, 0.9);
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid #333;
+            backdrop-filter: blur(10px);
         }
         
-        .header {
+        h1 {
+            color: #00ff88;
+            margin-bottom: 1rem;
             text-align: center;
-            margin-bottom: 30px;
-            padding: 20px;
-            border-bottom: 2px solid #00ff00;
+            font-size: 2.5rem;
         }
         
-        .header h1 {
-            font-size: 2.5em;
-            text-shadow: 0 0 10px #00ff00;
-            margin-bottom: 10px;
-        }
-        
-        .header p {
-            color: #00cc00;
-            font-size: 1.1em;
-        }
-        
-        .editor-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        
-        @media (max-width: 768px) {
-            .editor-container {
-                grid-template-columns: 1fr;
-            }
-        }
-        
-        .editor-section {
-            background: #111111;
-            border: 1px solid #00ff00;
-            border-radius: 10px;
-            padding: 20px;
-        }
-        
-        .editor-title {
-            color: #00ff00;
-            margin-bottom: 15px;
-            font-size: 1.3em;
+        .subtitle {
+            color: #ccc;
             text-align: center;
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
         }
         
-        textarea {
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #00ff88;
+            font-weight: 600;
+        }
+        
+        input {
             width: 100%;
-            height: 400px;
-            background: #000000;
-            color: #00ff00;
-            border: 1px solid #00ff00;
-            border-radius: 5px;
-            padding: 15px;
-            font-size: 14px;
-            resize: vertical;
-            font-family: 'Courier New', monospace;
+            padding: 12px;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 16px;
+            transition: border-color 0.3s;
         }
         
-        textarea:focus {
+        input:focus {
             outline: none;
-            box-shadow: 0 0 10px #00ff00;
+            border-color: #00ff88;
         }
         
-        .controls {
-            text-align: center;
-            margin: 30px 0;
-        }
-        
-        .obfuscate-btn {
-            background: #00ff00;
-            color: #000000;
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #00ff88;
+            color: #000;
             border: none;
-            padding: 15px 40px;
-            font-size: 1.2em;
+            border-radius: 6px;
+            font-size: 16px;
             font-weight: bold;
-            border-radius: 25px;
             cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 2px;
+            transition: all 0.3s;
+            margin-bottom: 1rem;
         }
         
-        .obfuscate-btn:hover {
-            background: #00cc00;
-            box-shadow: 0 0 20px #00ff00;
+        button:hover {
+            background: #00cc66;
             transform: translateY(-2px);
         }
         
-        .obfuscate-btn:active {
-            transform: translateY(0);
+        .btn-reset {
+            background: #ff4444;
+            color: white;
         }
         
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-top: 40px;
+        .btn-reset:hover {
+            background: #cc3333;
         }
         
-        .feature-card {
-            background: #111111;
-            border: 1px solid #00ff00;
-            border-radius: 10px;
-            padding: 20px;
+        .result {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 6px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .success {
+            background: #00ff8820;
+            border: 1px solid #00ff88;
+            color: #00ff88;
+        }
+        
+        .error {
+            background: #ff444420;
+            border: 1px solid #ff4444;
+            color: #ff4444;
+        }
+        
+        .info-box {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .info-box h3 {
+            color: #00ff88;
+            margin-bottom: 0.5rem;
+        }
+        
+        .steps {
+            margin-left: 1.5rem;
+            color: #ccc;
+        }
+        
+        .steps li {
+            margin-bottom: 0.5rem;
+        }
+        
+        .discord-info {
+            background: #5865f2;
+            border: 1px solid #4752c4;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
             text-align: center;
         }
         
-        .feature-icon {
-            font-size: 2em;
-            margin-bottom: 10px;
-        }
-        
-        .feature-title {
-            color: #00ff00;
-            margin-bottom: 10px;
-            font-size: 1.1em;
-        }
-        
-        .feature-desc {
-            color: #00cc00;
-            font-size: 0.9em;
-        }
-        
-        .copy-btn {
-            background: #333333;
-            color: #00ff00;
-            border: 1px solid #00ff00;
-            padding: 8px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-top: 10px;
-            transition: all 0.3s ease;
-        }
-        
-        .copy-btn:hover {
-            background: #00ff00;
-            color: #000000;
-        }
-        
-        .stats {
-            text-align: center;
-            margin-top: 30px;
-            color: #00cc00;
-        }
-        
-        .watermark {
-            text-align: center;
-            margin-top: 40px;
-            color: #00ff00;
-            font-size: 0.9em;
-            opacity: 0.7;
-        }
-        
-        .loading {
-            display: none;
-            text-align: center;
-            color: #00ff00;
-            margin: 20px 0;
-        }
-        
-        .blink {
-            animation: blink 1s infinite;
-        }
-        
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+        .discord-info a {
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>🔒 BLACK OBFUSCATOR</h1>
-            <p>Ultra Lua Script Obfuscation Tool</p>
+        <h1>🔒 LuaShield</h1>
+        <div class="subtitle">HWID-Locked Script Management</div>
+        
+        <div class="discord-info">
+            <strong>📢 Discord Bot Required:</strong><br>
+            Use <code>/panel</code> in Discord to get started!
         </div>
         
-        <div class="editor-container">
-            <div class="editor-section">
-                <div class="editor-title">📝 INPUT - Original Script</div>
-                <textarea id="inputScript" placeholder="Paste your Lua script here...">print("Hello World!")
-local player = game.Players.LocalPlayer
-player.Character.Humanoid.WalkSpeed = 50
+        <div class="info-box">
+            <h3>📋 How It Works:</h3>
+            <ol class="steps">
+                <li>Use Discord bot <code>/panel</code> to claim your key</li>
+                <li>Set your HWID here using the key</li>
+                <li>Download your personalized script from Discord</li>
+                <li>Script only works with your HWID</li>
+            </ol>
+        </div>
 
-function teleport(position)
-    player.Character.HumanoidRootPart.Position = position
-end
-
-teleport(Vector3.new(0, 50, 0))</textarea>
-            </div>
-            
-            <div class="editor-section">
-                <div class="editor-title">🔐 OUTPUT - Obfuscated Script</div>
-                <textarea id="outputScript" placeholder="Obfuscated script will appear here..." readonly></textarea>
-                <button class="copy-btn" onclick="copyOutput()">📋 Copy Obfuscated Script</button>
-            </div>
+        <div class="form-group">
+            <label for="keyInput">🔑 Your Key:</label>
+            <input type="text" id="keyInput" placeholder="Enter your key (e.g., KEY-ABC123)" />
         </div>
         
-        <div class="loading" id="loading">
-            <div class="blink">⚡ OBFUSCATING... PLEASE WAIT</div>
+        <div class="form-group">
+            <label for="hwidInput">🆔 Your HWID:</label>
+            <input type="text" id="hwidInput" placeholder="Enter your HWID (min 8 characters)" />
         </div>
         
-        <div class="controls">
-            <button class="obfuscate-btn" onclick="obfuscateScript()">🚀 OBFUSCATE SCRIPT</button>
-        </div>
+        <button onclick="setHWID()">✅ Set HWID</button>
+        <button onclick="resetHWID()" class="btn-reset">🔄 Reset HWID</button>
         
-        <div class="features">
-            <div class="feature-card">
-                <div class="feature-icon">🔒</div>
-                <div class="feature-title">Ultra Obfuscation</div>
-                <div class="feature-desc">Variables, strings, and functions completely obfuscated</div>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">⚡</div>
-                <div class="feature-title">Fast Processing</div>
-                <div class="feature-desc">Instant obfuscation with advanced algorithms</div>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">🛡️</div>
-                <div class="feature-title">Anti-Deobfuscation</div>
-                <div class="feature-desc">Multiple layers of protection against reverse engineering</div>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">🔧</div>
-                <div class="feature-title">Fully Functional</div>
-                <div class="feature-desc">Obfuscated code works exactly like original</div>
-            </div>
-        </div>
-        
-        <div class="stats">
-            <p>Characters: <span id="charCount">0</span> | Lines: <span id="lineCount">0</span> | Obfuscation Level: <span id="obfLevel">ULTRA</span></p>
-        </div>
-        
-        <div class="watermark">
-            🔒 OBFUSCATED BY BLACK | SECURE YOUR SCRIPTS
-        </div>
+        <div id="result"></div>
     </div>
 
     <script>
-        // Character mapping for obfuscation
-        const charMap = {
-            'a': '\\\\x61', 'b': '\\\\x62', 'c': '\\\\x63', 'd': '\\\\x64', 'e': '\\\\x65',
-            'f': '\\\\x66', 'g': '\\\\x67', 'h': '\\\\x68', 'i': '\\\\x69', 'j': '\\\\x6a',
-            'k': '\\\\x6b', 'l': '\\\\x6c', 'm': '\\\\x6d', 'n': '\\\\x6e', 'o': '\\\\x6f',
-            'p': '\\\\x70', 'q': '\\\\x71', 'r': '\\\\x72', 's': '\\\\x73', 't': '\\\\x74',
-            'u': '\\\\x75', 'v': '\\\\x76', 'w': '\\\\x77', 'x': '\\\\x78', 'y': '\\\\x79',
-            'z': '\\\\x7a', 'A': '\\\\x41', 'B': '\\\\x42', 'C': '\\\\x43', 'D': '\\\\x44',
-            'E': '\\\\x45', 'F': '\\\\x46', 'G': '\\\\x47', 'H': '\\\\x48', 'I': '\\\\x49',
-            'J': '\\\\x4a', 'K': '\\\\x4b', 'L': '\\\\x4c', 'M': '\\\\x4d', 'N': '\\\\x4e',
-            'O': '\\\\x4f', 'P': '\\\\x50', 'Q': '\\\\x51', 'R': '\\\\x52', 'S': '\\\\x53',
-            'T': '\\\\x54', 'U': '\\\\x55', 'V': '\\\\x56', 'W': '\\\\x57', 'X': '\\\\x58',
-            'Y': '\\\\x59', 'Z': '\\\\x5a', '0': '\\\\x30', '1': '\\\\x31', '2': '\\\\x32',
-            '3': '\\\\x33', '4': '\\\\x34', '5': '\\\\x35', '6': '\\\\x36', '7': '\\\\x37',
-            '8': '\\\\x38', '9': '\\\\x39', ' ': '\\\\x20', '!': '\\\\x21', '"': '\\\\x22',
-            '#': '\\\\x23', '$': '\\\\x24', '%': '\\\\x25', '&': '\\\\x26', "'": '\\\\x27',
-            '(': '\\\\x28', ')': '\\\\x29', '*': '\\\\x2a', '+': '\\\\x2b', ',': '\\\\x2c',
-            '-': '\\\\x2d', '.': '\\\\x2e', '/': '\\\\x2f', ':': '\\\\x3a', ';': '\\\\x3b',
-            '<': '\\\\x3c', '=': '\\\\x3d', '>': '\\\\x3e', '?': '\\\\x3f', '@': '\\\\x40',
-            '[': '\\\\x5b', '\\\\': '\\\\x5c', ']': '\\\\x5d', '^': '\\\\x5e', '_': '\\\\x5f',
-            '\`': '\\\\x60', '{': '\\\\x7b', '|': '\\\\x7c', '}': '\\\\x7d', '~': '\\\\x7e'
-        };
-
-        // Variable name generator
-        function generateVarName(length = 3) {
-            const chars = 'abcdefghijklmnopqrstuvwxyz';
-            let result = '';
-            for (let i = 0; i < length; i++) {
-                result += chars.charAt(Math.floor(Math.random() * chars.length));
-            }
-            return result;
-        }
-
-        // Generate unique variable names
-        function generateUniqueVars(count) {
-            const vars = new Set();
-            while (vars.size < count) {
-                vars.add(generateVarName(2 + Math.floor(Math.random() * 3)));
-            }
-            return Array.from(vars);
-        }
-
-        // Convert string to hex escape sequence
-        function stringToHex(str) {
-            let result = '"';
-            for (let i = 0; i < str.length; i++) {
-                result += charMap[str[i]] || str[i];
-            }
-            result += '"';
-            return result;
-        }
-
-        // Obfuscate a string
-        function obfuscateString(str) {
-            const hexStr = stringToHex(str);
-            const varName = generateVarName();
-            return \`\${varName}=(\${hexStr}):gsub("\\\\\\\\x(..)",function(\${generateVarName(1)})return string.char(tonumber(\${generateVarName(1)},16))end)\`;
-        }
-
-        // Main obfuscation function
-        function obfuscateScript() {
-            const input = document.getElementById('inputScript').value.trim();
-            if (!input) {
-                alert('Please enter a script to obfuscate!');
+        async function setHWID() {
+            const key = document.getElementById('keyInput').value.trim();
+            const hwid = document.getElementById('hwidInput').value.trim();
+            const resultDiv = document.getElementById('result');
+            
+            if (!key || !hwid) {
+                showResult('Please enter both key and HWID', 'error');
                 return;
             }
-
-            // Show loading
-            const loading = document.getElementById('loading');
-            loading.style.display = 'block';
-
-            // Process after a short delay for visual effect
-            setTimeout(() => {
-                try {
-                    let output = '-- [OBFUSCATED BY BLACK] --\\n\\n';
-                    
-                    // Split script into lines
-                    const lines = input.split('\\n');
-                    
-                    // Generate variables for common strings
-                    const commonStrings = [
-                        'print', 'game', 'Players', 'LocalPlayer', 'Character',
-                        'Humanoid', 'WalkSpeed', 'function', 'local', 'return',
-                        'end', 'if', 'then', 'else', 'for', 'while', 'do'
-                    ];
-                    
-                    const stringVars = generateUniqueVars(commonStrings.length);
-                    const varMap = new Map();
-                    
-                    // Create variable assignments for common strings
-                    commonStrings.forEach((str, index) => {
-                        varMap.set(str, stringVars[index]);
-                        output += \`local \${stringVars[index]}=\${stringToHex(str)}:gsub("\\\\\\\\x(..)",function(\${generateVarName(1)})return string.char(tonumber(\${generateVarName(1)},16))end)\\n\`;
-                    });
-                    
-                    output += '\\n';
-                    
-                    // Obfuscate each line
-                    lines.forEach(line => {
-                        if (line.trim() === '') {
-                            output += '\\n';
-                            return;
-                        }
-                        
-                        let obfuscatedLine = line;
-                        
-                        // Replace common strings with variables
-                        varMap.forEach((varName, original) => {
-                            const regex = new RegExp(\`\\\\b\${original}\\\\b\`, 'g');
-                            obfuscatedLine = obfuscatedLine.replace(regex, varName);
-                        });
-                        
-                        // Obfuscate remaining strings
-                        const stringRegex = /(["'])(?:(?=(\\\\\\\\?))\\\\2.)*?\\\\1/g;
-                        obfuscatedLine = obfuscatedLine.replace(stringRegex, (match) => {
-                            if (match.length > 2) {
-                                const content = match.slice(1, -1);
-                                return stringToHex(content) + ':gsub("\\\\\\\\x(..)",function(' + generateVarName(1) + ')return string.char(tonumber(' + generateVarName(1) + ',16))end)';
-                            }
-                            return match;
-                        });
-                        
-                        // Add random variable assignments to confuse
-                        if (Math.random() > 0.7) {
-                            const randomVar = generateVarName();
-                            const randomValue = Math.floor(Math.random() * 1000);
-                            output += \`local \${randomVar}=\${randomValue} \`;
-                        }
-                        
-                        output += obfuscatedLine + '\\n';
-                    });
-                    
-                    // Add garbage code at the end
-                    output += '\\n-- Garbage code for anti-deobfuscation --\\n';
-                    for (let i = 0; i < 5; i++) {
-                        const garbageVar = generateVarName();
-                        const garbageValue = Math.floor(Math.random() * 10000);
-                        output += \`local \${garbageVar}=function() return \${garbageValue} end\\n\`;
-                    }
-                    
-                    output += \`\\n-- Obfuscation completed by BLACK --\\n\`;
-                    output += \`-- Total protection layers: \${commonStrings.length + 5} --\`;
-                    
-                    document.getElementById('outputScript').value = output;
-                    
-                    // Update stats
-                    updateStats(input, output);
-                    
-                } catch (error) {
-                    document.getElementById('outputScript').value = '-- [ERROR IN OBFUSCATION] --\\n' + error.message;
-                }
+            
+            if (hwid.length < 8) {
+                showResult('HWID must be at least 8 characters', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/set-hwid', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ key, hwid })
+                });
                 
-                // Hide loading
-                loading.style.display = 'none';
-            }, 1000);
+                const data = await response.json();
+                
+                if (data.success) {
+                    showResult('✅ HWID set successfully! You can now download your script from Discord using /panel → Get Script', 'success');
+                } else {
+                    showResult('❌ ' + data.error, 'error');
+                }
+            } catch (error) {
+                showResult('❌ Network error: ' + error.message, 'error');
+            }
         }
-
-        // Copy output to clipboard
-        function copyOutput() {
-            const output = document.getElementById('outputScript');
-            output.select();
-            output.setSelectionRange(0, 99999);
-            document.execCommand('copy');
+        
+        async function resetHWID() {
+            const key = document.getElementById('keyInput').value.trim();
+            const resultDiv = document.getElementById('result');
             
-            // Visual feedback
-            const btn = event.target;
-            const originalText = btn.textContent;
-            btn.textContent = '✅ Copied!';
-            setTimeout(() => {
-                btn.textContent = originalText;
-            }, 2000);
+            if (!key) {
+                showResult('Please enter your key', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/reset-hwid', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ key })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showResult('✅ HWID reset! You can now set a new HWID.', 'success');
+                    document.getElementById('hwidInput').value = '';
+                } else {
+                    showResult('❌ ' + data.error, 'error');
+                }
+            } catch (error) {
+                showResult('❌ Network error: ' + error.message, 'error');
+            }
         }
-
-        // Update statistics
-        function updateStats(input, output) {
-            const charCount = output.length;
-            const lineCount = output.split('\\n').length;
-            const inputChars = input.length;
-            const compression = ((1 - output.length / input.length) * 100).toFixed(1);
-            
-            document.getElementById('charCount').textContent = charCount;
-            document.getElementById('lineCount').textContent = lineCount;
-            document.getElementById('obfLevel').textContent = \`ULTRA (\${compression}% larger)\`;
+        
+        function showResult(message, type) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = message;
+            resultDiv.className = 'result ' + type;
         }
-
-        // Auto-update stats on input
-        document.getElementById('inputScript').addEventListener('input', function() {
-            const input = this.value;
-            const charCount = input.length;
-            const lineCount = input.split('\\n').length;
-            
-            document.getElementById('charCount').textContent = charCount;
-            document.getElementById('lineCount').textContent = lineCount;
-        });
-
-        // Initialize stats
-        updateStats(document.getElementById('inputScript').value, '');
     </script>
 </body>
 </html>
     `);
 });
 
-// API endpoint for obfuscation
-app.post('/api/obfuscate', express.json(), (req, res) => {
-    const { script } = req.body;
-    
-    if (!script) {
-        return res.status(400).json({ error: 'No script provided' });
-    }
-    
-    try {
-        // Simple obfuscation for API
-        const obfuscated = ultraObfuscate(script);
-        
-        res.json({
-            success: true,
-            obfuscated: obfuscated,
-            original_length: script.length,
-            obfuscated_length: obfuscated.length
-        });
-    } catch (error) {
-        res.status(500).json({ error: 'Obfuscation failed' });
-    }
-});
+// API to set HWID
+app.post('/api/set-hwid', (req, res) => {
+    const { key, hwid } = req.body;
 
-function ultraObfuscate(script) {
-    let output = '-- [OBFUSCATED BY BLACK] --\\n\\n';
-    
-    // Simple obfuscation for demo
-    const lines = script.split('\\n');
-    lines.forEach(line => {
-        // Add some basic obfuscation
-        output += line.replace(/print/g, 'loadstring("\\\\x70\\\\x72\\\\x69\\\\x6e\\\\x74")()') + '\\n';
+    if (!key || !hwid) {
+        return res.json({ success: false, error: 'Key and HWID required' });
+    }
+
+    // Find user by key
+    let userEntry = null;
+    for (let [userId, data] of userData.entries()) {
+        if (data.key === key) {
+            userEntry = { userId, data };
+            break;
+        }
+    }
+
+    if (!userEntry) {
+        return res.json({ success: false, error: 'Invalid key' });
+    }
+
+    if (userEntry.data.hwid) {
+        return res.json({ success: false, error: 'HWID already set for this key. Use reset if needed.' });
+    }
+
+    if (!validateHWID(hwid)) {
+        return res.json({ success: false, error: 'Invalid HWID format (8-64 characters required)' });
+    }
+
+    // Set HWID
+    userData.set(userEntry.userId, {
+        ...userEntry.data,
+        hwid: hwid
     });
+
+    res.json({ 
+        success: true, 
+        message: 'HWID set successfully!',
+        discordId: userEntry.userId
+    });
+});
+
+// API to reset HWID
+app.post('/api/reset-hwid', (req, res) => {
+    const { key } = req.body;
+
+    if (!key) {
+        return res.json({ success: false, error: 'Key required' });
+    }
+
+    // Find user by key
+    let userEntry = null;
+    for (let [userId, data] of userData.entries()) {
+        if (data.key === key) {
+            userEntry = { userId, data };
+            break;
+        }
+    }
+
+    if (!userEntry) {
+        return res.json({ success: false, error: 'Invalid key' });
+    }
+
+    // Reset HWID
+    userData.set(userEntry.userId, {
+        ...userEntry.data,
+        hwid: null
+    });
+
+    res.json({ 
+        success: true, 
+        message: 'HWID reset successfully!' 
+    });
+});
+
+// Download script endpoint
+app.get('/download/:key', (req, res) => {
+    const key = req.params.key;
     
-    output += '\\n-- Obfuscation completed --';
-    return output;
-}
+    // Find user by key
+    let userInfo = null;
+    for (let data of userData.values()) {
+        if (data.key === key) {
+            userInfo = data;
+            break;
+        }
+    }
 
-// 404 handler
-app.use((req, res) => {
-    res.status(404).send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>404 - Black Obfuscator</title>
-            <style>
-                body { 
-                    background: #0a0a0a; 
-                    color: #00ff00; 
-                    font-family: 'Courier New', monospace; 
-                    display: flex; 
-                    justify-content: center; 
-                    align-items: center; 
-                    height: 100vh; 
-                    margin: 0; 
-                    text-align: center;
-                }
-                .message { 
-                    background: #111111;
-                    border: 1px solid #00ff00;
-                    border-radius: 10px;
-                    padding: 40px;
-                }
-                a { 
-                    color: #00ff00; 
-                    text-decoration: none;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="message">
-                <h1>🔒 404 - Page Not Found</h1>
-                <p>The page you're looking for doesn't exist.</p>
-                <a href="/">← Back to Black Obfuscator</a>
-            </div>
-        </body>
-        </html>
-    `);
+    if (!userInfo || !userInfo.hwid) {
+        return res.status(404).send(`
+            <html>
+            <body style="background: #0f0f0f; color: #ff4444; font-family: Arial; text-align: center; padding: 50px;">
+                <h1>❌ Access Denied</h1>
+                <p>Key not found or HWID not set</p>
+                <a href="/" style="color: #00ff88;">Return to Home</a>
+            </body>
+            </html>
+        `);
+    }
+
+    // Generate the actual Lua script with HWID check
+    const luaScript = `-- 🔒 LuaShield Protected Script
+-- Key: ${userInfo.key}
+-- HWID: ${userInfo.hwid}
+-- User: ${userInfo.username}
+-- Generated: ${new Date().toISOString()}
+
+local function verifyHWID()
+    local userHWID = game:GetService("RbxAnalyticsService"):GetClientId()
+    
+    if userHWID ~= "${userInfo.hwid}" then
+        warn("[[LuaShield]] ❌ HWID Mismatch!")
+        warn("[[LuaShield]] Expected: ${userInfo.hwid}")
+        warn("[[LuaShield]] Found: " .. tostring(userHWID))
+        warn("[[LuaShield]] 🔒 Access Denied - Script locked to different device")
+        return false
+    end
+    
+    print("[[LuaShield]] ✅ HWID Verified - Access Granted")
+    print("[[LuaShield]] 👤 User: ${userInfo.username}")
+    print("[[LuaShield]] 🔑 Key: ${userInfo.key}")
+    return true
+end
+
+if not verifyHWID() then
+    return
+end
+
+-- ✅ HWID Verified - Loading Main Script...
+print("[[LuaShield]] 🚀 Script initialized successfully!")
+
+-- Your main script content here
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+if LocalPlayer and LocalPlayer.Character then
+    LocalPlayer.Character:WaitForChild("Humanoid").WalkSpeed = 50
+    print("[[LuaShield]] ✨ WalkSpeed set to 50")
+end
+
+print("[[LuaShield]] 🎯 Script execution completed!")
+print("[[LuaShield]] 🔒 Protected by LuaShield HWID System")`;
+
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="luashield_${userInfo.key}.lua"`);
+    res.send(luaScript);
 });
 
-// Error handling
-app.use((err, req, res, next) => {
-    console.error('❌ Server Error:', err);
-    res.status(500).send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Error - Black Obfuscator</title>
-            <style>
-                body { 
-                    background: #0a0a0a; 
-                    color: #ff0000; 
-                    font-family: 'Courier New', monospace; 
-                    display: flex; 
-                    justify-content: center; 
-                    align-items: center; 
-                    height: 100vh; 
-                    margin: 0; 
-                    text-align: center;
-                }
-            </style>
-        </head>
-        <body>
-            <h1>❌ Server Error</h1>
-            <p>Something went wrong. Please try again.</p>
-            <a href="/" style="color: #00ff00;">← Back to Obfuscator</a>
-        </body>
-        </html>
-    `);
+// Admin route to view all users (optional)
+app.get('/admin/users', (req, res) => {
+    if (userData.size === 0) {
+        return res.json({ message: 'No users registered' });
+    }
+    
+    const users = Array.from(userData.entries()).map(([id, data]) => ({
+        discordId: id,
+        username: data.username,
+        key: data.key,
+        hwid: data.hwid,
+        claimedAt: data.claimedAt
+    }));
+    
+    res.json({ totalUsers: userData.size, users });
 });
 
-// Start server
-server.listen(PORT, '0.0.0.0', () => {
-    console.log('🚀 Black Obfuscator running on port ' + PORT);
-    console.log('🔒 Ultra Lua script obfuscation ready');
-    console.log('🌐 Visit: https://tommyfc555-github-io.onrender.com');
+// Start servers
+server.listen(PORT, () => {
+    console.log(`🌐 Website running on http://localhost:${PORT}`);
 });
+
+// Login bot (REPLACE WITH YOUR ACTUAL BOT TOKEN)
+client.login('YOUR_BOT_TOKEN_HERE').catch(console.error);
