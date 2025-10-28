@@ -1,7 +1,7 @@
 {
-  "name": "discord-hwid-bot",
+  "name": "luarmor-remake",
   "version": "1.0.0",
-  "description": "Discord bot with HWID-protected script system",
+  "description": "Luarmor Remake - Discord bot with HWID-protected script system",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -15,7 +15,8 @@
     "lua",
     "script",
     "protection",
-    "roblox"
+    "roblox",
+    "luarmor"
   ],
   "author": "TommyFC555",
   "license": "MIT",
