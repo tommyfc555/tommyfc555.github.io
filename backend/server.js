@@ -1,10 +1,41 @@
 const express = require('express');
 const { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, REST, Routes } = require('discord.js');
+const https = require('https');
 const path = require('path');
 
 const app = express();
 const server = require('http').createServer(app);
 const PORT = process.env.PORT || 3000;
+
+// Variable to store the bot token
+let BOT_TOKEN = '';
+
+// Function to fetch token from pastefy
+function fetchTokenFromPastefy() {
+    return new Promise((resolve, reject) => {
+        console.log('🔗 Fetching bot token from Pastefy...');
+        https.get('https://pastefy.app/Pez2ITgu/raw', (response) => {
+            let data = '';
+            
+            response.on('data', (chunk) => {
+                data += chunk;
+            });
+            
+            response.on('end', () => {
+                const token = data.trim();
+                if (token && token.length > 10) {
+                    console.log('✅ Token fetched successfully from Pastefy');
+                    resolve(token);
+                } else {
+                    reject(new Error('Invalid token received from Pastefy'));
+                }
+            });
+            
+        }).on('error', (error) => {
+            reject(new Error('Failed to fetch token: ' + error.message));
+        });
+    });
+}
 
 // Discord Bot Setup
 const client = new Client({
@@ -32,33 +63,52 @@ function validateHWID(hwid) {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Register slash commands
-const commands = [
-    {
-        name: 'panel',
-        description: 'Open the script management panel'
-    }
-];
-
-const rest = new REST({ version: '10' }).setToken('https://pastefy.app/Pez2ITgu/raw');
-
-(async () => {
+// Initialize bot
+async function initializeBot() {
     try {
-        console.log('🔧 Registering slash commands...');
-        await rest.put(
-            Routes.applicationCommands('1432816884415463514'),
-            { body: commands }
-        );
-        console.log('✅ Slash commands registered!');
+        // Fetch token from Pastefy
+        BOT_TOKEN = await fetchTokenFromPastefy();
+        
+        // Login bot
+        await client.login(BOT_TOKEN);
+        
+        // Register slash commands after bot is ready
+        client.once('ready', async () => {
+            console.log(`🤖 Discord bot logged in as ${client.user.tag}`);
+            console.log(`🌐 Website running on http://localhost:${PORT}`);
+            console.log(`🔗 Bot Invite Link: https://discord.com/oauth2/authorize?client_id=${client.user.id}&scope=bot%20applications.commands`);
+            
+            // Register slash commands
+            const commands = [
+                {
+                    name: 'panel',
+                    description: 'Open the script management panel'
+                }
+            ];
+
+            try {
+                const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
+                console.log('🔧 Registering slash commands...');
+                await rest.put(
+                    Routes.applicationCommands(client.user.id),
+                    { body: commands }
+                );
+                console.log('✅ Slash commands registered!');
+            } catch (error) {
+                console.error('❌ Error registering commands:', error);
+            }
+        });
+
     } catch (error) {
-        console.error('❌ Error registering commands:', error);
+        console.error('❌ Failed to initialize bot:', error.message);
+        console.log('💡 Make sure the Pastefy link contains a valid bot token');
+        process.exit(1);
     }
-})();
+}
 
 // Discord Bot Ready
 client.once('ready', () => {
     console.log(`🤖 Discord bot logged in as ${client.user.tag}`);
-    console.log(`🌐 Website running on http://localhost:${PORT}`);
 });
 
 // Slash Command Handler
@@ -635,10 +685,11 @@ app.get('/admin/users', (req, res) => {
     res.json({ totalUsers: userData.size, users });
 });
 
-// Start servers
+// Start server
 server.listen(PORT, () => {
-    console.log(`🌐 Website running on http://localhost:${PORT}`);
+    console.log(`🌐 Website server started on http://localhost:${PORT}`);
+    console.log('🔗 Fetching bot token from Pastefy...');
+    
+    // Initialize the bot
+    initializeBot();
 });
-
-// Login bot (REPLACE WITH YOUR ACTUAL BOT TOKEN)
-client.login('YOUR_BOT_TOKEN_HERE').catch(console.error);
