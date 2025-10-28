@@ -7,32 +7,36 @@ const server = require('http').createServer(app);
 const PORT = process.env.PORT || 3000;
 
 const WEBSITE_URL = 'https://tommyfc555-github-io.onrender.com';
-const ADMIN_ROLE_ID = '1432821388187664605'; // Your admin role ID
+const ADMIN_ROLE_ID = '1432821388187664605';
 let BOT_TOKEN = '';
 
-function fetchTokenFromPastefy() {
-    return new Promise((resolve, reject) => {
-        console.log('Getting bot token from Pastefy...');
-        https.get('https://pastefy.app/Pez2ITgu/raw', (response) => {
-            let data = '';
-            
-            response.on('data', (chunk) => {
-                data += chunk;
-            });
-            
-            response.on('end', () => {
-                const token = data.trim();
-                if (token && token.length > 10) {
-                    console.log('Token fetched successfully');
-                    resolve(token);
-                } else {
-                    reject(new Error('Invalid token received'));
-                }
-            });
-            
-        }).on('error', (error) => {
-            reject(new Error('Failed to fetch token: ' + error.message));
+// Cache for quick responses
+const userData = new Map();
+let isBotReady = false;
+
+// Function to fetch token from pastefy (non-blocking)
+function initializeToken(callback) {
+    console.log('Getting bot token from Pastefy...');
+    https.get('https://pastefy.app/Pez2ITgu/raw', (response) => {
+        let data = '';
+        
+        response.on('data', (chunk) => {
+            data += chunk;
         });
+        
+        response.on('end', () => {
+            const token = data.trim();
+            if (token && token.length > 10) {
+                console.log('Token fetched successfully');
+                BOT_TOKEN = token;
+                callback(null, token);
+            } else {
+                callback(new Error('Invalid token received'));
+            }
+        });
+        
+    }).on('error', (error) => {
+        callback(new Error('Failed to fetch token: ' + error.message));
     });
 }
 
@@ -46,8 +50,6 @@ const client = new Client({
     ]
 });
 
-const userData = new Map();
-
 function generateKey() {
     return 'KEY-' + Math.random().toString(36).substr(2, 12).toUpperCase();
 }
@@ -55,88 +57,107 @@ function generateKey() {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-async function initializeBot() {
-    try {
-        BOT_TOKEN = await fetchTokenFromPastefy();
-        await client.login(BOT_TOKEN);
-        
-        client.once('ready', async () => {
-            console.log(`Bot logged in as ${client.user.tag}`);
-            
-            const commands = [
-                {
-                    name: 'panel',
-                    description: 'Open script panel'
-                }
-            ];
-
-            try {
-                const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
-                console.log('Registering commands...');
-                await rest.put(
-                    Routes.applicationCommands(client.user.id),
-                    { body: commands }
-                );
-                console.log('Commands registered');
-            } catch (error) {
-                console.error('Error registering commands:', error);
-            }
-        });
-
-    } catch (error) {
-        console.error('Failed to start bot:', error.message);
-        process.exit(1);
+// Quick response for Discord interactions
+function handlePanelCommand(interaction) {
+    // Immediate response to avoid timeout
+    interaction.deferReply().catch(console.error);
+    
+    if (!isBotReady) {
+        return interaction.editReply({
+            content: 'Bot is still starting up. Please try again in a few seconds.',
+            ephemeral: true
+        }).catch(console.error);
     }
+
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('claim_key')
+                .setLabel('Get Key')
+                .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+                .setCustomId('get_script')
+                .setLabel('Get Script')
+                .setStyle(ButtonStyle.Primary)
+        );
+
+    // Add reset key button only for admins
+    if (interaction.member.roles.cache.has(ADMIN_ROLE_ID)) {
+        row.addComponents(
+            new ButtonBuilder()
+                .setCustomId('reset_key')
+                .setLabel('Reset Key')
+                .setStyle(ButtonStyle.Danger)
+        );
+    }
+
+    const embed = new EmbedBuilder()
+        .setTitle('Script Management')
+        .setDescription('Manage your script access below')
+        .setColor(0x0099FF)
+        .addFields(
+            { name: 'Get Key', value: 'Generate your unique access key' },
+            { name: 'Get Script', value: 'Get your script after obtaining key' }
+        )
+        .setFooter({ text: 'Device locked protection system' });
+
+    if (interaction.member.roles.cache.has(ADMIN_ROLE_ID)) {
+        embed.addFields({ name: 'Reset Key', value: 'Generate new key (Admin only)' });
+    }
+
+    interaction.editReply({
+        embeds: [embed],
+        components: [row]
+    }).catch(console.error);
 }
 
-client.once('ready', () => {
+// Initialize bot after server starts
+async function initializeBot() {
+    initializeToken(async (error, token) => {
+        if (error) {
+            console.error('Failed to get token:', error.message);
+            return;
+        }
+
+        try {
+            await client.login(token);
+        } catch (loginError) {
+            console.error('Failed to login:', loginError.message);
+        }
+    });
+}
+
+client.once('ready', async () => {
     console.log(`Bot ready: ${client.user.tag}`);
+    isBotReady = true;
+    
+    // Register commands after bot is ready
+    const commands = [
+        {
+            name: 'panel',
+            description: 'Open script panel'
+        }
+    ];
+
+    try {
+        const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
+        console.log('Registering commands...');
+        await rest.put(
+            Routes.applicationCommands(client.user.id),
+            { body: commands }
+        );
+        console.log('Commands registered');
+    } catch (error) {
+        console.error('Error registering commands:', error);
+    }
 });
 
+// Handle interactions quickly
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isCommand()) return;
 
-    const { commandName, user, member } = interaction;
-
-    if (commandName === 'panel') {
-        const row = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId('claim_key')
-                    .setLabel('Get Key')
-                    .setStyle(ButtonStyle.Success),
-                new ButtonBuilder()
-                    .setCustomId('get_script')
-                    .setLabel('Get Script')
-                    .setStyle(ButtonStyle.Primary)
-            );
-
-        // Add reset key button only for admins
-        if (member.roles.cache.has(ADMIN_ROLE_ID)) {
-            row.addComponents(
-                new ButtonBuilder()
-                    .setCustomId('reset_key')
-                    .setLabel('Reset Key')
-                    .setStyle(ButtonStyle.Danger)
-            );
-        }
-
-        const embed = new EmbedBuilder()
-            .setTitle('Script Management')
-            .setDescription('Manage your script access below')
-            .setColor(0x0099FF) // Blue color
-            .addFields(
-                { name: 'Get Key', value: 'Generate your unique access key' },
-                { name: 'Get Script', value: 'Get your script after obtaining key' },
-                { name: 'Reset Key', value: 'Generate new key (Admin only)' }
-            )
-            .setFooter({ text: 'Device locked protection system' });
-
-        await interaction.reply({
-            embeds: [embed],
-            components: [row]
-            // Removed ephemeral: true
-        });
+    if (interaction.commandName === 'panel') {
+        handlePanelCommand(interaction);
     }
 });
 
@@ -145,12 +166,14 @@ client.on('interactionCreate', async (interaction) => {
 
     const { customId, user, member } = interaction;
 
+    // Defer reply immediately for all button interactions
+    await interaction.deferReply({ ephemeral: true });
+
     if (customId === 'claim_key') {
         if (userData.has(user.id)) {
             const userInfo = userData.get(user.id);
-            return await interaction.reply({
-                content: `You already have a key: \`${userInfo.key}\``,
-                ephemeral: true
+            return interaction.editReply({
+                content: `You already have a key: \`${userInfo.key}\``
             });
         }
 
@@ -165,9 +188,8 @@ client.on('interactionCreate', async (interaction) => {
             username: user.tag
         });
 
-        await interaction.reply({
-            content: `Key generated: \`${key}\`\n\nUse Get Script to get your script. It will lock to your device on first run.`,
-            ephemeral: true
+        interaction.editReply({
+            content: `Key generated: \`${key}\`\n\nUse Get Script to get your script. It will lock to your device on first run.`
         });
     }
 
@@ -175,13 +197,13 @@ client.on('interactionCreate', async (interaction) => {
         const userInfo = userData.get(user.id);
         
         if (!userInfo) {
-            return await interaction.reply({
-                content: 'Get a key first using the Get Key button',
-                ephemeral: true
+            return interaction.editReply({
+                content: 'Get a key first using the Get Key button'
             });
         }
 
-        const loadstring = `loadstring(game:HttpGet("${WEBSITE_URL}/script/${userInfo.key}"))()`;
+        // Create a secure script URL that only works from Roblox
+        const loadstring = `loadstring(game:HttpGet("${WEBSITE_URL}/secure-script/${userInfo.key}"))()`;
 
         const embed = new EmbedBuilder()
             .setTitle('Your Script')
@@ -193,27 +215,23 @@ client.on('interactionCreate', async (interaction) => {
             )
             .setFooter({ text: 'Script will lock to first device that runs it' });
 
-        await interaction.reply({ 
-            embeds: [embed],
-            ephemeral: true 
+        interaction.editReply({ 
+            embeds: [embed]
         });
     }
 
     if (customId === 'reset_key') {
-        // Check if user has admin role
         if (!member.roles.cache.has(ADMIN_ROLE_ID)) {
-            return await interaction.reply({
-                content: 'You do not have permission to reset keys',
-                ephemeral: true
+            return interaction.editReply({
+                content: 'You do not have permission to reset keys'
             });
         }
 
         const userInfo = userData.get(user.id);
         
         if (!userInfo) {
-            return await interaction.reply({
-                content: 'You dont have a key to reset',
-                ephemeral: true
+            return interaction.editReply({
+                content: 'You dont have a key to reset'
             });
         }
 
@@ -228,15 +246,54 @@ client.on('interactionCreate', async (interaction) => {
             username: user.tag
         });
 
-        await interaction.reply({
-            content: `Key reset successfully!\nNew Key: \`${newKey}\``,
-            ephemeral: true
+        interaction.editReply({
+            content: `Key reset successfully!\nNew Key: \`${newKey}\``
         });
     }
 });
 
+// Block direct access to script URLs
 app.get('/script/:key', (req, res) => {
+    res.status(403).send(`
+        <html>
+        <head>
+            <title>Access Denied</title>
+            <style>
+                body {
+                    background: #1a1a1a;
+                    color: #ff4444;
+                    font-family: Arial;
+                    text-align: center;
+                    padding: 50px;
+                }
+                h1 {
+                    color: #ff4444;
+                }
+            </style>
+        </head>
+        <body>
+            <h1>ACCESS DENIED</h1>
+            <p>You cannot view the script directly.</p>
+            <p>Use the Discord bot to get your loadstring.</p>
+            <p>This URL only works when called from Roblox.</p>
+        </body>
+        </html>
+    `);
+});
+
+// Secure script endpoint - only serves to Roblox
+app.get('/secure-script/:key', (req, res) => {
     const { key } = req.params;
+    
+    // Check if request is coming from Roblox
+    const userAgent = req.headers['user-agent'] || '';
+    const isRoblox = userAgent.includes('Roblox') || 
+                     req.headers['roblox-id'] || 
+                     req.headers['origin'] === 'roblox-player';
+    
+    if (!isRoblox) {
+        return res.status(403).send('-- Access denied. This script can only be loaded from Roblox.');
+    }
     
     let userInfo = null;
     for (let data of userData.values()) {
@@ -287,7 +344,7 @@ local function checkAccess()
     local currentDeviceID = getDeviceID()
     
     if expectedHWID == "" or expectedHWID == "null" then
-        local response = game:HttpGet("${WEBSITE_URL}/lock/${key}/" .. currentDeviceID)
+        local response = game:HttpGet("${WEBSITE_URL}/lock/${userInfo.key}/" .. currentDeviceID)
         if response == "locked" then
             print("Device locked successfully")
             return true
@@ -384,6 +441,7 @@ app.get('/', (req, res) => {
         <body>
             <h1>Script System Backend</h1>
             <p>Use Discord bot for access</p>
+            <p>Status: ${isBotReady ? '🟢 Online' : '🟡 Starting...'}</p>
         </body>
         </html>
     `);
@@ -406,8 +464,12 @@ app.get('/admin/users', (req, res) => {
     res.json({ totalUsers: userData.size, users });
 });
 
+// Start server first, then initialize bot
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Website: ${WEBSITE_URL}`);
-    initializeBot();
+    // Initialize bot after server is running
+    setTimeout(() => {
+        initializeBot();
+    }, 1000);
 });
