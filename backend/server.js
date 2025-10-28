@@ -7,6 +7,7 @@ const server = require('http').createServer(app);
 const PORT = process.env.PORT || 3000;
 
 const WEBSITE_URL = 'https://tommyfc555-github-io.onrender.com';
+const ADMIN_ROLE_ID = '1432821388187664605'; // Your admin role ID
 let BOT_TOKEN = '';
 
 function fetchTokenFromPastefy() {
@@ -95,7 +96,7 @@ client.once('ready', () => {
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isCommand()) return;
 
-    const { commandName, user } = interaction;
+    const { commandName, user, member } = interaction;
 
     if (commandName === 'panel') {
         const row = new ActionRowBuilder()
@@ -110,20 +111,31 @@ client.on('interactionCreate', async (interaction) => {
                     .setStyle(ButtonStyle.Primary)
             );
 
+        // Add reset key button only for admins
+        if (member.roles.cache.has(ADMIN_ROLE_ID)) {
+            row.addComponents(
+                new ButtonBuilder()
+                    .setCustomId('reset_key')
+                    .setLabel('Reset Key')
+                    .setStyle(ButtonStyle.Danger)
+            );
+        }
+
         const embed = new EmbedBuilder()
-            .setTitle('Script Panel')
-            .setDescription('Manage your script access')
-            .setColor(0x2b2d31)
+            .setTitle('Script Management')
+            .setDescription('Manage your script access below')
+            .setColor(0x0099FF) // Blue color
             .addFields(
-                { name: 'Get Key', value: 'Generate your unique key' },
-                { name: 'Get Script', value: 'Get script after getting key' }
+                { name: 'Get Key', value: 'Generate your unique access key' },
+                { name: 'Get Script', value: 'Get your script after obtaining key' },
+                { name: 'Reset Key', value: 'Generate new key (Admin only)' }
             )
-            .setFooter({ text: 'Device locked protection' });
+            .setFooter({ text: 'Device locked protection system' });
 
         await interaction.reply({
             embeds: [embed],
-            components: [row],
-            ephemeral: true
+            components: [row]
+            // Removed ephemeral: true
         });
     }
 });
@@ -131,7 +143,7 @@ client.on('interactionCreate', async (interaction) => {
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isButton()) return;
 
-    const { customId, user } = interaction;
+    const { customId, user, member } = interaction;
 
     if (customId === 'claim_key') {
         if (userData.has(user.id)) {
@@ -154,7 +166,7 @@ client.on('interactionCreate', async (interaction) => {
         });
 
         await interaction.reply({
-            content: `Key generated: \`${key}\`\n\nNow get your script. It will lock to your device on first run.`,
+            content: `Key generated: \`${key}\`\n\nUse Get Script to get your script. It will lock to your device on first run.`,
             ephemeral: true
         });
     }
@@ -164,7 +176,7 @@ client.on('interactionCreate', async (interaction) => {
         
         if (!userInfo) {
             return await interaction.reply({
-                content: 'Get a key first',
+                content: 'Get a key first using the Get Key button',
                 ephemeral: true
             });
         }
@@ -174,9 +186,9 @@ client.on('interactionCreate', async (interaction) => {
         const embed = new EmbedBuilder()
             .setTitle('Your Script')
             .setDescription('Copy and execute in Roblox:')
-            .setColor(0x2b2d31)
+            .setColor(0x0099FF)
             .addFields(
-                { name: 'Key', value: `\`${userInfo.key}\`` },
+                { name: 'Your Key', value: `\`${userInfo.key}\`` },
                 { name: 'Loadstring', value: `\`\`\`lua\n${loadstring}\n\`\`\`` }
             )
             .setFooter({ text: 'Script will lock to first device that runs it' });
@@ -184,6 +196,41 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.reply({ 
             embeds: [embed],
             ephemeral: true 
+        });
+    }
+
+    if (customId === 'reset_key') {
+        // Check if user has admin role
+        if (!member.roles.cache.has(ADMIN_ROLE_ID)) {
+            return await interaction.reply({
+                content: 'You do not have permission to reset keys',
+                ephemeral: true
+            });
+        }
+
+        const userInfo = userData.get(user.id);
+        
+        if (!userInfo) {
+            return await interaction.reply({
+                content: 'You dont have a key to reset',
+                ephemeral: true
+            });
+        }
+
+        const newKey = generateKey();
+        
+        userData.set(user.id, {
+            key: newKey,
+            hwid: null,
+            locked: false,
+            claimedAt: new Date(),
+            discordId: user.id,
+            username: user.tag
+        });
+
+        await interaction.reply({
+            content: `Key reset successfully!\nNew Key: \`${newKey}\``,
+            ephemeral: true
         });
     }
 });
@@ -212,7 +259,6 @@ local expectedHWID = "${userInfo.hwid}"
 local function getDeviceID()
     local deviceID = ""
     
-    -- Try different methods to get unique device identifier
     local success, result = pcall(function()
         return game:GetService("RbxAnalyticsService"):GetClientId()
     end)
@@ -220,7 +266,6 @@ local function getDeviceID()
     if success and result then
         deviceID = tostring(result)
     else
-        -- Fallback method
         local success2, result2 = pcall(function()
             local stats = game:GetService("Stats")
             local performanceStats = stats:FindFirstChild("PerformanceStats")
@@ -242,7 +287,6 @@ local function checkAccess()
     local currentDeviceID = getDeviceID()
     
     if expectedHWID == "" or expectedHWID == "null" then
-        -- First time running, lock to this device
         local response = game:HttpGet("${WEBSITE_URL}/lock/${key}/" .. currentDeviceID)
         if response == "locked" then
             print("Device locked successfully")
@@ -252,14 +296,11 @@ local function checkAccess()
             return false
         end
     else
-        -- Check if device matches
         if currentDeviceID == expectedHWID then
             print("Device verified")
             return true
         else
             print("Device mismatch")
-            print("Expected: " .. expectedHWID)
-            print("Current: " .. currentDeviceID)
             return false
         end
     end
@@ -273,7 +314,6 @@ end
 print("Access granted")
 print("Running main script...")
 
--- Your main script here
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
