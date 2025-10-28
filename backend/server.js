@@ -8,37 +8,12 @@ const PORT = process.env.PORT || 3000;
 
 const WEBSITE_URL = 'https://tommyfc555-github-io.onrender.com';
 const ADMIN_ROLE_ID = '1432821388187664605';
-let BOT_TOKEN = '';
 
 // Cache for quick responses
 const userData = new Map();
-let isBotReady = false;
 
-// Function to fetch token from pastefy (non-blocking)
-function initializeToken(callback) {
-    console.log('Getting bot token from Pastefy...');
-    https.get('https://pastefy.app/Pez2ITgu/raw', (response) => {
-        let data = '';
-        
-        response.on('data', (chunk) => {
-            data += chunk;
-        });
-        
-        response.on('end', () => {
-            const token = data.trim();
-            if (token && token.length > 10) {
-                console.log('Token fetched successfully');
-                BOT_TOKEN = token;
-                callback(null, token);
-            } else {
-                callback(new Error('Invalid token received'));
-            }
-        });
-        
-    }).on('error', (error) => {
-        callback(new Error('Failed to fetch token: ' + error.message));
-    });
-}
+// Get token from environment variable first, then fallback to Pastefy
+let BOT_TOKEN = process.env.BOT_TOKEN;
 
 const client = new Client({
     intents: [
@@ -57,18 +32,37 @@ function generateKey() {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Function to fetch token from pastefy
+function fetchTokenFromPastefy() {
+    return new Promise((resolve, reject) => {
+        console.log('Getting bot token from Pastefy...');
+        https.get('https://pastefy.app/Pez2ITgu/raw', (response) => {
+            let data = '';
+            
+            response.on('data', (chunk) => {
+                data += chunk;
+            });
+            
+            response.on('end', () => {
+                const token = data.trim();
+                if (token && token.length > 10) {
+                    console.log('Token fetched successfully from Pastefy');
+                    resolve(token);
+                } else {
+                    reject(new Error('Invalid token received from Pastefy'));
+                }
+            });
+            
+        }).on('error', (error) => {
+            reject(new Error('Failed to fetch token: ' + error.message));
+        });
+    });
+}
+
 // Quick response for Discord interactions
 async function handlePanelCommand(interaction) {
     try {
-        // Defer reply first to avoid timeout
-        await interaction.deferReply();
-        
-        if (!isBotReady) {
-            return await interaction.editReply({
-                content: 'Bot is still starting up. Please try again in a few seconds.'
-            });
-        }
-
+        // Create panel immediately without any delays
         const row = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
@@ -105,34 +99,44 @@ async function handlePanelCommand(interaction) {
             embed.addFields({ name: 'Reset Key', value: 'Generate new key (Admin only)' });
         }
 
-        await interaction.editReply({
+        // Reply immediately without deferring
+        await interaction.reply({
             embeds: [embed],
             components: [row]
         });
     } catch (error) {
         console.error('Error in handlePanelCommand:', error);
+        // If reply fails, try to follow up
+        try {
+            await interaction.followUp({
+                content: 'An error occurred. Please try again.',
+                ephemeral: true
+            });
+        } catch (e) {
+            console.error('Failed to send error message:', e);
+        }
     }
 }
 
-// Initialize bot after server starts
+// Initialize bot
 async function initializeBot() {
-    initializeToken(async (error, token) => {
-        if (error) {
-            console.error('Failed to get token:', error.message);
-            return;
+    try {
+        // If no token in environment, fetch from Pastefy
+        if (!BOT_TOKEN) {
+            BOT_TOKEN = await fetchTokenFromPastefy();
         }
-
-        try {
-            await client.login(token);
-        } catch (loginError) {
-            console.error('Failed to login:', loginError.message);
-        }
-    });
+        
+        await client.login(BOT_TOKEN);
+        console.log('Bot logged in successfully');
+        
+    } catch (error) {
+        console.error('Failed to initialize bot:', error.message);
+        process.exit(1);
+    }
 }
 
 client.once('ready', async () => {
     console.log(`Bot ready: ${client.user.tag}`);
-    isBotReady = true;
     
     // Register commands after bot is ready
     const commands = [
@@ -149,13 +153,13 @@ client.once('ready', async () => {
             Routes.applicationCommands(client.user.id),
             { body: commands }
         );
-        console.log('Commands registered');
+        console.log('Commands registered successfully');
     } catch (error) {
         console.error('Error registering commands:', error);
     }
 });
 
-// Handle interactions quickly
+// Handle command interactions
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isCommand()) return;
 
@@ -164,13 +168,14 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
+// Handle button interactions
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isButton()) return;
 
     const { customId, user, member } = interaction;
 
     try {
-        // Defer reply immediately for all button interactions
+        // Defer reply immediately for button interactions
         await interaction.deferReply({ ephemeral: true });
 
         if (customId === 'claim_key') {
@@ -206,7 +211,6 @@ client.on('interactionCreate', async (interaction) => {
                 });
             }
 
-            // Create a secure script URL that only works from Roblox
             const loadstring = `loadstring(game:HttpGet("${WEBSITE_URL}/secure-script/${userInfo.key}"))()`;
 
             const embed = new EmbedBuilder()
@@ -261,7 +265,6 @@ client.on('interactionCreate', async (interaction) => {
                 content: 'An error occurred. Please try again.'
             });
         } catch (e) {
-            // If we can't edit, try to follow up
             await interaction.followUp({
                 content: 'An error occurred. Please try again.',
                 ephemeral: true
@@ -459,7 +462,7 @@ app.get('/', (req, res) => {
         <body>
             <h1>Script System Backend</h1>
             <p>Use Discord bot for access</p>
-            <p>Status: ${isBotReady ? '🟢 Online' : '🟡 Starting...'}</p>
+            <p>Status: 🟢 Online</p>
         </body>
         </html>
     `);
@@ -482,12 +485,9 @@ app.get('/admin/users', (req, res) => {
     res.json({ totalUsers: userData.size, users });
 });
 
-// Start server first, then initialize bot
+// Start server and bot
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Website: ${WEBSITE_URL}`);
-    // Initialize bot after server is running
-    setTimeout(() => {
-        initializeBot();
-    }, 1000);
+    initializeBot();
 });
