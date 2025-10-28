@@ -1,7 +1,7 @@
 {
-  "name": "luashield-hwid-bot",
+  "name": "discord-hwid-bot",
   "version": "1.0.0",
-  "description": "Discord bot with HWID-locked Lua script management system",
+  "description": "Discord bot with HWID-protected script system using loadstring from website",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -11,14 +11,15 @@
   "keywords": [
     "discord",
     "bot",
-    "lua",
     "hwid",
-    "obfuscator",
-    "roblox",
+    "lua",
     "script",
-    "security"
+    "protection",
+    "roblox",
+    "loadstring",
+    "express"
   ],
-  "author": "LuaShield",
+  "author": "TommyFC555",
   "license": "MIT",
   "dependencies": {
     "discord.js": "^14.14.1",
@@ -32,10 +33,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/luashield-bot.git"
+    "url": "https://github.com/tommyfc555/discord-hwid-bot.git"
   },
   "bugs": {
-    "url": "https://github.com/your-username/luashield-bot/issues"
+    "url": "https://github.com/tommyfc555/discord-hwid-bot/issues"
   },
-  "homepage": "https://github.com/your-username/luashield-bot#readme"
+  "homepage": "https://github.com/tommyfc555/discord-hwid-bot#readme"
 }
