@@ -52,7 +52,6 @@ const client = new Client({
 
 // Store user data
 const userData = new Map();
-const usedKeys = new Set();
 
 // Generate random key
 function generateKey() {
@@ -61,7 +60,7 @@ function generateKey() {
 
 // Generate random HWID
 function generateHWID() {
-    return 'HWID-' + Math.random().toString(36).substr(2, 12).toUpperCase();
+    return Math.random().toString(36).substr(2, 16).toUpperCase();
 }
 
 // Middleware
@@ -127,16 +126,12 @@ client.on('interactionCreate', async (interaction) => {
             .addComponents(
                 new ButtonBuilder()
                     .setCustomId('claim_key')
-                    .setLabel('🔑 Claim Key & HWID')
+                    .setLabel('🔑 Claim Key')
                     .setStyle(ButtonStyle.Success),
-                new ButtonBuilder()
-                    .setCustomId('redeem_key')
-                    .setLabel('🎫 Redeem Key')
-                    .setStyle(ButtonStyle.Primary),
                 new ButtonBuilder()
                     .setCustomId('get_script')
                     .setLabel('📜 Get Script')
-                    .setStyle(ButtonStyle.Secondary)
+                    .setStyle(ButtonStyle.Primary)
             );
 
         const embed = new EmbedBuilder()
@@ -144,9 +139,8 @@ client.on('interactionCreate', async (interaction) => {
             .setDescription('**Get your HWID-locked script**')
             .setColor(0x000000)
             .addFields(
-                { name: '🔑 CLAIM KEY & HWID', value: 'Generate your unique key and HWID (sent via DM)' },
-                { name: '🎫 REDEEM KEY', value: 'Redeem your key to activate your account' },
-                { name: '📜 GET SCRIPT', value: 'Get your script after redeeming your key' }
+                { name: '🔑 CLAIM KEY', value: 'Generate your unique key (automatically locks to your device)' },
+                { name: '📜 GET SCRIPT', value: 'Get your script loadstring after claiming key' }
             )
             .setFooter({ text: '🔒 Secure HWID Protection System' });
 
@@ -169,7 +163,7 @@ client.on('interactionCreate', async (interaction) => {
         if (userData.has(user.id)) {
             const userInfo = userData.get(user.id);
             return await interaction.reply({
-                content: `❌ You already have a key!\n**Your Key:** ||\`${userInfo.key}\`||\n**Your HWID:** ||\`${userInfo.hwid}\`||\n**Status:** ${userInfo.redeemed ? '✅ Redeemed' : '❌ Not Redeemed'}`,
+                content: `❌ You already have a key!\n**Your Key:** \`${userInfo.key}\``,
                 ephemeral: true
             });
         }
@@ -180,55 +174,15 @@ client.on('interactionCreate', async (interaction) => {
         userData.set(user.id, {
             key: key,
             hwid: hwid,
-            redeemed: false,
             claimedAt: new Date(),
             discordId: user.id,
             username: user.tag
         });
 
-        // Send DM with key and HWID
-        try {
-            const dmEmbed = new EmbedBuilder()
-                .setTitle('🔑 YOUR KEY & HWID')
-                .setDescription('**Keep this information secure!**')
-                .setColor(0x00ff00)
-                .addFields(
-                    { name: '🔑 Your Key', value: `\`${key}\``, inline: true },
-                    { name: '🆔 Your HWID', value: `\`${hwid}\``, inline: true },
-                    { name: '📋 Next Steps', value: '1. Use **Redeem Key** button to activate\n2. Then use **Get Script** to get your script', inline: false }
-                )
-                .setFooter({ text: 'Do not share this information with anyone!' });
-
-            await user.send({ embeds: [dmEmbed] });
-            
-            await interaction.reply({
-                content: '✅ **Key and HWID generated!** Check your DMs for your credentials.',
-                ephemeral: true
-            });
-        } catch (error) {
-            await interaction.reply({
-                content: '❌ **Cannot send DMs!** Please enable DMs from server members and try again.',
-                ephemeral: true
-            });
-        }
-    }
-
-    if (customId === 'redeem_key') {
-        // Create modal for key input
-        const modal = new ModalBuilder()
-            .setCustomId('redeem_key_modal')
-            .setTitle('🎫 REDEEM KEY');
-
-        const keyInput = new TextInputBuilder()
-            .setCustomId('redeem_key')
-            .setLabel('ENTER YOUR KEY TO REDEEM')
-            .setStyle(TextInputStyle.Short)
-            .setPlaceholder('KEY-ABC123XYZ')
-            .setRequired(true);
-
-        const firstActionRow = new ActionRowBuilder().addComponents(keyInput);
-        modal.addComponents(firstActionRow);
-        await interaction.showModal(modal);
+        await interaction.reply({
+            content: `✅ **Key claimed successfully!**\n**Your Key:** \`${key}\`\n\nNow use the **Get Script** button to get your script.`,
+            ephemeral: true
+        });
     }
 
     if (customId === 'get_script') {
@@ -236,20 +190,13 @@ client.on('interactionCreate', async (interaction) => {
         
         if (!userInfo) {
             return await interaction.reply({
-                content: '❌ **No key found!** Use the **Claim Key & HWID** button first.',
-                ephemeral: true
-            });
-        }
-
-        if (!userInfo.redeemed) {
-            return await interaction.reply({
-                content: '❌ **Key not redeemed!** Use the **Redeem Key** button to activate your key first.',
+                content: '❌ **No key found!** Use the **Claim Key** button first.',
                 ephemeral: true
             });
         }
 
         // Create loadstring with website URL
-        const loadstring = `loadstring(game:HttpGet("${WEBSITE_URL}/script/${userInfo.hwid}/${userInfo.key}"))()`;
+        const loadstring = `loadstring(game:HttpGet("${WEBSITE_URL}/script/${userInfo.key}"))()`;
 
         const embed = new EmbedBuilder()
             .setTitle('📜 YOUR SCRIPT')
@@ -257,10 +204,9 @@ client.on('interactionCreate', async (interaction) => {
             .setColor(0x0099ff)
             .addFields(
                 { name: '🔑 Your Key', value: `\`${userInfo.key}\``, inline: true },
-                { name: '🆔 Your HWID', value: `\`${userInfo.hwid}\``, inline: true },
                 { name: '📜 Loadstring', value: `\`\`\`lua\n${loadstring}\n\`\`\``, inline: false }
             )
-            .setFooter({ text: 'Script protected with HWID verification' });
+            .setFooter({ text: 'Script automatically locks to your device HWID' });
 
         await interaction.reply({ 
             embeds: [embed],
@@ -269,118 +215,92 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// Modal Interactions
-client.on('interactionCreate', async (interaction) => {
-    if (!interaction.isModalSubmit()) return;
-
-    const { customId, user, fields } = interaction;
-
-    if (customId === 'redeem_key_modal') {
-        const key = fields.getTextInputValue('redeem_key').trim();
-
-        // Find user by key
-        let userEntry = null;
-        for (let [userId, data] of userData.entries()) {
-            if (data.key === key) {
-                userEntry = { userId, data };
-                break;
-            }
-        }
-
-        if (!userEntry) {
-            return await interaction.reply({
-                content: '❌ **INVALID KEY**\nThe key you entered does not exist.',
-                ephemeral: true
-            });
-        }
-
-        if (userEntry.userId !== user.id) {
-            return await interaction.reply({
-                content: '❌ **ACCESS DENIED**\nThis key belongs to another user.',
-                ephemeral: true
-            });
-        }
-
-        if (userEntry.data.redeemed) {
-            return await interaction.reply({
-                content: '❌ **KEY ALREADY REDEEMED**\nThis key has already been activated.',
-                ephemeral: true
-            });
-        }
-
-        // Redeem the key
-        userData.set(userEntry.userId, {
-            ...userEntry.data,
-            redeemed: true,
-            redeemedAt: new Date()
-        });
-
-        const embed = new EmbedBuilder()
-            .setTitle('✅ KEY REDEEMED SUCCESSFULLY!')
-            .setDescription('**Your key has been activated!**')
-            .setColor(0x00ff00)
-            .addFields(
-                { name: '🔑 Key', value: `\`${userEntry.data.key}\``, inline: true },
-                { name: '🆔 HWID', value: `\`${userEntry.data.hwid}\``, inline: true },
-                { name: '📜 Next Step', value: 'Use the **Get Script** button to get your loadstring', inline: false }
-            )
-            .setFooter({ text: `Redeemed at: ${new Date().toLocaleString()}` });
-
-        await interaction.reply({ 
-            embeds: [embed],
-            ephemeral: true 
-        });
-    }
-});
-
-// Script endpoint - serves the actual Lua script
-app.get('/script/:hwid/:key', (req, res) => {
-    const { hwid, key } = req.params;
+// Script endpoint - serves the actual Lua script with proper HWID detection
+app.get('/script/:key', (req, res) => {
+    const { key } = req.params;
     
-    // Find user by key and HWID
+    // Find user by key
     let userInfo = null;
     for (let data of userData.values()) {
-        if (data.key === key && data.hwid === hwid && data.redeemed) {
+        if (data.key === key) {
             userInfo = data;
             break;
         }
     }
 
     if (!userInfo) {
-        return res.status(404).send('-- ❌ INVALID KEY/HWID OR NOT REDEEMED');
+        return res.status(404).send('-- ❌ INVALID KEY');
     }
 
-    // Create the actual protected script
+    // Create the actual protected script with proper HWID detection
     const luaScript = `-- 🔒 HWID Protected Script
 -- User: ${userInfo.username}
 -- Key: ${userInfo.key}
--- HWID: ${userInfo.hwid}
 -- Generated: ${new Date().toISOString()}
 
-local function verifyHWID()
-    local userHWID = game:GetService("RbxAnalyticsService"):GetClientId()
+local function getHardwareID()
+    -- Try multiple methods to get HWID
+    local hwid = nil
     
-    if userHWID ~= "${userInfo.hwid}" then
-        warn("❌ HWID MISMATCH!")
-        warn("Expected: ${userInfo.hwid}")
-        warn("Found: " .. tostring(userHWID))
-        warn("🔒 ACCESS DENIED - This script is locked to a specific device")
-        return false
+    -- Method 1: RbxAnalyticsService (most reliable)
+    local success1, result1 = pcall(function()
+        return game:GetService("RbxAnalyticsService"):GetClientId()
+    end)
+    
+    if success1 and result1 then
+        hwid = result1
+    else
+        -- Method 2: Stats (fallback)
+        local success2, result2 = pcall(function()
+            return game:GetService("Stats"):GetTotalMemoryUsage()
+        end)
+        
+        if success2 and result2 then
+            hwid = tostring(result2)
+        else
+            -- Method 3: Custom hash (final fallback)
+            local success3, result3 = pcall(function()
+                local players = game:GetService("Players")
+                local localPlayer = players.LocalPlayer
+                if localPlayer then
+                    return tostring(localPlayer.UserId) .. "_" .. tostring(tick())
+                end
+                return "unknown_" .. tostring(tick())
+            end)
+            hwid = success3 and result3 or "error"
+        end
     end
     
-    print("✅ HWID VERIFIED - ACCESS GRANTED")
-    print("👤 User: ${userInfo.username}")
-    print("🔑 Key: ${userInfo.key}")
-    print("🆔 HWID: ${userInfo.hwid}")
-    return true
+    return hwid
 end
 
--- Verify HWID before executing main script
-if not verifyHWID() then
+local function verifyAccess()
+    local currentHWID = getHardwareID()
+    local expectedHWID = "${userInfo.hwid}"
+    
+    print("🔍 Checking HWID...")
+    print("📱 Current Device ID: " .. tostring(currentHWID))
+    
+    -- Compare HWIDs
+    if currentHWID == expectedHWID then
+        print("✅ HWID VERIFIED - ACCESS GRANTED")
+        print("👤 User: ${userInfo.username}")
+        print("🔑 Key: ${userInfo.key}")
+        return true
+    else
+        print("❌ HWID MISMATCH - ACCESS DENIED")
+        print("💡 This script is locked to a specific device")
+        print("🔒 Contact support if this is your first time running")
+        return false
+    end
+end
+
+-- Verify access before executing main script
+if not verifyAccess() then
     return
 end
 
--- ✅ HWID VERIFIED - EXECUTING MAIN SCRIPT
+-- ✅ ACCESS GRANTED - EXECUTING MAIN SCRIPT
 print("🚀 Script loaded successfully!")
 print("✨ Protected by HWID System")
 
@@ -397,8 +317,21 @@ if LocalPlayer and LocalPlayer.Character then
 end
 
 -- Add your main script functionality below
-print("🎯 Script execution completed!")
-print("🔒 Secure HWID Protection Active")`;
+local function main()
+    print("🎯 Main script execution started")
+    
+    -- Example functionality
+    local player = game.Players.LocalPlayer
+    if player then
+        print("👋 Hello, " .. player.Name .. "!")
+    end
+    
+    print("✅ Script execution completed!")
+    print("🔒 Secure HWID Protection Active")
+end
+
+-- Start main script
+main()`;
 
     res.setHeader('Content-Type', 'text/plain');
     res.send(luaScript);
@@ -439,6 +372,7 @@ app.get('/', (req, res) => {
                 <p>This is the backend for the HWID-protected script system.</p>
                 <p>Use the Discord bot to get your script.</p>
                 <p><strong>Website:</strong> ${WEBSITE_URL}</p>
+                <p><strong>Status:</strong> 🟢 ONLINE</p>
             </div>
         </body>
         </html>
@@ -456,9 +390,7 @@ app.get('/admin/users', (req, res) => {
         username: data.username,
         key: data.key,
         hwid: data.hwid,
-        redeemed: data.redeemed,
-        claimedAt: data.claimedAt,
-        redeemedAt: data.redeemedAt || 'Not redeemed'
+        claimedAt: data.claimedAt
     }));
     
     res.json({ totalUsers: userData.size, users });
