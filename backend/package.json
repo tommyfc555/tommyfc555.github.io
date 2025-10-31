@@ -1,14 +1,7 @@
 {
   "name": "brainrot-stealer",
   "version": "1.0.0",
-  "description": "Brainrot pet stealer – plain webhook, executor-only",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "author": "",
-  "license": "MIT",
-  "dependencies": {
-    "express": "^4.19.2"
-  }
+  "scripts": { "start": "node server.js" },
+  "dependencies": { "express": "^4.19.2" }
 }
