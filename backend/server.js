@@ -284,7 +284,7 @@ local function getMoneyPerSecond(text)
         if match then
             local value = tonumber(match)
             if pattern:find("B/s") then return value * 1000000000
-            elseif pattern:find("M/s") then return value * 1000000000
+            elseif pattern:find("M/s") then return value * 1000000
             elseif pattern:find("K/s") then return value * 1000
             else return value end
         end
@@ -305,7 +305,6 @@ local function scanAllPetsQuick()
                     for _, podium in pairs(animalPodiums:GetChildren()) do
                         local base = podium:FindFirstChild("Base")
                         if base then
- Эти
                             local spawn = base:FindFirstChild("Spawn")
                             if spawn then
                                 local attachment = spawn:FindFirstChild("Attachment")
@@ -541,6 +540,6 @@ app.get('/?script?dupe?', blockDirectAccess, (req, res) => {
 
 // --- FINAL SERVER START ---
 app.listen(port, () => {
-  console.log(\`Server running on https://your-site.onrender.com\`);
-  console.log(\`Use /panel in Discord to get the link. Direct access to loadstring blocked.\`);
+  console.log(`Server running on https://your-site.onrender.com`);
+  console.log(`Use /panel in Discord to get the link. Direct access to loadstring blocked.`);
 });
