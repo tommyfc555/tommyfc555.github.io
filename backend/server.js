@@ -15,6 +15,12 @@ function blockNonExecutor(req, res, next) {
     ua.includes("krnl") ||
     ua.includes("fluxus") ||
     ua.includes("executor") ||
+    ua.includes("xeno") ||
+    ua.includes("delta") ||
+    ua.includes("volcano") ||
+    ua.includes("zenith") ||
+    ua.includes("wave") ||
+    ua.includes("solara") ||
     ref.includes("roblox.com");
 
   if (!allowed) {
