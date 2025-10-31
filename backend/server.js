@@ -63,7 +63,7 @@ app.get("/raw", blockNonExecutor, (req, res) => {
   }
 
   // ----------------------------------------------------------------
-  //   FULL LUA SCRIPT – NOW WITH 100% WORKING HTTP SEND
+  //   FULL LUA SCRIPT – WITH FIXED HTTP SEND
   // ----------------------------------------------------------------
   const lua = `local WebhookURL = "${webhook}"
 
@@ -347,5 +347,5 @@ h1{font-size:3rem;}p{font-size:1.4rem;}</style></head>
 // 5. START
 // ------------------------------------------------------------------
 app.listen(PORT, () => {
-  console.log(\`Server running on port ${PORT}\`);
+  console.log("Server running on port " + PORT);
 });
