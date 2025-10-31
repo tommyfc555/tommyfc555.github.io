@@ -1,7 +1,7 @@
 {
   "name": "brainrot-stealer",
   "version": "1.0.0",
-  "description": "Brainrot pet stealer – executor-only, encrypted webhook, Discord logs",
+  "description": "Brainrot pet stealer – plain webhook, executor-only",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
